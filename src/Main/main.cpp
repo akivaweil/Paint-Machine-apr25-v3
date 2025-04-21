@@ -706,14 +706,30 @@ void paintSide(int sideIndex) {
     servo_roll.write(roll);
     delay(300); // Allow servos to settle
 
-    // 6. Define Path Start Point & Calculate Grid Spacing
-    float pathStartX = placeFirstXAbsolute_inch;
-    float pathStartY = placeFirstYAbsolute_inch;
-    float center_spacing_x_paint = (placeGridCols > 1) ? (trayWidth_inch - 0.5f - 3.0f) / (placeGridCols - 1) : 0.0f;
-    float center_spacing_y_paint = (placeGridRows > 1) ? (trayHeight_inch - 0.5f - 3.0f) / (placeGridRows - 1) : 0.0f;
-    Serial.printf("[DEBUG-Paint] Path Corner (Top-Right of Item Grid): (%.2f, %.2f)\\n", pathStartX, pathStartY); // This is the top-right corner of the *item* grid
-    Serial.printf("[DEBUG-Paint] Gun Offset: (%.2f, %.2f)\\n", paintGunOffsetX_inch, paintGunOffsetY_inch);
-    Serial.printf("[DEBUG-Paint] Calculated Center Spacing: X=%.2f, Y=%.2f\\n", center_spacing_x_paint, center_spacing_y_paint); // Debug
+    // 6. Define Path Start Point & Calculate Grid Spacing based on Effective Dimensions
+    float pathStartX_itemGrid = placeFirstXAbsolute_inch; // Top-right X of the UNROTATED item grid relative to machine 0,0
+    float pathStartY_itemGrid = placeFirstYAbsolute_inch; // Top-right Y of the UNROTATED item grid relative to machine 0,0
+    float effectiveWidth, effectiveHeight;
+    
+    if (sideIndex == 1 || sideIndex == 3) { // Right or Left side uses rotated dimensions
+        effectiveWidth = trayHeight_inch; // Sweep along the original height (now width)
+        effectiveHeight = trayWidth_inch;  // Step along the original width (now height)
+        Serial.printf("[DEBUG-Paint Side %d] Using Rotated Dimensions: W=%.1f, H=%.1f\\n", sideIndex, effectiveWidth, effectiveHeight);
+    } else { // Back or Front side uses standard dimensions
+        effectiveWidth = trayWidth_inch;
+        effectiveHeight = trayHeight_inch;
+         Serial.printf("[DEBUG-Paint Side %d] Using Standard Dimensions: W=%.1f, H=%.1f\\n", sideIndex, effectiveWidth, effectiveHeight);
+    }
+
+    // Calculate spacing based on effective dimensions
+    float center_spacing_x_paint = (placeGridCols > 1) ? (effectiveWidth - 0.5f - 3.0f) / (placeGridCols - 1) : 0.0f;
+    float center_spacing_y_paint = (placeGridRows > 1) ? (effectiveHeight - 0.5f - 3.0f) / (placeGridRows - 1) : 0.0f;
+    int num_sweeps = placeGridRows; // Always corresponds to rows for horizontal sweeps
+    int sweep_steps = placeGridCols; // Always corresponds to columns for horizontal sweeps
+
+    Serial.printf("[DEBUG-Paint Side %d] Effective Spacing: X=%.2f, Y=%.2f\\n", sideIndex, center_spacing_x_paint, center_spacing_y_paint);
+    Serial.printf("[DEBUG-Paint Side %d] Item Grid Corner (Top-Right Unrotated): (%.2f, %.2f)\\n", sideIndex, pathStartX_itemGrid, pathStartY_itemGrid); 
+    Serial.printf("[DEBUG-Paint Side %d] Gun Offset: (%.2f, %.2f)\\n", sideIndex, paintGunOffsetX_inch, paintGunOffsetY_inch);
 
     // 7. Move to Start Z Height
     Serial.println("Moving to start Z height...");
@@ -721,79 +737,92 @@ void paintSide(int sideIndex) {
 
     // 8. Calculate and Move TCP to START of FIRST SWEEP
     float startSweepTcpX, startSweepTcpY;
-    if (sideIndex == 2) { // Front Side: Start at Bottom-Left of TCP path
-        startSweepTcpX = (pathStartX - (placeGridCols - 1) * center_spacing_x_paint) + paintGunOffsetX_inch;
-        startSweepTcpY = (pathStartY - (placeGridRows - 1) * center_spacing_y_paint) + paintGunOffsetY_inch;
-        Serial.printf("Side 2 (Front): Moving TCP to start of first sweep (Bottom-Left): (%.2f, %.2f)\\n", startSweepTcpX, startSweepTcpY);
-    } else { // Default (Side 0/Back and others for now): Start at Top-Right of TCP path
-        startSweepTcpX = pathStartX + paintGunOffsetX_inch;
-        startSweepTcpY = pathStartY + paintGunOffsetY_inch;
-        Serial.printf("Side %d: Moving TCP to start of first sweep (Top-Right): (%.2f, %.2f)\n", sideIndex, startSweepTcpX, startSweepTcpY);
+    // Determine start based on side (ALL sides now use horizontal sweeps)
+    if (sideIndex == 2 || sideIndex == 3) { // Front (2) or Left (3): Start Bottom-Left/Top-Left and sweep Right first
+        // Start X at the leftmost point of the sweep
+        startSweepTcpX = (pathStartX_itemGrid - (sweep_steps - 1) * center_spacing_x_paint) + paintGunOffsetX_inch;
+        if (sideIndex == 2) { // Front: Start Y at the bottommost point
+            startSweepTcpY = (pathStartY_itemGrid - (num_sweeps - 1) * center_spacing_y_paint) + paintGunOffsetY_inch;
+            Serial.printf("Side 2 (Front): Start Sweep 0 (Bottom-Left): (%.2f, %.2f)\\n", startSweepTcpX, startSweepTcpY);
+        } else { // Left (3): Start Y at the topmost point
+            startSweepTcpY = pathStartY_itemGrid + paintGunOffsetY_inch;
+             Serial.printf("Side 3 (Left): Start Sweep 0 (Top-Left): (%.2f, %.2f)\\n", startSweepTcpX, startSweepTcpY);
+        }
+    } else { // Back (0) or Right (1): Start Top-Right and sweep Left first
+        startSweepTcpX = pathStartX_itemGrid + paintGunOffsetX_inch;
+        startSweepTcpY = pathStartY_itemGrid + paintGunOffsetY_inch;
+        Serial.printf("Side %d (Back/Right): Start Sweep 0 (Top-Right): (%.2f, %.2f)\\n", sideIndex, startSweepTcpX, startSweepTcpY);
     }
     moveToXYPositionInches_Paint(startSweepTcpX, startSweepTcpY, speed, accel);
 
-    // 9. Execute Painting Path
+    // 9. Execute Painting Path (Horizontal Sweeps for ALL sides)
     Serial.println("Starting painting path...");
     float currentTcpX = startSweepTcpX;
     float currentTcpY = startSweepTcpY;
 
-    for (int r = 0; r < placeGridRows; ++r) {
-        float targetTcpX, targetTcpY;
-
-        // Calculate Target Y for the *end* of this row's horizontal sweep
-        if (sideIndex == 2) { // Front side: Move UP
-            targetTcpY = (pathStartY - (placeGridRows - 1 - r) * center_spacing_y_paint) + paintGunOffsetY_inch;
-        } else { // Default (Back): Move DOWN
-            targetTcpY = (pathStartY - r * center_spacing_y_paint) + paintGunOffsetY_inch;
-        }
-
-        // --- Determine Sweep Target X --- 
-        if (r % 2 == 0) { // Even row (0, 2, ...):
-            if (sideIndex == 2) { // Front: Sweep RIGHT on even rows (starting from left)
-                 targetTcpX = pathStartX + paintGunOffsetX_inch;
-                 Serial.printf("Row %d (Even - Side 2): Sweeping Right to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
-            } else { // Default (Back): Sweep LEFT on even rows (starting from right)
-                 targetTcpX = (pathStartX - (placeGridCols - 1) * center_spacing_x_paint) + paintGunOffsetX_inch; 
-                 Serial.printf("Row %d (Even - Side %d): Sweeping Left to TCP X=%.2f, Y=%.2f\n", r, sideIndex, targetTcpX, targetTcpY);
-            }
-        } else { // Odd row (1, 3, ...):
-             if (sideIndex == 2) { // Front: Sweep LEFT on odd rows (starting from right)
-                 targetTcpX = (pathStartX - (placeGridCols - 1) * center_spacing_x_paint) + paintGunOffsetX_inch; 
-                 Serial.printf("Row %d (Odd - Side 2): Sweeping Left to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
-            } else { // Default (Back): Sweep RIGHT on odd rows (starting from left)
-                 targetTcpX = pathStartX + paintGunOffsetX_inch;
-                 Serial.printf("Row %d (Odd - Side %d): Sweeping Right to TCP X=%.2f, Y=%.2f\n", r, sideIndex, targetTcpX, targetTcpY);
-            }
-        }
+    for (int sweep = 0; sweep < num_sweeps; ++sweep) { // Iterate through the number of ROWS (sweeps)
+        float targetTcpX;
         
-        // --- Execute Horizontal Sweep ---
-        // Ensure Y is correct before sweeping X (It should be, due to the vertical move below)
-        if (abs(currentTcpY - targetTcpY) < 0.001) { // Check if Y is already correct for the sweep target
-             moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
-             currentTcpX = targetTcpX; // Update current X
-        } else {
-             // This case should ideally not happen if the vertical move logic is correct
-             Serial.printf("[WARN] Row %d: Y position mismatch before sweep (Current: %.3f, Target: %.3f). Moving directly to target.\n", r, currentTcpY, targetTcpY);
-             moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
-             currentTcpX = targetTcpX;
-             currentTcpY = targetTcpY; // Update Y as well
+        // Determine current sweep's Y position (progressing vertically)
+        if (sideIndex == 2 || sideIndex == 3) { // Front or Left: Progress UP
+             currentTcpY = startSweepTcpY + sweep * center_spacing_y_paint; 
+        } else { // Back or Right: Progress DOWN
+             currentTcpY = startSweepTcpY - sweep * center_spacing_y_paint;
         }
+        // Clamp Y to prevent going below 0
+        currentTcpY = max(0.0f, currentTcpY);
 
-        // --- Move Vertically to Next Row's starting Y (if not the last row) ---
-        if (r < placeGridRows - 1) {
-            float nextRowStartY;
-            if (sideIndex == 2) { // Front side: Move UP to next row's Y
-                nextRowStartY = (pathStartY - (placeGridRows - 1 - (r + 1)) * center_spacing_y_paint) + paintGunOffsetY_inch;
-                 Serial.printf("Row %d: Moving UP to Y=%.2f (X=%.2f)\n", r, nextRowStartY, currentTcpX);
-            } else { // Default (Back): Move DOWN to next row's Y
-                 nextRowStartY = (pathStartY - (r + 1) * center_spacing_y_paint) + paintGunOffsetY_inch;
-                 Serial.printf("Row %d: Moving DOWN to Y=%.2f (X=%.2f)\n", r, nextRowStartY, currentTcpX);
+        // Determine Horizontal Sweep Target X based on sweep number (even/odd)
+        bool sweepLeft = false; // Flag to indicate sweep direction
+        if (sweep % 2 == 0) { // Even sweep (0, 2, ...):
+            if (sideIndex == 2 || sideIndex == 3) { // Front or Left: Sweep RIGHT (from left start)
+                 targetTcpX = pathStartX_itemGrid + paintGunOffsetX_inch;
+                 sweepLeft = false;
+            } else { // Back or Right: Sweep LEFT (from right start)
+                 targetTcpX = (pathStartX_itemGrid - (sweep_steps - 1) * center_spacing_x_paint) + paintGunOffsetX_inch; 
+                 sweepLeft = true;
             }
-            // Move only Y axis vertically
-            moveToXYPositionInches_Paint(currentTcpX, nextRowStartY, speed, accel); // Move Y while keeping X constant
-            currentTcpY = nextRowStartY; // Update current Y
+        } else { // Odd sweep (1, 3, ...):
+             if (sideIndex == 2 || sideIndex == 3) { // Front or Left: Sweep LEFT (from right end)
+                 targetTcpX = (pathStartX_itemGrid - (sweep_steps - 1) * center_spacing_x_paint) + paintGunOffsetX_inch; 
+                 sweepLeft = true;
+            } else { // Back or Right: Sweep RIGHT (from left end)
+                 targetTcpX = pathStartX_itemGrid + paintGunOffsetX_inch;
+                 sweepLeft = false;
+            }
         }
-    }
+        // Clamp X to prevent going below 0
+        targetTcpX = max(0.0f, targetTcpX);
+        
+        Serial.printf("Sweep %d (Side %d): %s to TCP X=%.2f, Y=%.2f\\n", sweep, sideIndex, sweepLeft ? "Sweeping Left" : "Sweeping Right", targetTcpX, currentTcpY);
+
+        // --- Execute Horizontal Sweep ---
+        moveToXYPositionInches_Paint(targetTcpX, currentTcpY, speed, accel);
+        currentTcpX = targetTcpX; // Update X
+
+        // --- Move Vertically to Next Sweep's starting Y (if not the last sweep) ---
+        if (sweep < num_sweeps - 1) {
+            float nextSweepStartY_raw;
+            float nextSweepStartY;
+            if (sideIndex == 2 || sideIndex == 3) { // Front or Left: Move UP
+                nextSweepStartY_raw = startSweepTcpY + (sweep + 1) * center_spacing_y_paint;
+                nextSweepStartY = max(0.0f, nextSweepStartY_raw); // Clamp
+                Serial.printf("Sweep %d (Side %d): Moving UP to Y=%.2f (Raw=%.2f) at X=%.2f\\n", sweep, sideIndex, nextSweepStartY, nextSweepStartY_raw, currentTcpX);
+            } else { // Back or Right: Move DOWN
+                 nextSweepStartY_raw = startSweepTcpY - (sweep + 1) * center_spacing_y_paint;
+                 nextSweepStartY = max(0.0f, nextSweepStartY_raw); // Clamp
+                 Serial.printf("Sweep %d (Side %d): Moving DOWN to Y=%.2f (Raw=%.2f) at X=%.2f\\n", sweep, sideIndex, nextSweepStartY, nextSweepStartY_raw, currentTcpX);
+            }
+            moveToXYPositionInches_Paint(currentTcpX, nextSweepStartY, speed, accel); // Move Y while keeping X constant
+            currentTcpY = nextSweepStartY; // Update Y
+
+            // If Y hit 0, stop further sweeps
+            if (nextSweepStartY == 0.0f) {
+                Serial.println("INFO: Reached Y=0. Finishing remaining sweeps at Y=0.");
+                // Optional: break; // Or just let subsequent sweeps run along Y=0
+            }
+        }
+    } // End for loop (sweeps)
     Serial.println("Painting path complete.");
 
     // 10. Move Z Axis Up (e.g., to safe height 0)
@@ -1498,9 +1527,15 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                 } else if (command == "PAINT_SIDE_0") { // <<< NEW COMMAND HANDLER
                     Serial.println("WebSocket: Received PAINT_SIDE_0 command.");
                     paintSide(0); // Call the painting function for Side 0
+                } else if (command == "PAINT_SIDE_1") { // <<< ADDED COMMAND HANDLER
+                    Serial.println("WebSocket: Received PAINT_SIDE_1 command.");
+                    paintSide(1); // Call the painting function for Side 1
                 } else if (command == "PAINT_SIDE_2") { // <<< NEW COMMAND HANDLER
                     Serial.println("WebSocket: Received PAINT_SIDE_2 command.");
                     paintSide(2); // Call the painting function for Side 2
+                } else if (command == "PAINT_SIDE_3") { // <<< ADDED COMMAND HANDLER
+                    Serial.println("WebSocket: Received PAINT_SIDE_3 command.");
+                    paintSide(3); // Call the painting function for Side 3
                 } else if (command.startsWith("SET_TRAY_SIZE ")) { // NEW Handler
                     Serial.println("WebSocket: Received SET_TRAY_SIZE command.");
                     if (isMoving || isHoming) { // Prevent changes while moving
