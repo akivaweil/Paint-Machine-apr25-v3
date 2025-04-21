@@ -578,9 +578,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           homeButton.disabled = !connected || isMoving || isHoming || inPnPMode || inCalibMode;
           stopButton.disabled = !canStop;
 
-          // PnP Button Logic
-          pnpButton.disabled = !connected || isMoving || isHoming || inCalibMode || pnpButton.innerHTML.includes('Complete'); // Disable if not connected, moving, homing, calibrating, or already complete
-          if (pnpButton.innerHTML.includes('Mode')) pnpButton.disabled = true; // If already in PnP mode, disable entry/exit
+          // PnP Button Logic - UPDATED
+          // Disable if not connected, not homed, moving, homing, in calibration, or sequence complete
+          pnpButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || pnpButton.innerHTML.includes('Complete'); 
 
           // PnP Step Button Logic (Only enabled in PnPReady state)
           pnpStepButton.disabled = !(connected && pnpButton.innerHTML.includes('Mode') && !isMoving && !isHoming); // Enabled only when connected, in PnP mode, and idle
