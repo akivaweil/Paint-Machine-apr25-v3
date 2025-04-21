@@ -23,7 +23,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     .input-group { margin: 15px; display: inline-block; vertical-align: top; border: 2px solid #ccc; padding: 10px; border-radius: 5px; text-align: left; background-color: #444; } /* Slightly lighter background for groups, thicker border */
     .input-group h3 { margin-top: 0; text-align: center; color: #eee; } /* Explicit color for headings */
     .input-group label { margin-right: 5px; display: inline-block; width: 60px; color: #ddd;} /* Lighter label text */
-    .input-group input { padding: 8px; width: 90px; text-align: right; margin-bottom: 5px; background-color: #555; color: #eee; border: 1px solid #777; border-radius: 5px; } /* Darker input fields, slightly lighter border, rounded corners */
+    .input-group input { padding: 8px; width: 45px; text-align: right; margin-bottom: 5px; background-color: #555; color: #eee; border: 1px solid #777; border-radius: 5px; } /* Reduced width to 45px (half of 90px) */
     .input-group select { padding: 8px; width: 110px; background-color: #555; color: #eee; border: 1px solid #777; border-radius: 5px; margin-bottom: 5px; } /* Styling for select elements to match inputs */
     .input-group span { display: block; font-size: 0.8em; color: #bbb; margin-top: 0px; margin-bottom: 10px; } /* Lighter span text */
     .setting-button { padding: 10px 15px !important; margin-left: 10px !important; display: block; margin: 5px auto !important;}
@@ -242,7 +242,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="paintP_0" step="1" value="0" min="0" max="90">
         <span id="paintPDisplay_0">0&deg;</span>
         
-        <label>Direction:</label>
+        <label>Orientation:</label>
         <select id="paintR_0">
           <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
@@ -250,8 +250,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <span id="paintRDisplay_0">Vertical</span>
         
         <label for="paintS_0">Speed:</label>
-        <input type="range" id="paintS_0" min="5" max="25" value="10" oninput="updateSliderDisplay('paintS_0')">
-        <span id="paintSDisplay_0">10</span>
+        <input type="range" id="paintS_0" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_0')">
+        <span id="paintSDisplay_0">20</span>
         
         <button id="setPaintSideButton_0" class="button setting-button" onclick="setPaintSideSettings(0)">Save Settings</button>
       </div>
@@ -268,7 +268,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="paintP_1" step="1" value="0" min="0" max="90">
         <span id="paintPDisplay_1">0&deg;</span>
         
-        <label>Direction:</label>
+        <label>Orientation:</label>
         <select id="paintR_1">
           <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
@@ -276,8 +276,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <span id="paintRDisplay_1">Vertical</span>
         
         <label for="paintS_1">Speed:</label>
-        <input type="range" id="paintS_1" min="5" max="25" value="10" oninput="updateSliderDisplay('paintS_1')">
-        <span id="paintSDisplay_1">10</span>
+        <input type="range" id="paintS_1" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_1')">
+        <span id="paintSDisplay_1">20</span>
         
         <button id="setPaintSideButton_1" class="button setting-button" onclick="setPaintSideSettings(1)">Save Settings</button>
       </div>
@@ -294,7 +294,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="paintP_2" step="1" value="0" min="0" max="90">
         <span id="paintPDisplay_2">0&deg;</span>
         
-        <label>Direction:</label>
+        <label>Orientation:</label>
         <select id="paintR_2">
           <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
@@ -302,8 +302,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <span id="paintRDisplay_2">Vertical</span>
         
         <label for="paintS_2">Speed:</label>
-        <input type="range" id="paintS_2" min="5" max="25" value="10" oninput="updateSliderDisplay('paintS_2')">
-        <span id="paintSDisplay_2">10</span>
+        <input type="range" id="paintS_2" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_2')">
+        <span id="paintSDisplay_2">20</span>
         
         <button id="setPaintSideButton_2" class="button setting-button" onclick="setPaintSideSettings(2)">Save Settings</button>
       </div>
@@ -320,7 +320,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="paintP_3" step="1" value="0" min="0" max="90">
         <span id="paintPDisplay_3">0&deg;</span>
         
-        <label>Direction:</label>
+        <label>Orientation:</label>
         <select id="paintR_3">
           <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
@@ -328,8 +328,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <span id="paintRDisplay_3">Vertical</span>
         
         <label for="paintS_3">Speed:</label>
-        <input type="range" id="paintS_3" min="5" max="25" value="10" oninput="updateSliderDisplay('paintS_3')">
-        <span id="paintSDisplay_3">10</span>
+        <input type="range" id="paintS_3" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_3')">
+        <span id="paintSDisplay_3">20</span>
         
         <button id="setPaintSideButton_3" class="button setting-button" onclick="setPaintSideSettings(3)">Save Settings</button>
       </div>
@@ -595,11 +595,11 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                       paintRDisplays[i].innerHTML = currentR == 0 ? "Vertical" : "Horizontal";
                   }
                   if (data.hasOwnProperty(keyS) && paintSInputs[i] && paintSDisplays[i]) {
-                      // Display speed divided by 1000 for cleaner UI
-                      let rawSpeed = parseFloat(data[keyS]);
-                      let displaySpeed = Math.round(rawSpeed / 1000);
-                      paintSInputs[i].value = displaySpeed;
-                      paintSDisplays[i].innerHTML = `${displaySpeed}`;
+                      // Receive raw speed (e.g., 15000), divide by 1000 for UI display
+                      let rawSpeed = parseFloat(data[keyS]); 
+                      let displaySpeed = Math.round(rawSpeed / 1000); // Divide here
+                      paintSInputs[i].value = displaySpeed; // Update slider value (5-25)
+                      paintSDisplays[i].innerHTML = `${displaySpeed}`; // Update display span
                   }
               }
 

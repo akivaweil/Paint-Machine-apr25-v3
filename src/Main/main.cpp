@@ -708,79 +708,121 @@ void paintSide(int sideIndex) {
         float rowSpacing = 3.0 + placeGapY_inch; // Move down by 3 inches + y gap
         Serial.printf("Back side painting: Using row spacing of %.2f (3.0 + gap %.2f)\n", rowSpacing, placeGapY_inch);
         
-        bool movingLeft = true; // Start by moving left (negative X)
+        // Use roll angle to determine painting orientation
+        bool isVertical = (roll == ROLL_VERTICAL);
+        Serial.printf("Back side orientation: %s (roll=%d)\n", isVertical ? "VERTICAL" : "HORIZONTAL", roll);
         
-        for (int r = 0; r < placeGridRows; ++r) {
-            // Calculate Y position for this row
-            float targetTcpY = startTcpY - (r * rowSpacing);
+        if (isVertical) {
+            // VERTICAL ORIENTATION - Sweep horizontally, move down between rows
+            bool movingLeft = true; // Start by moving left (negative X)
             
-            // Move to correct Y position if needed
-            if (abs(currentTcpY - targetTcpY) > 0.001) {
-                moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
+            for (int r = 0; r < placeGridRows; ++r) {
+                // Calculate Y position for this row
+                float targetTcpY = startTcpY - (r * rowSpacing);
+                
+                // Move to correct Y position if needed
+                if (abs(currentTcpY - targetTcpY) > 0.001) {
+                    moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
+                    currentTcpY = targetTcpY;
+                }
+                
+                // Calculate target X based on direction
+                float targetTcpX;
+                if (movingLeft) {
+                    // Moving left (negative X direction)
+                    targetTcpX = startTcpX - trayWidth_inch;
+                    Serial.printf("Row %d: Sweeping Left from X=%.2f to X=%.2f at Y=%.2f\n", 
+                                r, currentTcpX, targetTcpX, targetTcpY);
+                } else {
+                    // Moving right (positive X direction)
+                    targetTcpX = startTcpX;
+                    Serial.printf("Row %d: Sweeping Right from X=%.2f to X=%.2f at Y=%.2f\n", 
+                                r, currentTcpX, targetTcpX, targetTcpY);
+                }
+                
+                // Execute the sweep
+                moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+                currentTcpX = targetTcpX;
+                
+                // Flip direction for next row
+                movingLeft = !movingLeft;
+            }
+        } else {
+            // HORIZONTAL ORIENTATION - Sweep vertically, move right between columns
+            bool movingDown = true; // Start by moving down (negative Y)
+            
+            for (int c = 0; c < placeGridCols; ++c) {
+                // Calculate X position for this column
+                float targetTcpX = startTcpX - (c * (trayWidth_inch / (placeGridCols - 1)));
+                
+                // Move to correct X position if needed
+                if (abs(currentTcpX - targetTcpX) > 0.001) {
+                    moveToXYPositionInches_Paint(targetTcpX, currentTcpY, speed, accel);
+                    currentTcpX = targetTcpX;
+                }
+                
+                // Calculate target Y based on direction
+                float targetTcpY;
+                if (movingDown) {
+                    // Moving down (negative Y direction)
+                    targetTcpY = startTcpY - (placeGridRows - 1) * rowSpacing;
+                    Serial.printf("Column %d: Sweeping Down from Y=%.2f to Y=%.2f at X=%.2f\n", 
+                                c, currentTcpY, targetTcpY, targetTcpX);
+                } else {
+                    // Moving up (positive Y direction)
+                    targetTcpY = startTcpY;
+                    Serial.printf("Column %d: Sweeping Up from Y=%.2f to Y=%.2f at X=%.2f\n", 
+                                c, currentTcpY, targetTcpY, targetTcpX);
+                }
+                
+                // Execute the sweep
+                moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
                 currentTcpY = targetTcpY;
+                
+                // Flip direction for next column
+                movingDown = !movingDown;
             }
-            
-            // Calculate target X based on direction
-            float targetTcpX;
-            if (movingLeft) {
-                // Moving left (negative X direction)
-                targetTcpX = startTcpX - trayWidth_inch;
-                Serial.printf("Row %d: Sweeping Left from X=%.2f to X=%.2f at Y=%.2f\n", 
-                             r, currentTcpX, targetTcpX, targetTcpY);
-            } else {
-                // Moving right (positive X direction)
-                targetTcpX = startTcpX;
-                Serial.printf("Row %d: Sweeping Right from X=%.2f to X=%.2f at Y=%.2f\n", 
-                             r, currentTcpX, targetTcpX, targetTcpY);
-            }
-            
-            // Execute the sweep
-            moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
-            currentTcpX = targetTcpX;
-            
-            // Flip direction for next row
-            movingLeft = !movingLeft;
         }
     } else {
         // Original pattern for other sides
-        for (int r = 0; r < placeGridRows; ++r) {
-            float targetTcpX;
-            // Corrected Y calculation: Subtract spacing to move down
+    for (int r = 0; r < placeGridRows; ++r) {
+        float targetTcpX;
+        // Corrected Y calculation: Subtract spacing to move down
             float targetTcpY = (pathStartY - r * placeGapY_inch) + paintGunOffsetY_inch;
 
-            // --- Determine Sweep Target X --- 
-            if (r % 2 == 0) { // Even row (0, 2, ...): Sweep Left
+        // --- Determine Sweep Target X --- 
+        if (r % 2 == 0) { // Even row (0, 2, ...): Sweep Left
                 targetTcpX = (pathStartX - (placeGridCols - 1) * placeGapX_inch) + paintGunOffsetX_inch;
-                Serial.printf("Row %d (Even): Sweeping Left to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
-            } else { // Odd row (1, 3, ...): Sweep Right
-                targetTcpX = pathStartX + paintGunOffsetX_inch;
-                Serial.printf("Row %d (Odd): Sweeping Right to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
-            }
-            
-            // --- Execute Horizontal Sweep --- 
-            // Only move if Y is already correct (it should be from previous step or initial move)
-            if (abs(currentTcpY - targetTcpY) < 0.001) { // Check if Y is already correct
-                 moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
-                 currentTcpX = targetTcpX; // Update current X
-            } else {
-                 Serial.printf("[WARN] Row %d: Y position mismatch before sweep (Current: %.3f, Target: %.3f). Skipping sweep, moving directly down.\n", r, currentTcpY, targetTcpY);
-                 // If Y is wrong, just move to the correct Y at the *end* X of this sweep
-                 moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
-                 currentTcpX = targetTcpX;
-                 currentTcpY = targetTcpY; // Update Y as well
-            }
-
-            // --- Move Down to Next Row (if not the last row) --- 
-            if (r < placeGridRows - 1) {
-                // Corrected Y calculation: Subtract spacing to move down
-                float nextRowTcpY = (pathStartY - (r + 1) * placeGapY_inch) + paintGunOffsetY_inch;
-                Serial.printf("Row %d: Moving Down to Y=%.2f (X=%.2f)\n", r, nextRowTcpY, currentTcpX);
-                // Move only Y axis - use moveZToPositionInches for XY? No, use XY function but keep X same.
-                // Need a specific Y-only move or use XY with same X
-                moveToXYPositionInches_Paint(currentTcpX, nextRowTcpY, speed, accel); // Move Y while keeping X constant
-                currentTcpY = nextRowTcpY; // Update current Y
-            }
+            Serial.printf("Row %d (Even): Sweeping Left to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
+        } else { // Odd row (1, 3, ...): Sweep Right
+            targetTcpX = pathStartX + paintGunOffsetX_inch;
+            Serial.printf("Row %d (Odd): Sweeping Right to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
         }
+        
+        // --- Execute Horizontal Sweep --- 
+        // Only move if Y is already correct (it should be from previous step or initial move)
+        if (abs(currentTcpY - targetTcpY) < 0.001) { // Check if Y is already correct
+             moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+             currentTcpX = targetTcpX; // Update current X
+        } else {
+             Serial.printf("[WARN] Row %d: Y position mismatch before sweep (Current: %.3f, Target: %.3f). Skipping sweep, moving directly down.\n", r, currentTcpY, targetTcpY);
+             // If Y is wrong, just move to the correct Y at the *end* X of this sweep
+             moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+             currentTcpX = targetTcpX;
+             currentTcpY = targetTcpY; // Update Y as well
+        }
+
+        // --- Move Down to Next Row (if not the last row) --- 
+        if (r < placeGridRows - 1) {
+            // Corrected Y calculation: Subtract spacing to move down
+                float nextRowTcpY = (pathStartY - (r + 1) * placeGapY_inch) + paintGunOffsetY_inch;
+            Serial.printf("Row %d: Moving Down to Y=%.2f (X=%.2f)\n", r, nextRowTcpY, currentTcpX);
+            // Move only Y axis - use moveZToPositionInches for XY? No, use XY function but keep X same.
+            // Need a specific Y-only move or use XY with same X
+            moveToXYPositionInches_Paint(currentTcpX, nextRowTcpY, speed, accel); // Move Y while keeping X constant
+            currentTcpY = nextRowTcpY; // Update current Y
+        }
+    }
     }
     
     Serial.println("Painting path complete.");
@@ -789,9 +831,19 @@ void paintSide(int sideIndex) {
     Serial.println("Moving Z axis up to safe height (0)...");
     moveZToPositionInches(0.0, patternZSpeed, patternZAccel);
 
-    // 11. Return to home position
-    Serial.println("Returning to home position...");
-    moveToPositionInches(0, 0, 0);
+    // 11. Return to home position (X=0, Y=0, Z=0) << ADDED
+    Serial.println("Returning to home position (X=0, Y=0, Z=0)...");
+    // Use moveToPositionInches, which includes state checks and updates.
+    // We need to temporarily clear isMoving so moveToPositionInches doesn't block itself.
+    isMoving = false; 
+    moveToPositionInches(0.0, 0.0, 0.0);
+    // Wait for the return-to-home move to complete
+    isMoving = true; // Set moving flag again for the wait loop
+    while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning()) || (stepper_z && stepper_z->isRunning())) {
+        webSocket.loop(); // Keep responsive
+        yield();
+    }
+    Serial.println("Return to home complete.");
 
     // 12. Clear Busy State & Send Ready Message
     isMoving = false;
@@ -824,16 +876,40 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
             
             // Also send initial position update immediately after settings if homed
             if (allHomed) {
-                sendCurrentPositionUpdate();
+                 sendCurrentPositionUpdate();
+             }
             }
-        }
-        break;
+            break;
         case WStype_TEXT:
-            Serial.printf("[%u] get Text: %s\n", num, payload);
+            // Serial.printf("[%u] get Text: %s\n", num, payload); // Reduced verbosity
             if (length > 0) {
                 String command = String((char*)payload);
                 Serial.printf("[DEBUG] WebSocket [%u] Received Command: %s\n", num, command.c_str()); // DEBUG
-                if (command == "HOME") {
+                
+                // --- STOP Command Handler --- << ADDED
+                if (command == "STOP") {
+                    Serial.println("WebSocket: Received STOP command.");
+                    // Force stop all motors immediately
+                    if(stepper_x) stepper_x->forceStop();
+                    if(stepper_y_left) stepper_y_left->forceStop();
+                    if(stepper_y_right) stepper_y_right->forceStop();
+                    if(stepper_z) stepper_z->forceStop();
+                    if(stepper_rot) stepper_rot->forceStop();
+                    
+                    // Reset state flags
+                    isMoving = false;
+                    isHoming = false;
+                    if (inPickPlaceMode) exitPickPlaceMode(false); // Exit PnP without homing request
+                    inCalibrationMode = false;
+                    pendingHomingAfterPnP = false;
+                    
+                    // Send update
+                    webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"STOPPED by user command.\"}");
+                    sendCurrentPositionUpdate(); // Send final position after stop
+                }
+                // --- End STOP Command Handler ---
+                
+                else if (command == "HOME") { // Changed to else if
                     Serial.println("WebSocket: Received HOME command.");
                     if (isMoving || isHoming) {
                         webSocket.sendTXT(num, "{\"status\":\"Busy\",\"message\":\"Cannot home, machine is busy.\"}");
@@ -1062,6 +1138,275 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                              webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Internal stepper error.\"}");
                          }
                      }
+                 } else if (command.startsWith("JOG ")) {
+                    // Serial.println("WebSocket: Received JOG command.");
+                    if (!inCalibrationMode) {
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Must be in calibration mode to jog.\"}");
+                    } else if (isMoving || isHoming) {
+                        webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Cannot jog while machine is moving.\"}");
+                    } else {
+                        char axis;
+                        float distance_inch;
+                        int parsed = sscanf(command.c_str() + strlen("JOG "), "%c %f", &axis, &distance_inch);
+                        
+                        if (parsed == 2) {
+                            long current_steps = 0;
+                            long jog_steps = 0;
+                            FastAccelStepper* stepper_to_move = NULL;
+                            float speed = 0, accel = 0;
+
+                            if (axis == 'X' && stepper_x) {
+                                stepper_to_move = stepper_x;
+                                current_steps = stepper_x->getCurrentPosition();
+                                jog_steps = (long)(distance_inch * STEPS_PER_INCH_XY);
+                                speed = patternXSpeed;
+                                accel = patternXAccel;
+                            } else if (axis == 'Y' && stepper_y_left && stepper_y_right) { // Assuming both Y move together
+                                stepper_to_move = stepper_y_left; // Use left for current pos, command both
+                                current_steps = stepper_y_left->getCurrentPosition();
+                                jog_steps = (long)(distance_inch * STEPS_PER_INCH_XY);
+                                speed = patternYSpeed;
+                                accel = patternYAccel;
+                            } else {
+                                Serial.printf("[ERROR] Invalid axis '%c' or stepper not available for JOG.\n", axis);
+                                webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid axis for jog.\"}");
+                            }
+
+                            if (stepper_to_move) {
+                                isMoving = true; // Set flag, loop() will handle completion
+                                webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Jogging...\"}");
+                                
+                                long target_steps = current_steps + jog_steps;
+                                //Serial.printf("  Jogging %c by %.3f inches (%ld steps) from %ld to %ld\n", axis, distance_inch, jog_steps, current_steps, target_steps);
+
+                                stepper_to_move->setSpeedInHz(speed);
+                                stepper_to_move->setAcceleration(accel);
+                                stepper_to_move->moveTo(target_steps);
+
+                                if (axis == 'Y' && stepper_y_right) { // Command right Y too
+                                    stepper_y_right->setSpeedInHz(speed);
+                                    stepper_y_right->setAcceleration(accel);
+                                    stepper_y_right->moveTo(target_steps);
+                                }
+                            }
+                        } else {
+                            Serial.println("[ERROR] Failed to parse JOG command.");
+                            webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid JOG format. Use: JOG X/Y distance\"}");
+                        }
+                    }
+                 } else if (command.startsWith("MOVE_TO_COORDS ")) {
+                    Serial.println("WebSocket: Received MOVE_TO_COORDS command.");
+                    if (!inCalibrationMode) {
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Must be in calibration mode to move to coordinates.\"}");
+                    } else if (isMoving || isHoming) {
+                        webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Cannot move while machine is busy.\"}");
+                    } else {
+                        float targetX_inch, targetY_inch;
+                        int parsed = sscanf(command.c_str() + strlen("MOVE_TO_COORDS "), "%f %f", &targetX_inch, &targetY_inch);
+                        
+                        if (parsed == 2) {
+                            // Validate coordinates (optional, add bounds checking if needed)
+                            if (targetX_inch < 0 || targetY_inch < 0) {
+                                webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid coordinates. Must be non-negative.\"}");
+                                return;
+                            }
+                            
+                            // Set up the move
+                            isMoving = true; // Set flag, loop() will handle completion
+                            webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Moving to coordinates...\"}");
+                            
+                            // Convert to steps
+                            long targetX_steps = (long)(targetX_inch * STEPS_PER_INCH_XY);
+                            long targetY_steps = (long)(targetY_inch * STEPS_PER_INCH_XY);
+                            
+                            // Command the move
+                            if (stepper_x) {
+                                stepper_x->setSpeedInHz(patternXSpeed);
+                                stepper_x->setAcceleration(patternXAccel);
+                                stepper_x->moveTo(targetX_steps);
+                            }
+                            
+                            if (stepper_y_left && stepper_y_right) {
+                                stepper_y_left->setSpeedInHz(patternYSpeed);
+                                stepper_y_left->setAcceleration(patternYAccel);
+                                stepper_y_left->moveTo(targetY_steps);
+                                
+                                stepper_y_right->setSpeedInHz(patternYSpeed);
+                                stepper_y_right->setAcceleration(patternYAccel);
+                                stepper_y_right->moveTo(targetY_steps);
+                            }
+                        } else {
+                            Serial.println("[ERROR] Failed to parse MOVE_TO_COORDS command.");
+                            webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format. Use: MOVE_TO_COORDS X Y\"}");
+                         }
+                     }
+                 } else if (command.startsWith("SET_GRID_SPACING ")) { // UPDATED
+                    Serial.println("[DEBUG] webSocketEvent: Handling SET_GRID_SPACING command."); // DEBUG
+                        int newCols, newRows;
+                    // Expecting "SET_GRID_SPACING C R"
+                    int parsed = sscanf(command.c_str() + strlen("SET_GRID_SPACING "), "%d %d", &newCols, &newRows);
+                    if (parsed == 2 && newCols > 0 && newRows > 0) {
+                        // Call the new calculation function
+                        calculateAndSetGridSpacing(newCols, newRows);
+                    } else {
+                        Serial.printf("[DEBUG] Failed to parse SET_GRID_SPACING command: %s\n", command.c_str());
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid SET_GRID_SPACING format. Use C R (integers > 0)\"}");
+                    }
+                 } else if (command.startsWith("SET_TRAY_SIZE ")) { // NEW
+                    Serial.println("[DEBUG] webSocketEvent: Handling SET_TRAY_SIZE command."); // DEBUG
+                    float newW, newH;
+                    // Expecting "SET_TRAY_SIZE W H"
+                    int parsed = sscanf(command.c_str() + strlen("SET_TRAY_SIZE "), "%f %f", &newW, &newH);
+                    if (parsed == 2 && newW > 0 && newH > 0) {
+                        Serial.printf("[DEBUG] New tray dimensions: width=%.2f, height=%.2f (old: width=%.2f, height=%.2f)\n", 
+                                    newW, newH, trayWidth_inch, trayHeight_inch);
+                        
+                        // Save the new tray dimensions
+                        trayWidth_inch = newW;
+                        trayHeight_inch = newH;
+                        
+                        // Open preferences, save values, and close immediately
+                        preferences.begin("machineCfg", false);
+                        preferences.putFloat("trayWidth", trayWidth_inch);
+                        preferences.putFloat("trayHeight", trayHeight_inch);
+                        preferences.end();
+                        
+                        Serial.printf("[DEBUG] Set Tray Size to W=%.2f, H=%.2f\n", trayWidth_inch, trayHeight_inch);
+                        
+                        // Recalculate grid spacing with current grid dimensions to reflect new tray size
+                        float oldGapX = placeGapX_inch;
+                        float oldGapY = placeGapY_inch;
+                        calculateAndSetGridSpacing(placeGridCols, placeGridRows);
+                        
+                        Serial.printf("[DEBUG] Gap values changed: X: %.3f → %.3f, Y: %.3f → %.3f\n", 
+                                    oldGapX, placeGapX_inch, oldGapY, placeGapY_inch);
+                        
+                        // Instead of using a redundant call to sendAllSettingsUpdate, create a more specific message
+                        // about the changes that were made
+                        char msgBuffer[200];
+                        sprintf(msgBuffer, "Tray Size updated to W=%.2f, H=%.2f. Gap recalculated: X=%.3f, Y=%.3f", 
+                               trayWidth_inch, trayHeight_inch, placeGapX_inch, placeGapY_inch);
+                        
+                        // Send settings update to the specific client that requested the change
+                        sendAllSettingsUpdate(num, msgBuffer);
+                        // Also broadcast to all other clients
+                        if (num != 255) {
+                            sendAllSettingsUpdate(255, msgBuffer);
+                        }
+                    } else {
+                        Serial.printf("[DEBUG] Failed to parse SET_TRAY_SIZE command: %s\n", command.c_str());
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid SET_TRAY_SIZE format.\"}");
+                    }
+                 } else if (command.startsWith("SET_PAINT_PATTERN_OFFSET ")) {
+                    Serial.println("WebSocket: Received SET_PAINT_PATTERN_OFFSET command.");
+                    if (isMoving || isHoming) { // Prevent changes while moving
+                        webSocket.sendTXT(num, "{\"status\":\"Busy\",\"message\":\"Cannot set paint offsets while machine is busy.\"}");
+                    } else {
+                        float newX, newY;
+                        int parsed = sscanf(command.c_str() + strlen("SET_PAINT_PATTERN_OFFSET "), "%f %f", &newX, &newY);
+                        if (parsed == 2) {
+                            paintPatternOffsetX_inch = newX;
+                            paintPatternOffsetY_inch = newY;
+                            // Save to Preferences
+                            preferences.begin("machineCfg", false);
+                            preferences.putFloat("paintPatOffX", paintPatternOffsetX_inch);
+                            preferences.putFloat("paintPatOffY", paintPatternOffsetY_inch);
+                            preferences.end();
+                            Serial.printf("[DEBUG] Set Paint Pattern Offset to X: %.2f, Y: %.2f\n", paintPatternOffsetX_inch, paintPatternOffsetY_inch);
+                            // Send confirmation with all settings
+                            sendAllSettingsUpdate(num, "Paint Pattern Offset updated.");
+                        } else {
+                            webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Invalid SET_PAINT_PATTERN_OFFSET format. Use: SET_PAINT_PATTERN_OFFSET X Y\"}");
+                        }
+                    }
+                } else if (command.startsWith("SET_PAINT_GUN_OFFSET ")) {
+                    Serial.println("WebSocket: Received SET_PAINT_GUN_OFFSET command.");
+                     if (isMoving || isHoming) { // Prevent changes while moving
+                        webSocket.sendTXT(num, "{\"status\":\"Busy\",\"message\":\"Cannot set paint offsets while machine is busy.\"}");
+                    } else {
+                        float newX, newY;
+                        int parsed = sscanf(command.c_str() + strlen("SET_PAINT_GUN_OFFSET "), "%f %f", &newX, &newY);
+                        if (parsed == 2) {
+                            paintGunOffsetX_inch = newX;
+                            paintGunOffsetY_inch = newY;
+                            // Save to Preferences
+                            preferences.begin("machineCfg", false);
+                            preferences.putFloat("paintGunOffX", paintGunOffsetX_inch);
+                            preferences.putFloat("paintGunOffY", paintGunOffsetY_inch);
+                            preferences.end();
+                            Serial.printf("[DEBUG] Set Paint Gun Offset to X: %.2f, Y: %.2f\n", paintGunOffsetX_inch, paintGunOffsetY_inch);
+                            // Send confirmation with all settings
+                            sendAllSettingsUpdate(num, "Paint Gun Offset updated.");
+                        } else {
+                            webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Invalid SET_PAINT_GUN_OFFSET format. Use: SET_PAINT_GUN_OFFSET X Y\"}");
+                        }
+                    }
+                } else if (command.startsWith("SET_PAINT_SIDE_SETTINGS ")) {
+                    Serial.println("WebSocket: Received SET_PAINT_SIDE_SETTINGS command.");
+                     if (isMoving || isHoming) { // Prevent changes while moving
+                        webSocket.sendTXT(num, "{\"status\":\"Busy\",\"message\":\"Cannot set side settings while machine is busy.\"}");
+                    } else {
+                        int sideIndex;
+                        float newZ, newSpeed;
+                        int newPitch, newRoll;
+                        // Format: SET_PAINT_SIDE_SETTINGS sideIndex zHeight pitch roll speed
+                        int parsed = sscanf(command.c_str() + strlen("SET_PAINT_SIDE_SETTINGS "), "%d %f %d %d %f",
+                                           &sideIndex, &newZ, &newPitch, &newRoll, &newSpeed);
+
+                        if (parsed == 5 && sideIndex >= 0 && sideIndex < 4) {
+                            // Validate UI pitch value first (0-90)
+                            if (newPitch < 0 || newPitch > 90) {
+                                Serial.printf("[ERROR] Invalid pitch value %d from UI (must be 0-90)\n", newPitch);
+                                webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Pitch Angle for side " + String(sideIndex) + " must be between 0 and 90.\"}");
+                                return;
+                            }
+                            
+                            // Map the UI pitch value (0-90) to servo value (PITCH_SERVO_MIN to PITCH_SERVO_MAX)
+                            // For example: 0 -> PITCH_SERVO_MIN, 90 -> PITCH_SERVO_MAX
+                            newPitch = map(newPitch, 0, 90, PITCH_SERVO_MIN, PITCH_SERVO_MAX);
+                            Serial.printf("[DEBUG] Mapped UI pitch %d to servo pitch %d\n", newPitch, newPitch);
+                            
+                            // Map the UI values (0=Vertical, 90=Horizontal) to the actual servo values
+                            if (newRoll == 0) {
+                                newRoll = ROLL_VERTICAL;  // Map 0 from UI to the actual vertical servo position
+                            } else if (newRoll == 90) {
+                                newRoll = ROLL_HORIZONTAL; // Map 90 from UI to the actual horizontal servo position
+                        } else {
+                                // For any unexpected values, default to vertical for safety
+                                Serial.printf("[WARN] Invalid Roll value %d from UI, defaulting to VERTICAL\n", newRoll);
+                                newRoll = ROLL_VERTICAL;
+                            }
+                            
+                            newSpeed = constrain(newSpeed, 5000.0f, 20000.0f);
+
+                            paintZHeight_inch[sideIndex] = newZ;
+                            paintPitchAngle[sideIndex] = newPitch;
+                            paintRollAngle[sideIndex] = newRoll;
+                            paintSpeed[sideIndex] = newSpeed;
+
+                            // Save to Preferences
+                            preferences.begin("machineCfg", false);
+                            String keyZ = "paintZ_" + String(sideIndex);
+                            String keyP = "paintP_" + String(sideIndex);
+                            String keyR = "paintR_" + String(sideIndex);
+                            String keyS = "paintS_" + String(sideIndex);
+                            preferences.putFloat(keyZ.c_str(), paintZHeight_inch[sideIndex]);
+                            preferences.putInt(keyP.c_str(), paintPitchAngle[sideIndex]);
+                            preferences.putInt(keyR.c_str(), paintRollAngle[sideIndex]);
+                            preferences.putFloat(keyS.c_str(), paintSpeed[sideIndex]);
+                            preferences.end();
+
+                            Serial.printf("[DEBUG] Set Side %d Settings: Z=%.2f, P=%d, R=%d, S=%.0f\n",
+                                          sideIndex, paintZHeight_inch[sideIndex], paintPitchAngle[sideIndex],
+                                          paintRollAngle[sideIndex], paintSpeed[sideIndex]);
+
+                            // Send confirmation with all settings
+                            sendAllSettingsUpdate(num, "Side " + String(sideIndex) + " settings updated.");
+                        } else {
+                             Serial.printf("[ERROR] Failed to parse SET_PAINT_SIDE_SETTINGS. Parsed=%d, Side=%d\n", parsed, sideIndex);
+                             webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Invalid SET_PAINT_SIDE_SETTINGS format/values.\"}");
+                        }
+                    }
                  } else if (command.startsWith("JOG ")) {
                     // Serial.println("WebSocket: Received JOG command.");
                     if (!inCalibrationMode) {
@@ -1608,14 +1953,14 @@ void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
             doc[keyR] = 0; // Vertical in UI
         } else if (paintRollAngle[i] == ROLL_HORIZONTAL) {
             doc[keyR] = 90; // Horizontal in UI
-        } else {
+    } else {
             // If the value is neither expected value, default to vertical in UI
             Serial.printf("[WARN] Unexpected Roll value %d for side %d, mapping to VERTICAL (0) for UI\n", 
                          paintRollAngle[i], i);
             doc[keyR] = 0;
         }
         
-        doc[keyS] = paintSpeed[i] / 1000.0f; // Convert speed to UI value (divide by 1000)
+        doc[keyS] = paintSpeed[i]; // Send the raw speed value (e.g., 5000-20000)
     }
 
     // Serialize JSON to string
@@ -1725,7 +2070,7 @@ void setup() {
         // Note: We don't constrain paintRollAngle here since it will be mapped in the sendAllSettingsUpdate function
         // This ensures the correct values are sent to the UI
          
-        paintSpeed[i] = constrain(paintSpeed[i], 5000.0f, 20000.0f); // Clamp speed 5k-20k
+         paintSpeed[i] = constrain(paintSpeed[i], 5000.0f, 20000.0f); // Clamp speed 5k-20k
     }
 
     preferences.end(); // Close NVS
@@ -2092,4 +2437,4 @@ void calculateAndSetGridSpacing(int cols, int rows) {
     
     Serial.printf("[DEBUG] Sending update to UI with message: %s\n", message.c_str());
     sendAllSettingsUpdate(255, message); // Send to all clients
-}
+} 
