@@ -440,15 +440,17 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
               // Update Grid/Spacing display and inputs if info is present
               if (data.hasOwnProperty('gridCols') && data.hasOwnProperty('gridRows') &&
-                  data.hasOwnProperty('spacingX') && data.hasOwnProperty('spacingY')) {
+                  data.hasOwnProperty('gapX') && data.hasOwnProperty('gapY')) {
                   let currentCols = parseInt(data.gridCols);
                   let currentRows = parseInt(data.gridRows);
-                  let currentSX = parseFloat(data.spacingX).toFixed(2);
-                  let currentSY = parseFloat(data.spacingY).toFixed(2);
+                  let currentGapX = parseFloat(data.gapX).toFixed(3); // Use gapX, maybe more precision?
+                  let currentGapY = parseFloat(data.gapY).toFixed(3); // Use gapY, maybe more precision?
                   gridDisplaySpan.innerHTML = `Current: ${currentCols} x ${currentRows}`;
-                  spacingDisplaySpan.innerHTML = `Spacing: X=${currentSX}, Y=${currentSY}`; // Update display format
+                  // Update display text to show Gap
+                  spacingDisplaySpan.innerHTML = `Gap: X=${currentGapX}, Y=${currentGapY}`;
                   gridColsInput.value = currentCols;
                   gridRowsInput.value = currentRows;
+                  // Note: We don't update input fields for gapX/gapY as they are calculated, not set directly.
               }
 
               // Update Tray Size display and inputs if info is present (NEW)

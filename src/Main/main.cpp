@@ -1566,14 +1566,19 @@ void setup() {
     placeFirstXAbsolute_inch = preferences.getFloat("placeFirstXAbs", 20.0);
     placeFirstYAbsolute_inch = preferences.getFloat("placeFirstYAbs", 20.0);
 
-    // Load Grid Dimensions and Spacing (provide defaults)
+    // Load Grid Dimensions (provide defaults)
     placeGridCols = preferences.getInt("gridCols", 4);
     placeGridRows = preferences.getInt("gridRows", 5);
-    // Remove loading spacingX/Y - they will be calculated and loaded by calculateAndSetGridSpacing
+    // Note: Gaps are not loaded directly, they are recalculated below.
 
     // Load Tray Dimensions (provide defaults) (NEW)
     trayWidth_inch = preferences.getFloat("trayWidth", 24.0f);
     trayHeight_inch = preferences.getFloat("trayHeight", 18.0f);
+
+    // Calculate initial grid gap based on loaded dimensions
+    calculateAndSetGridSpacing(placeGridCols, placeGridRows);
+    // Note: calculateAndSetGridSpacing also saves cols/rows/gaps back to NVS,
+    // which is slightly redundant here but harmless.
 
     // Load Painting Offsets
     paintPatternOffsetX_inch = preferences.getFloat("paintPatOffX", 0.0f);

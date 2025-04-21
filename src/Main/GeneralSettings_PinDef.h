@@ -116,21 +116,21 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 // ========================================================================
 
 // === General Constants ===
-#define DEBOUNCE_INTERVAL 10  // milliseconds
-#define HOMING_SPEED 1000      // steps/s
-#define HOMING_ACCEL 1000      // steps/s^2
+#define DEBOUNCE_INTERVAL 5      // milliseconds (Restored original value)
+#define HOMING_SPEED 2000          // steps/s (Restored original value)
+#define HOMING_ACCEL 5000          // steps/s^2 (Restored original value)
 #define HOMING_TIMEOUT 15000   // milliseconds
 
 // Stepper Conversion Factors
-#define STEPS_PER_INCH_XY 2000.0 // Example value, adjust as needed
-#define STEPS_PER_INCH_Z 1600.0  // Example value, adjust as needed
-#define STEPS_PER_DEGREE (3200.0 / 360.0) // Example: 3200 steps per full rotation
+#define STEPS_PER_INCH_XY 254      // Steps per inch for X/Y (400 steps/rev / (20 teeth * 2mm pitch) * 25.4 mm/in) (Restored original value)
+#define STEPS_PER_INCH_Z 2580.64   // Steps per inch for Z (Restored original value)
+#define STEPS_PER_DEGREE 11.11111f // Adjusted for better precision (4000.0f / 360.0f = 11.11111f) (Restored original value)
 
 // Travel Limits (Inches, relative to homed position 0)
 #define X_MAX_TRAVEL_POS_INCH 30.0
 #define Y_MAX_TRAVEL_POS_INCH 30.0
-#define Z_HOME_POS_INCH 0.0
-#define Z_MAX_TRAVEL_NEG_INCH -2.0 // Maximum Z travel downwards
+#define Z_HOME_POS_INCH 0.0f        // Added f suffix for consistency
+#define Z_MAX_TRAVEL_NEG_INCH -2.75f // Maximum Z travel downwards (Restored original value)
 
 // PnP Item Dimensions (NEW - Moved from main.cpp)
 const float pnpItemWidth_inch = 3.0f;

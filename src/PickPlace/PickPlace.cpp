@@ -303,17 +303,25 @@ void executeNextPickPlaceStep() {
     // Calculate target place coordinates for this step
     // Use absolute first place position (center of 0,0) and add grid offsets
     // Offset includes the item width + gap
-    const float itemWidth = 3.0f; // Assumed item width (should match main.cpp)
-    const float itemHeight = 3.0f; // Assumed item height (should match main.cpp)
+    // const float itemWidth = 3.0f; // REMOVED - Use global pnpItemWidth_inch
+    // const float itemHeight = 3.0f; // REMOVED - Use global pnpItemHeight_inch
 
-    float absoluteTargetX = placeFirstXAbsolute_inch + (currentPlaceCol * (itemWidth + placeGapX_inch));
-    float absoluteTargetY = placeFirstYAbsolute_inch + (currentPlaceRow * (itemHeight + placeGapY_inch));
+    // Determine effective column for serpentine pattern
+    int effectiveCol = currentPlaceCol;
+    if (currentPlaceRow % 2 != 0) { // Odd rows (1, 3, 5...)
+        effectiveCol = (placeGridCols - 1 - currentPlaceCol);
+    }
+
+    // Calculate target X based on effective column
+    float absoluteTargetX = placeFirstXAbsolute_inch + (effectiveCol * (pnpItemWidth_inch + placeGapX_inch));
+    // Calculate target Y based on current row
+    float absoluteTargetY = placeFirstYAbsolute_inch + (currentPlaceRow * (pnpItemHeight_inch + placeGapY_inch));
 
     char msgBuffer[150];
-    Serial.printf("[DEBUG] PnP Step Target Calc: Col=%d, Row=%d, FirstAbsX=%.2f, FirstAbsY=%.2f, ItemW=%.2f, ItemH=%.2f, GapX=%.3f, GapY=%.3f -> TargetX=%.2f, TargetY=%.2f\n",
-                   currentPlaceCol, currentPlaceRow,
+    Serial.printf("[DEBUG] PnP Step Target Calc: Row=%d, Col=%d (EffCol=%d), FirstAbs(%.2f, %.2f), Item(%.2f, %.2f), Gap(%.3f, %.3f) -> Target(%.2f, %.2f)\n",
+                   currentPlaceRow, currentPlaceCol, effectiveCol, // Added EffCol to log
                    placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
-                   itemWidth, itemHeight,
+                   pnpItemWidth_inch, pnpItemHeight_inch, // Use global constants
                    placeGapX_inch, placeGapY_inch,
                    absoluteTargetX, absoluteTargetY); // DEBUG
     sprintf(msgBuffer, "{\"status\":\"Moving\", \"message\":\"PnP Step %d,%d: Moving to Place (Abs: %.2f, %.2f)\"}",
