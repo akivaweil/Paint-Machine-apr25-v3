@@ -604,7 +604,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           let connected = websocket && websocket.readyState === WebSocket.OPEN;
           let inPnPMode = pnpButton.innerHTML.includes('Mode') || pnpButton.innerHTML.includes('Complete');
           let inCalibMode = calibrationControlsDiv.style.display === 'block';
-          let canControl = connected && allHomed && !isMoving && !isHoming && !inPnPMode && !inCalibMode;
           let canStop = connected && (isMoving || isHoming || inPnPMode || inCalibMode); // Can stop if doing anything interruptible
 
           homeButton.disabled = !connected || isMoving || isHoming || inPnPMode || inCalibMode;
@@ -612,35 +611,76 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
           // PnP Button Logic - UPDATED
           // Disable if not connected, not homed, moving, homing, in calibration, or sequence complete
-          pnpButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || pnpButton.innerHTML.includes('Complete'); 
+          pnpButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || pnpButton.innerHTML.includes('Complete');
 
           // PnP Step Button Logic (Only enabled in PnPReady state)
-          pnpStepButton.disabled = !(connected && pnpButton.innerHTML.includes('Mode') && !isMoving && !isHoming); // Enabled only when connected, in PnP mode, and idle
+          pnpStepButton.disabled = !(connected && pnpButton.innerHTML.includes('Mode') && !isMoving && !isHoming);
+          pnpSkipButton.disabled = pnpStepButton.disabled; // Skip/Back follow Step button logic
+          pnpBackButton.disabled = pnpStepButton.disabled; // Skip/Back follow Step button logic
 
           // Calibration Button Logic
           enterCalibrationButton.disabled = !connected || !allHomed || isMoving || isHoming || inPnPMode || inCalibMode;
 
           // --- Painting Buttons ---
           // Disable painting if not connected, not homed, moving, homing, in PnP, or calibrating
-          startPaintingButton.disabled = !canControl;
-          paintBackButton.disabled = !canControl;
+          startPaintingButton.disabled = !connected || !allHomed || isMoving || isHoming || inPnPMode || inCalibMode; // Requires homing
+          paintBackButton.disabled = startPaintingButton.disabled; // Same logic as start
+
+          // Rotation Buttons
+          rotateMinus90Button.disabled = !connected || isMoving || isHoming || inPnPMode || inCalibMode; // Allow rotation before homing
+          rotatePlus90Button.disabled = rotateMinus90Button.disabled;
+          rotateMinus5Button.disabled = rotateMinus90Button.disabled;
+          rotatePlus5Button.disabled = rotateMinus90Button.disabled;
+          setRotationZeroButton.disabled = rotateMinus90Button.disabled; // Allow setting zero before homing
 
           // --- Settings Buttons/Inputs ---
-          // Find all setting buttons and inputs to disable them when busy/disconnected
-          let settingElements = document.querySelectorAll('.setting-button, .setting-input');
-          settingElements.forEach(el => {
-              // Don't disable Stop, Home, PnP, or Cal buttons here (handled above)
-              if (el.id !== 'stopButton' && el.id !== 'homeButton' && el.id !== 'pnpButton' && el.id !== 'enterCalibrationButton' && el.id !== 'pnpStepButton') {
-                   // Special handling for PnP/Cal specific controls
-                   if (el.closest('#calibrationControls')) {
-                       // Disable calibration controls if not in calibration mode OR if moving/homing
-                       el.disabled = !connected || !inCalibMode || isMoving || isHoming;
-                   } else {
-                      // Disable general settings if disconnected, moving, homing, or in PnP mode
-                       el.disabled = !connected || isMoving || isHoming || inPnPMode;
-                   }
+          // Generally disable settings inputs/buttons if disconnected, moving, homing, in PnP, or calibrating
+          // Special exceptions for Grid/Tray buttons
+          let generalDisableCondition = !connected || isMoving || isHoming || inPnPMode || inCalibMode;
+
+          // *** Keep Grid and Tray Size buttons enabled if connected ***
+          setGridSpacingButton.disabled = !connected;
+          setTraySizeButton.disabled = !connected;
+          // *** End Special Exception ***
+
+          setOffsetButton.disabled = generalDisableCondition || !allHomed; // Requires homing
+          setFirstPlaceAbsButton.disabled = generalDisableCondition || !allHomed; // Requires homing
+          setSpeedButton.disabled = generalDisableCondition || !allHomed; // Requires homing
+          setPaintOffsetsButton.disabled = generalDisableCondition || !allHomed; // Requires homing
+
+          // Disable input fields based on the same general condition + homing requirement for most
+          offsetXInput.disabled = setOffsetButton.disabled;
+          offsetYInput.disabled = setOffsetButton.disabled;
+          firstPlaceXAbsInput.disabled = setFirstPlaceAbsButton.disabled;
+          firstPlaceYAbsInput.disabled = setFirstPlaceAbsButton.disabled;
+          xSpeedInput.disabled = setSpeedButton.disabled;
+          xAccelInput.disabled = setSpeedButton.disabled;
+          ySpeedInput.disabled = setSpeedButton.disabled;
+          yAccelInput.disabled = setSpeedButton.disabled;
+          paintPatternOffsetXInput.disabled = setPaintOffsetsButton.disabled;
+          paintPatternOffsetYInput.disabled = setPaintOffsetsButton.disabled;
+          paintGunOffsetXInput.disabled = setPaintOffsetsButton.disabled;
+          paintGunOffsetYInput.disabled = setPaintOffsetsButton.disabled;
+
+          // Grid/Tray inputs are linked to their buttons (only disabled if disconnected)
+          gridColsInput.disabled = setGridSpacingButton.disabled;
+          gridRowsInput.disabled = setGridSpacingButton.disabled;
+          trayWidthInput.disabled = setTraySizeButton.disabled;
+          trayHeightInput.disabled = setTraySizeButton.disabled;
+
+          // Calibration Controls (only enabled when in calibration mode and not moving/homing)
+          let calibControlsDisable = !connected || !inCalibMode || isMoving || isHoming;
+          let calibInputs = calibrationControlsDiv.querySelectorAll('input, button');
+          calibInputs.forEach(el => {
+              if (el.id !== 'exitCalibrationButton') { // Exit button handled separately
+                el.disabled = calibControlsDisable;
               }
           });
+          exitCalibrationButton.disabled = !connected || !inCalibMode; // Can exit calibration even if moving
+
+          // Download/Upload Buttons (only need connection)
+          document.getElementById('downloadSettingsButton').disabled = !connected;
+          document.getElementById('uploadSettingsButton').disabled = !connected;
 
           // Specific overrides based on state machine logic elsewhere (e.g., PnPComplete disabling pnpButton)
           if (pnpButton.innerHTML.includes('Complete')) {
@@ -648,8 +688,12 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           }
           if (pnpButton.innerHTML.includes('Mode')) { // Ensure PnP Step button visibility is correct
                pnpStepButton.style.display = 'inline-block';
+               pnpSkipButton.style.display = 'inline-block'; // Show Skip/Back in PnP Mode
+               pnpBackButton.style.display = 'inline-block';
           } else {
                pnpStepButton.style.display = 'none';
+               pnpSkipButton.style.display = 'none'; // Hide Skip/Back outside PnP Mode
+               pnpBackButton.style.display = 'none';
           }
       }
 

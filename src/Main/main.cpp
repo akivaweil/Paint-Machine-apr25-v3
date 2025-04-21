@@ -6,6 +6,7 @@
 #include <WebServer.h>   // Added for HTTP Server
 #include <WebSocketsServer.h> // Added for WebSocket Server
 #include <ESP32Servo.h>     // Added for Servos
+#include <ArduinoJson.h> // Added for JSON handling
 #include "GeneralSettings_PinDef.h" // Updated include
 #include "../PickPlace/PickPlace.h" // Include the new PnP header
 #include <Preferences.h> // Added for Preferences
@@ -69,18 +70,18 @@ float patternRotSpeed = 2000.0; // Reduced from 3000 for more reliable movement
 float patternRotAccel = 1000.0; // Reduced from 2000 for more reliable movement
 
 // PnP variables (declared extern in PickPlace.h, defined in PickPlace.cpp)
+// Commented out here because they are defined and managed in PickPlace.cpp
 /*
-float pnpOffsetX_inch = 15.0; // Default X offset
-float pnpOffsetY_inch = 0.0;  // Default Y offset
-float placeFirstXAbsolute_inch = 20.0; // Default ABSOLUTE X
-float placeFirstYAbsolute_inch = 20.0; // Default ABSOLUTE Y
-
-// PnP Grid/Spacing Variables (declared extern in PickPlace.h, defined in PickPlace.cpp)
+float pnpOffsetX_inch = 15.0;
+float pnpOffsetY_inch = 0.0;
+float placeFirstXAbsolute_inch = 20.0;
+float placeFirstYAbsolute_inch = 20.0;
+*/
+// PnP Grid/Spacing Variables
 int placeGridCols = 4;        // Default Columns
 int placeGridRows = 5;        // Default Rows
-float placeSpacingX_inch = 4.0f; // Default X Spacing
-float placeSpacingY_inch = 4.0f; // Default Y Spacing
-*/
+float placeGapX_inch = 0.0f; // Calculated X GAP between items (formerly placeSpacingX_inch)
+float placeGapY_inch = 0.0f; // Calculated Y GAP between items (formerly placeSpacingY_inch)
 
 // Painting Offsets (declared extern in Painting.h, defined in Painting.cpp)
 /*
@@ -705,11 +706,11 @@ void paintSide(int sideIndex) {
     for (int r = 0; r < placeGridRows; ++r) {
         float targetTcpX;
         // Corrected Y calculation: Subtract spacing to move down
-        float targetTcpY = (pathStartY - r * placeSpacingY_inch) + paintGunOffsetY_inch;
+        float targetTcpY = (pathStartY - r * placeGapY_inch) + paintGunOffsetY_inch;
 
         // --- Determine Sweep Target X --- 
         if (r % 2 == 0) { // Even row (0, 2, ...): Sweep Left
-            targetTcpX = (pathStartX - (placeGridCols - 1) * placeSpacingX_inch) + paintGunOffsetX_inch;
+            targetTcpX = (pathStartX - (placeGridCols - 1) * placeGapX_inch) + paintGunOffsetX_inch;
             Serial.printf("Row %d (Even): Sweeping Left to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
         } else { // Odd row (1, 3, ...): Sweep Right
             targetTcpX = pathStartX + paintGunOffsetX_inch;
@@ -732,7 +733,7 @@ void paintSide(int sideIndex) {
         // --- Move Down to Next Row (if not the last row) --- 
         if (r < placeGridRows - 1) {
             // Corrected Y calculation: Subtract spacing to move down
-            float nextRowTcpY = (pathStartY - (r + 1) * placeSpacingY_inch) + paintGunOffsetY_inch;
+            float nextRowTcpY = (pathStartY - (r + 1) * placeGapY_inch) + paintGunOffsetY_inch;
             Serial.printf("Row %d: Moving Down to Y=%.2f (X=%.2f)\n", r, nextRowTcpY, currentTcpX);
             // Move only Y axis - use moveZToPositionInches for XY? No, use XY function but keep X same.
             // Need a specific Y-only move or use XY with same X
@@ -774,13 +775,13 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
             // Send initial status including current settings
              String initialStatusStr = (allHomed ? (isMoving ? "Busy" : "Ready") : "Needs Homing");
              char initialMsgBuffer[400]; // Increased buffer size for grid/spacing
-             sprintf(initialMsgBuffer, "{\"status\":\"%s\",\"message\":\"Welcome! System status: %s\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
+             sprintf(initialMsgBuffer, "{\"status\":\"%s\",\"message\":\"Welcome! System status: %s\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"gapX\":%.3f,\"gapY\":%.3f}",
                      initialStatusStr.c_str(), initialStatusStr.c_str(),
                      pnpOffsetX_inch, pnpOffsetY_inch,
                      placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                      patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                      placeGridCols, placeGridRows,
-                     placeSpacingX_inch, placeSpacingY_inch);
+                     placeGapX_inch, placeGapY_inch);
              Serial.printf("[DEBUG] WebSocket [%u] Sending Initial State: %s\n", num, initialMsgBuffer); // DEBUG
              webSocket.sendTXT(num, initialMsgBuffer);
              // Also send initial position update immediately after settings
@@ -797,17 +798,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                 if (command == "HOME") {
                     Serial.println("WebSocket: Received HOME command.");
                     if (isMoving || isHoming) {
-                        // Fixed quotes
                         webSocket.sendTXT(num, "{\"status\":\"Busy\",\"message\":\"Cannot home, machine is busy.\"}");
                     } else {
-                        if (inPickPlaceMode) {
-                            Serial.println("[DEBUG] Homing requested while in PnP mode. Exiting PnP mode first.");
-                            inPickPlaceMode = false; // Exit PnP mode
-                            // pnpSequenceComplete = false; // Reset PnP sequence status - This variable is defined in PickPlace.cpp, main doesn't need to set it directly.
-                            // Fixed quotes
-                            webSocket.broadcastTXT("{\"status\":\"Busy\",\"message\":\"Exiting PnP mode and starting homing...\"}"); // Inform user
-                        }
-                        homeAllAxes(); // Start homing (this function sends its own status updates)
+                        // REMOVED block that checked inPickPlaceMode here.
+                        // homeAllAxes() function will handle resetting PnP/Calibration modes internally.
+                        Serial.println("[DEBUG] HOME command received while idle. Calling homeAllAxes()."); // Added log
+                        homeAllAxes(); // Start homing (this function sends its own status updates and resets modes)
                     }
                 } else if (command == "GOTO_5_5_0") {
                     Serial.println("WebSocket: Received GOTO_5_5_0 command.");
@@ -868,12 +864,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                              Serial.printf("[DEBUG] Set PnP Offset to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch);
                              // Send confirmation with all current settings
                              char msgBuffer[400]; // Increased size
-                             sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"PnP offset updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
+                             sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"PnP offset updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"gapX\":%.3f,\"gapY\":%.3f}",
                                      pnpOffsetX_inch, pnpOffsetY_inch,
                                      placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                                      patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                                      placeGridCols, placeGridRows,
-                                     placeSpacingX_inch, placeSpacingY_inch);
+                                     placeGapX_inch, placeGapY_inch);
                              webSocket.broadcastTXT(msgBuffer);
                          } else {
                              Serial.println("[ERROR] Failed to parse SET_PNP_OFFSET values.");
@@ -915,12 +911,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 
                              // Send confirmation with all current settings (using actual values)
                              char msgBuffer[400]; // Increased size
-                             sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"Speed/Accel updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
+                             sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"Speed/Accel updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"gapX\":%.3f,\"gapY\":%.3f}",
                                      pnpOffsetX_inch, pnpOffsetY_inch,
                                      placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                                      patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                                      placeGridCols, placeGridRows,
-                                     placeSpacingX_inch, placeSpacingY_inch);
+                                     placeGapX_inch, placeGapY_inch);
                              webSocket.broadcastTXT(msgBuffer);
                          } else {
                              Serial.println("[ERROR] Failed to parse SET_SPEED_ACCEL values or values invalid.");
@@ -943,12 +939,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         Serial.printf("[DEBUG] Set First Place Absolute to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch);
                              // Send confirmation with all current settings
                         char msgBuffer[400]; // Increased size
-                        sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"First Place Absolute Pos updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
+                        sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"First Place Absolute Pos updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"gapX\":%.3f,\"gapY\":%.3f}",
                                      pnpOffsetX_inch, pnpOffsetY_inch,
                                 placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                                      patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                                      placeGridCols, placeGridRows,
-                                     placeSpacingX_inch, placeSpacingY_inch);
+                                     placeGapX_inch, placeGapY_inch);
                             webSocket.broadcastTXT(msgBuffer);
                          } else {
                         Serial.printf("[DEBUG] Failed to parse SET_FIRST_PLACE_ABS command: %s\n", command.c_str());
@@ -990,12 +986,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             
                             Serial.printf("[DEBUG] Set PnP Offset from current pos to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch);
                              char msgBuffer[400]; // Increased size
-                             sprintf(msgBuffer, "{\"status\":\"CalibrationActive\",\"message\":\"PnP Offset set from current position.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
+                             sprintf(msgBuffer, "{\"status\":\"CalibrationActive\",\"message\":\"PnP Offset set from current position.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"gapX\":%.3f,\"gapY\":%.3f}",
                                      pnpOffsetX_inch, pnpOffsetY_inch,
                                      placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                                      patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                                      placeGridCols, placeGridRows,
-                                     placeSpacingX_inch, placeSpacingY_inch);
+                                     placeGapX_inch, placeGapY_inch);
                              webSocket.broadcastTXT(msgBuffer);
                          } else {
                               webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Steppers not available.\"}");
@@ -1016,12 +1012,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             
                              Serial.printf("[DEBUG] Set First Place Absolute from current pos to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch);
                               char msgBuffer[400]; // Increased size
-                               sprintf(msgBuffer, "{\"status\":\"CalibrationActive\",\"message\":\"First Place Absolute Pos set from current position.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
+                               sprintf(msgBuffer, "{\"status\":\"CalibrationActive\",\"message\":\"First Place Absolute Pos set from current position.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"gapX\":%.3f,\"gapY\":%.3f}",
                                        pnpOffsetX_inch, pnpOffsetY_inch,
                                        placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                                        patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                                        placeGridCols, placeGridRows,
-                                       placeSpacingX_inch, placeSpacingY_inch);
+                                       placeGapX_inch, placeGapY_inch);
                               webSocket.broadcastTXT(msgBuffer);
                          } else {
                              Serial.println("[ERROR] Stepper X or Y_Left not initialized when setting First Place Abs from current.");
@@ -1464,29 +1460,74 @@ void sendCurrentPositionUpdate() {
 // Helper function to send ALL current settings
 // NOTE: Also does not include rotation angle
 void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
-    char settingsBuffer[650]; // Increased buffer size substantially
-    sprintf(settingsBuffer, "{\"status\":\"Ready\",\"message\":\"%s\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f,\"trayWidth\":%.2f,\"trayHeight\":%.2f,\"paintPatOffX\":%.2f,\"paintPatOffY\":%.2f,\"paintGunOffX\":%.2f,\"paintGunOffY\":%.2f,\"paintZ_0\":%.2f,\"paintP_0\":%d,\"paintR_0\":%d,\"paintS_0\":%.0f,\"paintZ_1\":%.2f,\"paintP_1\":%d,\"paintR_1\":%d,\"paintS_1\":%.0f,\"paintZ_2\":%.2f,\"paintP_2\":%d,\"paintR_2\":%d,\"paintS_2\":%.0f,\"paintZ_3\":%.2f,\"paintP_3\":%d,\"paintR_3\":%d,\"paintS_3\":%.0f}",
-            message.c_str(),
-            pnpOffsetX_inch, pnpOffsetY_inch,
-            placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
-            patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
-            placeGridCols, placeGridRows,
-            placeSpacingX_inch, placeSpacingY_inch,
-            trayWidth_inch, trayHeight_inch, // Added Tray Size
-            paintPatternOffsetX_inch, paintPatternOffsetY_inch,
-            paintGunOffsetX_inch, paintGunOffsetY_inch,
-            paintZHeight_inch[0], paintPitchAngle[0], paintRollAngle[0], paintSpeed[0],
-            paintZHeight_inch[1], paintPitchAngle[1], paintRollAngle[1], paintSpeed[1],
-            paintZHeight_inch[2], paintPitchAngle[2], paintRollAngle[2], paintSpeed[2],
-            paintZHeight_inch[3], paintPitchAngle[3], paintRollAngle[3], paintSpeed[3]
-    );
-    if (specificClientNum < 255) { // Send only to specific client if num is valid
-         webSocket.sendTXT(specificClientNum, settingsBuffer);
-         // Also broadcast to others, maybe with a generic message?
-         // For simplicity, let's just broadcast the full update to everyone.
-         webSocket.broadcastTXT(settingsBuffer);
+    // JsonDocument doc(2048); // Incorrect constructor for v7+
+    JsonDocument doc; // Declare JsonDocument, let library manage memory
+
+    // Base status and message
+    doc["status"] = "Ready"; // Assume Ready unless overridden
+    if (isMoving) doc["status"] = "Busy";
+    if (isHoming) doc["status"] = "Homing";
+    if (inPickPlaceMode) doc["status"] = "PickPlaceReady"; // More specific PnP status
+    if (inCalibrationMode) doc["status"] = "CalibrationActive";
+    // TODO: Add other relevant states if needed (e.g., painting)
+
+    doc["message"] = message;
+
+    // System Limits (example)
+    // doc["maxX"] = X_MAX_TRAVEL_POS_INCH;
+    // doc["maxY"] = Y_MAX_TRAVEL_POS_INCH;
+    // doc["maxZ"] = Z_HOME_POS_INCH;
+
+    // Speed/Accel Settings (showing displayed values)
+    doc["patXSpeed"] = patternXSpeed; // Send actual value
+    doc["patXAccel"] = patternXAccel; // Send actual value
+    doc["patYSpeed"] = patternYSpeed; // Send actual value
+    doc["patYAccel"] = patternYAccel; // Send actual value
+
+    // Pick and Place Settings
+    doc["pnpOffsetX"] = pnpOffsetX_inch;
+    doc["pnpOffsetY"] = pnpOffsetY_inch;
+    doc["placeFirstXAbs"] = placeFirstXAbsolute_inch; // Key updated
+    doc["placeFirstYAbs"] = placeFirstYAbsolute_inch; // Key updated
+    doc["gridCols"] = placeGridCols;
+    doc["gridRows"] = placeGridRows;
+    doc["gapX"] = placeGapX_inch; // Key updated
+    doc["gapY"] = placeGapY_inch; // Key updated
+    // doc["itemWidth"] = pnpItemWidth_inch; // Commented out: Item size not directly settable
+    // doc["itemHeight"] = pnpItemHeight_inch;// Commented out: Item size not directly settable
+    // doc["borderWidth"] = pnpBorderWidth_inch; // Commented out: Border not directly settable
+    doc["trayWidth"] = trayWidth_inch; // Added
+    doc["trayHeight"] = trayHeight_inch; // Added
+
+    // Paint Settings
+    doc["paintPatOffX"] = paintPatternOffsetX_inch;
+    doc["paintPatOffY"] = paintPatternOffsetY_inch;
+    doc["paintGunOffX"] = paintGunOffsetX_inch;
+    doc["paintGunOffY"] = paintGunOffsetY_inch;
+
+    // Paint Side Settings
+    for (int i = 0; i < 4; ++i) {
+        String keyZ = "paintZ_" + String(i);
+        String keyP = "paintP_" + String(i);
+        String keyR = "paintR_" + String(i);
+        String keyS = "paintS_" + String(i);
+        doc[keyZ] = paintZHeight_inch[i];
+        doc[keyP] = paintPitchAngle[i];
+        doc[keyR] = paintRollAngle[i];
+        doc[keyS] = paintSpeed[i]; // Send speed as steps/s
+    }
+
+    // Serialize JSON to string
+    String output;
+    serializeJson(doc, output);
+
+    // Send to specific client or broadcast
+    if (specificClientNum < 255) {
+        // Serial.printf("[DEBUG] Sending settings update to client %d: %s\n", specificClientNum, output.c_str()); // DEBUG
+        webSocket.sendTXT(specificClientNum, output);
     } else {
-        webSocket.broadcastTXT(settingsBuffer); // Broadcast if num is not specific
+        // Serial.printf("[DEBUG] Broadcasting settings update: %s\n", output.c_str()); // DEBUG
+        webSocket.broadcastTXT(output);
     }
 }
 
@@ -1528,8 +1569,7 @@ void setup() {
     // Load Grid Dimensions and Spacing (provide defaults)
     placeGridCols = preferences.getInt("gridCols", 4);
     placeGridRows = preferences.getInt("gridRows", 5);
-    placeSpacingX_inch = preferences.getFloat("spacingX", 4.0f);
-    placeSpacingY_inch = preferences.getFloat("spacingY", 4.0f);
+    // Remove loading spacingX/Y - they will be calculated and loaded by calculateAndSetGridSpacing
 
     // Load Tray Dimensions (provide defaults) (NEW)
     trayWidth_inch = preferences.getFloat("trayWidth", 24.0f);
@@ -1564,7 +1604,7 @@ void setup() {
                   placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                   patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                   placeGridCols, placeGridRows,
-                  placeSpacingX_inch, placeSpacingY_inch);
+                  placeGapX_inch, placeGapY_inch);
     Serial.printf("Loaded Tray Size: W=%.2f, H=%.2f\n", trayWidth_inch, trayHeight_inch); // Added Tray Size log
     Serial.printf("Loaded Paint Settings: PatOffset(%.2f, %.2f), GunOffset(%.2f, %.2f)\n",
                   paintPatternOffsetX_inch, paintPatternOffsetY_inch,
@@ -1827,62 +1867,69 @@ void loop() {
 
 // NEW: Function to calculate and set grid spacing automatically
 void calculateAndSetGridSpacing(int cols, int rows) {
-    Serial.printf("[DEBUG] Calculating spacing for %d cols, %d rows\n", cols, rows);
-    const float itemWidth = 3.0f;
-    const float itemHeight = 3.0f;
-    const float trayWidth = 18.0f;
-    const float trayHeight = 26.0f;
-    const float border = 0.25f;
+    Serial.printf("[DEBUG] Calculating grid gap for %d cols, %d rows\n", cols, rows);
+    // const float itemWidth = 3.0f; // REMOVED - Moved to GeneralSettings_PinDef.h
+    // const float itemHeight = 3.0f; // REMOVED - Moved to GeneralSettings_PinDef.h
+    // const float trayWidth = 18.0f; // REMOVED - Using global trayWidth_inch
+    // const float trayHeight = 26.0f; // REMOVED - Using global trayHeight_inch
+    // const float border = 0.25f; // REMOVED - Moved to GeneralSettings_PinDef.h
 
-    // Calculate available span for item centers
-    float centerSpanX = trayWidth - 2 * border - itemWidth;
-    float centerSpanY = trayHeight - 2 * border - itemHeight;
+    // Calculate total available width/height inside the border
+    float availableWidth = trayWidth_inch - 2 * pnpBorderWidth_inch; // Use global variables
+    float availableHeight = trayHeight_inch - 2 * pnpBorderWidth_inch; // Use global variables
 
-    // Calculate center-to-center spacing
+    // Calculate total width/height occupied by items
+    float totalItemWidth = cols * pnpItemWidth_inch; // Use global variable
+    float totalItemHeight = rows * pnpItemHeight_inch; // Use global variable
+
+    // Calculate total gap space
+    float totalGapX = availableWidth - totalItemWidth;
+    float totalGapY = availableHeight - totalItemHeight;
+
+    // Calculate individual gap size
     if (cols > 1) {
-        placeSpacingX_inch = centerSpanX / (cols - 1);
+        placeGapX_inch = totalGapX / (cols - 1);
     } else {
-        placeSpacingX_inch = 0; // No spacing needed for 1 column
+        placeGapX_inch = 0; // No gap needed for 1 column
     }
 
     if (rows > 1) {
-        placeSpacingY_inch = centerSpanY / (rows - 1);
+        placeGapY_inch = totalGapY / (rows - 1);
     } else {
-        placeSpacingY_inch = 0; // No spacing needed for 1 row
+        placeGapY_inch = 0; // No gap needed for 1 row
     }
 
-    // Basic validation: Ensure spacing isn't less than item size if multiple items
-    // This indicates items won't fit with the border.
+    // Basic validation: Check if calculated gap is negative (items + border > tray)
     bool fitError = false;
-    if (cols > 1 && placeSpacingX_inch < itemWidth) {
-        Serial.printf("[WARN] Calculated X spacing (%.2f) is less than item width (%.2f). Items may overlap or exceed tray width.\n", placeSpacingX_inch, itemWidth);
-        placeSpacingX_inch = itemWidth; // Clamp to minimum
+    if (totalGapX < 0) {
+        Serial.printf("[WARN] Items (%.2f) + border (%.2f) exceed tray width (%.2f). Calculated X Gap=%.3f\n", totalItemWidth, 2*pnpBorderWidth_inch, trayWidth_inch, placeGapX_inch);
         fitError = true;
+        placeGapX_inch = 0; // Clamp gap to 0 if negative
     }
-    if (rows > 1 && placeSpacingY_inch < itemHeight) {
-        Serial.printf("[WARN] Calculated Y spacing (%.2f) is less than item height (%.2f). Items may overlap or exceed tray height.\n", placeSpacingY_inch, itemHeight);
-        placeSpacingY_inch = itemHeight; // Clamp to minimum
+    if (totalGapY < 0) {
+        Serial.printf("[WARN] Items (%.2f) + border (%.2f) exceed tray height (%.2f). Calculated Y Gap=%.3f\n", totalItemHeight, 2*pnpBorderWidth_inch, trayHeight_inch, placeGapY_inch);
         fitError = true;
+        placeGapY_inch = 0; // Clamp gap to 0 if negative
     }
 
     // Update global column/row count
     placeGridCols = cols;
     placeGridRows = rows;
 
-    Serial.printf("[DEBUG] Calculated Spacing: X=%.3f, Y=%.3f\n", placeSpacingX_inch, placeSpacingY_inch);
+    Serial.printf("[DEBUG] Calculated Gap: X=%.3f, Y=%.3f\n", placeGapX_inch, placeGapY_inch);
 
-    // Save Cols, Rows, and *calculated* Spacing to Preferences
+    // Save Cols, Rows, and *calculated* Gap to Preferences
     preferences.begin("machineCfg", false);
     preferences.putInt("gridCols", placeGridCols);
     preferences.putInt("gridRows", placeGridRows);
-    preferences.putFloat("spacingX", placeSpacingX_inch);
-    preferences.putFloat("spacingY", placeSpacingY_inch);
+    preferences.putFloat("gapX", placeGapX_inch); // Use new key "gapX"
+    preferences.putFloat("gapY", placeGapY_inch); // Use new key "gapY"
     preferences.end();
 
     // Send update to UI
-    String message = "Grid Columns/Rows updated. Spacing calculated.";
+    String message = "Grid Columns/Rows updated. Gap calculated.";
     if (fitError) {
-        message += " Warning: Items may not fit with current settings.";
+        message += " Warning: Items may not fit within tray dimensions!";
     }
     sendAllSettingsUpdate(255, message); // Send to all clients
 }

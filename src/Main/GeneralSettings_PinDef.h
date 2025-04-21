@@ -1,6 +1,13 @@
 #ifndef GENERALSETTINGS_PINDEF_H
 #define GENERALSETTINGS_PINDEF_H
 
+#include <Arduino.h>
+#include <FastAccelStepper.h>
+#include <Bounce2.h>
+#include <WebServer.h>
+#include <WebSocketsServer.h>
+#include <ESP32Servo.h>
+
 // =====================
 // WiFi Settings (Credentials defined in main.cpp)
 // =====================
@@ -11,13 +18,8 @@ extern const char* hostname;
 // =====================
 // Motion Settings
 // =====================
-#define STEPS_PER_INCH_XY 254      // Steps per inch for X/Y (400 steps/rev / (20 teeth * 2mm pitch) * 25.4 mm/in)
-#define STEPS_PER_INCH_Z 2580.64    // Steps per inch for Z (Assuming same as XY)
-#define STEPS_PER_DEGREE 11.11111f   // Adjusted for better precision (4000.0f / 360.0f = 11.11111f)
 
 // Homing
-#define HOMING_SPEED 2000          // Homing speed (steps/sec)
-#define HOMING_ACCEL 5000          // Homing acceleration (steps/s^2)
 #define HOMING_TIMEOUT 15000       // Homing timeout (ms)
 
 // Pattern/General Move Speeds/Accelerations (Variables)
@@ -43,7 +45,6 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 // =====================
 // Miscellaneous Settings
 // =====================
-#define DEBOUNCE_INTERVAL 5        // Debounce interval for limit switches (ms) - Increased back to 5ms
 #define DEFAULT_PATTERN_DELAY 1000 // Default delay between pattern repetitions (ms)
 
 // =====================
@@ -67,9 +68,6 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 #define Z_STEP_PIN 38
 #define Z_DIR_PIN 37
 #define Z_HOME_SWITCH 4
-#define STEPS_PER_INCH_Z 2580.64
-#define Z_HOME_POS_INCH 0.0f
-#define Z_MAX_TRAVEL_NEG_INCH -2.75f // Maximum travel downwards in inches from home (bottom)
 
 // PnP Z Heights (Absolute positions in inches, relative to Z_HOME_POS_INCH = 0)
 // Ensure these are within [Z_MAX_TRAVEL_NEG_INCH, 0]
@@ -116,5 +114,69 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 // ========================================================================
 // Pattern Settings
 // ========================================================================
+
+// === General Constants ===
+#define DEBOUNCE_INTERVAL 10  // milliseconds
+#define HOMING_SPEED 1000      // steps/s
+#define HOMING_ACCEL 1000      // steps/s^2
+#define HOMING_TIMEOUT 15000   // milliseconds
+
+// Stepper Conversion Factors
+#define STEPS_PER_INCH_XY 2000.0 // Example value, adjust as needed
+#define STEPS_PER_INCH_Z 1600.0  // Example value, adjust as needed
+#define STEPS_PER_DEGREE (3200.0 / 360.0) // Example: 3200 steps per full rotation
+
+// Travel Limits (Inches, relative to homed position 0)
+#define X_MAX_TRAVEL_POS_INCH 30.0
+#define Y_MAX_TRAVEL_POS_INCH 30.0
+#define Z_HOME_POS_INCH 0.0
+#define Z_MAX_TRAVEL_NEG_INCH -2.0 // Maximum Z travel downwards
+
+// PnP Item Dimensions (NEW - Moved from main.cpp)
+const float pnpItemWidth_inch = 3.0f;
+const float pnpItemHeight_inch = 3.0f;
+const float pnpBorderWidth_inch = 0.25f; // Border around grid
+
+// === Extern Variables ===
+// These are defined in one .cpp file (e.g., main.cpp) and declared here
+// to be accessible in other .cpp files (e.g., PickPlace.cpp, Painting.cpp)
+
+// Stepper Engine & Motors
+extern FastAccelStepperEngine engine;
+extern FastAccelStepper *stepper_x;
+extern FastAccelStepper *stepper_y_left;
+extern FastAccelStepper *stepper_y_right;
+extern FastAccelStepper *stepper_z;
+extern FastAccelStepper *stepper_rot;
+
+// Web Server & Socket
+extern WebServer webServer;
+extern WebSocketsServer webSocket;
+
+// Servos
+extern Servo servo_pitch;
+extern Servo servo_roll;
+
+// State Variables
+extern bool allHomed;
+extern volatile bool isMoving;
+extern volatile bool isHoming;
+extern volatile bool inPickPlaceMode;
+extern volatile bool pendingHomingAfterPnP;
+extern volatile bool inCalibrationMode;
+
+// Speed/Accel Variables
+extern float patternXSpeed;
+extern float patternXAccel;
+extern float patternYSpeed;
+extern float patternYAccel;
+extern float patternZSpeed;
+extern float patternZAccel;
+extern float patternRotSpeed;
+extern float patternRotAccel;
+
+// Tray Dimensions
+extern float trayWidth_inch;
+extern float trayHeight_inch;
 
 #endif // GENERALSETTINGS_PINDEF_H 

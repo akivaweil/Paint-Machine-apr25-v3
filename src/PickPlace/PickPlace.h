@@ -41,8 +41,8 @@ extern float placeFirstYAbsolute_inch;
 // Grid and Spacing (Constants)
 extern int placeGridCols;
 extern int placeGridRows;
-extern float placeSpacingX_inch;
-extern float placeSpacingY_inch;
+extern float placeGapX_inch;
+extern float placeGapY_inch;
 
 // === Function Declarations ===
 

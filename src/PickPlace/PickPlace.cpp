@@ -7,12 +7,15 @@
 // Define the variables declared extern in PickPlace.h
 float pnpOffsetX_inch = 15.0; // Default X offset
 float pnpOffsetY_inch = 0.0;  // Default Y offset
-float placeFirstXAbsolute_inch = 20.0; // Default ABSOLUTE X
-float placeFirstYAbsolute_inch = 20.0; // Default ABSOLUTE Y
-int placeGridCols = 4;        // Default Columns
-int placeGridRows = 5;        // Default Rows
-float placeSpacingX_inch = 4.0f; // Default X Spacing
-float placeSpacingY_inch = 4.0f; // Default Y Spacing
+float placeFirstXAbsolute_inch = 20.0; // Default ABSOLUTE X for center of item (0,0)
+float placeFirstYAbsolute_inch = 20.0; // Default ABSOLUTE Y for center of item (0,0)
+// int placeGridCols = 4;        // REMOVED Definition (Defined in main.cpp)
+// int placeGridRows = 5;        // REMOVED Definition (Defined in main.cpp)
+// NOTE: Spacing is now calculated as the GAP between items in main.cpp
+// extern float placeSpacingX_inch; // REMOVED - Now Gap
+// extern float placeSpacingY_inch; // REMOVED - Now Gap
+extern float placeGapX_inch; // ADDED - Gap X
+extern float placeGapY_inch; // ADDED - Gap Y
 
 // Pattern Speed/Accel Variables (Defined in main.cpp, used by PnP moves)
 // Declared extern in GeneralSettings_PinDef.h
@@ -22,6 +25,11 @@ extern float patternYSpeed;
 extern float patternYAccel;
 extern float patternZSpeed;
 extern float patternZAccel;
+extern float patternRotSpeed;
+extern float patternRotAccel;
+
+// Stepper motor object (declared extern in GeneralSettings_PinDef.h)
+extern FastAccelStepper* stepper_rot;
 
 // === Internal PnP State Variables ===
 // These are only used within the PnP logic.
@@ -131,22 +139,52 @@ void enterPickPlaceMode() {
 
     Serial.println("[DEBUG] Entering Pick and Place Mode...");
     inPickPlaceMode = true; // Set flag BEFORE starting move to prevent loop() interference
-    isMoving = true; // Block other actions during the initial move
-    webSocket.broadcastTXT("{\"status\":\"Moving\", \"message\":\"Entering PnP Mode - Moving to Pick position...\"}");
+    isMoving = true; // Block other actions during the initial moves
+    webSocket.broadcastTXT("{\"status\":\"Moving\", \"message\":\"Entering PnP Mode - Rotating to 0 and Moving...\"}"); // Updated message
 
-    // Reset PnP state (already in PnP mode, just resetting sequence)
+    // Reset PnP state
     currentPlaceCol = 0;
     currentPlaceRow = 0;
     pnpSequenceComplete = false;
 
-    // Move to the defined pick position (Using PnP specific move)
-    // Move Z up to travel height first
-    // moveToZ_PnP(PNP_Z_TRAVEL_INCH, true); // Wait for Z move
+    // === Rotate to 0 Degrees First ===
+    Serial.println("[DEBUG] PnP Entry: Rotating to 0 degrees...");
+    if (stepper_rot) {
+        if (stepper_rot->getCurrentPosition() != 0) { // Only move if not already at 0
+            stepper_rot->setSpeedInHz(patternRotSpeed); // Use pattern speed/accel
+            stepper_rot->setAcceleration(patternRotAccel);
+            stepper_rot->moveTo(0);
 
-    // Move XY to Pick offset
-    moveToXYPositionInches_PnP(pnpOffsetX_inch, pnpOffsetY_inch);
+            unsigned long rotStartTime = millis();
+            while (stepper_rot->isRunning()) {
+                if (millis() - rotStartTime > 15000) { // Timeout
+                    Serial.println("[ERROR] Timeout rotating to 0 in PnP Entry!");
+                    if (stepper_rot) stepper_rot->forceStop();
+                    // Consider error handling: should we exit PnP mode?
+                    // For now, continue to XY move, but log error.
+                    webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Timeout rotating to 0!\"}");
+                    break; // Exit wait loop
+                }
+                webSocket.loop(); yield(); // Keep responsive
+            }
+            if (!stepper_rot->isRunning()) { // Check if rotation completed successfully
+                 Serial.println("[DEBUG] PnP Entry: Rotation to 0 complete.");
+            }
+        } else {
+             Serial.println("[DEBUG] PnP Entry: Already at 0 degrees.");
+        }
+    } else {
+        Serial.println("[WARN] PnP Entry: Rotation stepper not available, skipping rotation.");
+    }
+    // === End Rotation ===
 
-    // --- Wait for move completion --- (Blocking for simplicity here)
+    // === Move to the PnP offset WAITING position (Pick Y + 1 inch) ===
+    float waitingPosX = pnpOffsetX_inch;
+    float waitingPosY = pnpOffsetY_inch + 1.0f; // Wait 1 inch away in Y+
+    Serial.printf("[DEBUG] PnP Entry: Moving to WAITING position X=%.2f, Y=%.2f\n", waitingPosX, waitingPosY);
+    moveToXYPositionInches_PnP(waitingPosX, waitingPosY);
+
+    // --- Wait for XY move completion --- (Blocking for simplicity here)
     unsigned long entryMoveStartTime = millis();
     while (stepper_x->isRunning() || stepper_y_left->isRunning() || stepper_y_right->isRunning()) {
         // Basic timeout check
@@ -184,8 +222,8 @@ void enterPickPlaceMode() {
          return; // Failed to enter mode
     }
 
-    Serial.println("[DEBUG] Reached Pick position. Clearing isMoving flag."); // DEBUG
-    isMoving = false; // Clear busy flag AFTER move completes and state is confirmed
+    Serial.println("[DEBUG] Reached PnP WAITING position. Clearing isMoving flag."); // Updated Debug message
+    isMoving = false; // Clear busy flag AFTER ALL moves complete and state is confirmed
     webSocket.broadcastTXT("{\"status\":\"PickPlaceReady\", \"message\":\"Pick/Place mode entered. Ready for step.\"}");
 }
 
@@ -227,6 +265,26 @@ void executeNextPickPlaceStep() {
     webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Executing PnP Step...\"}");
     Serial.println("[DEBUG] --- Starting PnP Step --- ");
 
+    // == Move from Waiting Offset to Actual Pick Location == (NEW)
+    Serial.printf("[DEBUG] Moving from waiting offset to actual Pick location (X=%.2f, Y=%.2f)...\n", pnpOffsetX_inch, pnpOffsetY_inch);
+    webSocket.broadcastTXT("{\"status\":\"Moving\", \"message\":\"Moving to Pick Location...\"}");
+    moveToXYPositionInches_PnP(pnpOffsetX_inch, pnpOffsetY_inch);
+    unsigned long prePickMoveStartTime = millis();
+    while (stepper_x->isRunning() || stepper_y_left->isRunning() || stepper_y_right->isRunning()) {
+        if (millis() - prePickMoveStartTime > 5000) { // Shorter timeout for this small move
+             Serial.println("[ERROR] Timeout moving to actual Pick location!");
+             if (stepper_x) stepper_x->forceStop();
+             if (stepper_y_left) stepper_y_left->forceStop();
+             if (stepper_y_right) stepper_y_right->forceStop();
+             isMoving = false;
+             webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Timeout moving to Pick Location!\"}");
+             return;
+        }
+        webSocket.loop(); yield(); // Keep responsive
+    }
+     Serial.println("[DEBUG] Arrived at actual Pick location.");
+    // == End Move to Pick Location ==
+
     // == Pick Action (User Steps 1-5) ==
     Serial.println("[DEBUG] 1. Performing Pick Action...");
     // Move Z down to Pick height
@@ -243,15 +301,20 @@ void executeNextPickPlaceStep() {
 
     // == Move to Place Location (User Step 6) ==
     // Calculate target place coordinates for this step
-    // Use absolute first place position and subtract grid offsets
-    float absoluteTargetX = placeFirstXAbsolute_inch - (currentPlaceCol * placeSpacingX_inch);
-    float absoluteTargetY = placeFirstYAbsolute_inch - (currentPlaceRow * placeSpacingY_inch);
+    // Use absolute first place position (center of 0,0) and add grid offsets
+    // Offset includes the item width + gap
+    const float itemWidth = 3.0f; // Assumed item width (should match main.cpp)
+    const float itemHeight = 3.0f; // Assumed item height (should match main.cpp)
+
+    float absoluteTargetX = placeFirstXAbsolute_inch + (currentPlaceCol * (itemWidth + placeGapX_inch));
+    float absoluteTargetY = placeFirstYAbsolute_inch + (currentPlaceRow * (itemHeight + placeGapY_inch));
 
     char msgBuffer[150];
-    Serial.printf("[DEBUG] PnP Step Target Calc: Col=%d, Row=%d, FirstAbsX=%.2f, FirstAbsY=%.2f, SpacingX=%.2f, SpacingY=%.2f -> TargetX=%.2f, TargetY=%.2f\n",
+    Serial.printf("[DEBUG] PnP Step Target Calc: Col=%d, Row=%d, FirstAbsX=%.2f, FirstAbsY=%.2f, ItemW=%.2f, ItemH=%.2f, GapX=%.3f, GapY=%.3f -> TargetX=%.2f, TargetY=%.2f\n",
                    currentPlaceCol, currentPlaceRow,
                    placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
-                   placeSpacingX_inch, placeSpacingY_inch,
+                   itemWidth, itemHeight,
+                   placeGapX_inch, placeGapY_inch,
                    absoluteTargetX, absoluteTargetY); // DEBUG
     sprintf(msgBuffer, "{\"status\":\"Moving\", \"message\":\"PnP Step %d,%d: Moving to Place (Abs: %.2f, %.2f)\"}",
             currentPlaceRow + 1, currentPlaceCol + 1, absoluteTargetX, absoluteTargetY);
@@ -292,13 +355,16 @@ void executeNextPickPlaceStep() {
     // Move Z up to Travel height
 
     // == Return to Pick Location (User Step 13) ==
-    sprintf(msgBuffer, "{\"status\":\"Moving\", \"message\":\"PnP Step %d,%d: Returning to Pick (Abs: %.2f, %.2f)\"}",
-            currentPlaceRow + 1, currentPlaceCol + 1, pnpOffsetX_inch, pnpOffsetY_inch);
-    Serial.println("[DEBUG] 13. Returning to Pick location...");
+    // MODIFIED: Return to the WAITING offset position
+    float returnPosX = pnpOffsetX_inch;
+    float returnPosY = pnpOffsetY_inch + 1.0f; // Go back to the +1 inch Y offset
+    sprintf(msgBuffer, "{\"status\":\"Moving\", \"message\":\"PnP Step %d,%d: Returning to Pick Waiting Pos (%.2f, %.2f)\"}",
+            currentPlaceRow + 1, currentPlaceCol + 1, returnPosX, returnPosY);
+    Serial.println("[DEBUG] 13. Returning to Pick WAITING location..."); // Updated message
     Serial.println(msgBuffer); // Debug
     webSocket.broadcastTXT(msgBuffer);
-    // Move XY to Pick Location (Z is already at travel height)
-    moveToXYPositionInches_PnP(pnpOffsetX_inch, pnpOffsetY_inch);
+    // Move XY to Pick Waiting Location
+    moveToXYPositionInches_PnP(returnPosX, returnPosY);
     // Wait for XY move to complete (blocking)
     unsigned long pickMoveStartTime = millis();
     while (stepper_x->isRunning() || stepper_y_left->isRunning() || stepper_y_right->isRunning()) {
@@ -313,7 +379,7 @@ void executeNextPickPlaceStep() {
          }
         webSocket.loop(); yield(); // Keep responsive
     }
-     Serial.printf("[DEBUG] Arrived back at Pick (Abs: %.2f, %.2f).\n", pnpOffsetX_inch, pnpOffsetY_inch);
+     Serial.printf("[DEBUG] Arrived back at Pick WAITING position (%.2f, %.2f).\n", returnPosX, returnPosY); // Updated message
      Serial.println("[DEBUG] --- Completed PnP Step --- ");
      Serial.printf("[DEBUG] Current Grid Pos Before Increment: Col=%d, Row=%d\n", currentPlaceCol, currentPlaceRow); // DEBUG
 
@@ -384,8 +450,8 @@ void skipPickPlaceLocation() {
         Serial.printf("[DEBUG] Skipped to next location: Col=%d, Row=%d\n", currentPlaceCol, currentPlaceRow);
 
         // Calculate new target coordinates (for reference only, no movement)
-        float absoluteTargetX = placeFirstXAbsolute_inch - (currentPlaceCol * placeSpacingX_inch);
-        float absoluteTargetY = placeFirstYAbsolute_inch - (currentPlaceRow * placeSpacingY_inch);
+        float absoluteTargetX = placeFirstXAbsolute_inch + (currentPlaceCol * (pnpItemWidth_inch + placeGapX_inch));
+        float absoluteTargetY = placeFirstYAbsolute_inch + (currentPlaceRow * (pnpItemHeight_inch + placeGapY_inch));
         Serial.printf("[DEBUG] Next location coordinates (not moving): X=%.2f, Y=%.2f\n", absoluteTargetX, absoluteTargetY);
 
         sprintf(msgBuffer, "{\"status\":\"PickPlaceReady\", \"message\":\"Skipped to location %d,%d. Ready for next step.\"}",
@@ -435,8 +501,8 @@ void goBackPickPlaceLocation() {
     Serial.printf("[DEBUG] Went back to location: Col=%d, Row=%d\n", currentPlaceCol, currentPlaceRow);
 
     // Calculate coordinates (for reference only, no movement)
-    float absoluteTargetX = placeFirstXAbsolute_inch - (currentPlaceCol * placeSpacingX_inch);
-    float absoluteTargetY = placeFirstYAbsolute_inch - (currentPlaceRow * placeSpacingY_inch);
+    float absoluteTargetX = placeFirstXAbsolute_inch + (currentPlaceCol * (pnpItemWidth_inch + placeGapX_inch));
+    float absoluteTargetY = placeFirstYAbsolute_inch + (currentPlaceRow * (pnpItemHeight_inch + placeGapY_inch));
     Serial.printf("[DEBUG] Previous location coordinates (not moving): X=%.2f, Y=%.2f\n", absoluteTargetX, absoluteTargetY);
 
     sprintf(msgBuffer, "{\"status\":\"PickPlaceReady\", \"message\":\"Moved back to location %d,%d. Ready for next step.\"}",
