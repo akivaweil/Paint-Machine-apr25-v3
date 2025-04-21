@@ -693,7 +693,7 @@ void paintSide(int sideIndex) {
     moveZToPositionInches(zHeight, patternZSpeed, patternZAccel);
 
     // 8. Calculate and Move TCP to START of FIRST SWEEP (Top-Right Corner)
-    float startTcpX = pathStartX + paintGunOffsetX_inch;
+    float startTcpX = pathStartX + paintGunOffsetX_inch + 0.25; // Start 0.25 inches to the right
     float startTcpY = pathStartY + paintGunOffsetY_inch;
     Serial.printf("Moving TCP to start of first sweep (Top-Right): (%.2f, %.2f)\n", startTcpX, startTcpY);
     moveToXYPositionInches_Paint(startTcpX, startTcpY, speed, accel);
@@ -708,31 +708,38 @@ void paintSide(int sideIndex) {
         float rowSpacing = 3.0 + placeGapY_inch; // Move down by 3 inches + y gap
         Serial.printf("Back side painting: Using row spacing of %.2f (3.0 + gap %.2f)\n", rowSpacing, placeGapY_inch);
         
+        bool movingLeft = true; // Start by moving left (negative X)
+        
         for (int r = 0; r < placeGridRows; ++r) {
             // Calculate Y position for this row
             float targetTcpY = startTcpY - (r * rowSpacing);
             
-            // Always sweep from right to left (move in -X direction)
-            float targetTcpX = startTcpX - trayWidth_inch;
-            Serial.printf("Row %d: Sweeping Left from X=%.2f to X=%.2f at Y=%.2f\n", 
-                         r, currentTcpX, targetTcpX, targetTcpY);
-            
-            // First move to correct Y position if needed
+            // Move to correct Y position if needed
             if (abs(currentTcpY - targetTcpY) > 0.001) {
                 moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
                 currentTcpY = targetTcpY;
             }
             
-            // Then sweep left (X- direction)
+            // Calculate target X based on direction
+            float targetTcpX;
+            if (movingLeft) {
+                // Moving left (negative X direction)
+                targetTcpX = startTcpX - trayWidth_inch;
+                Serial.printf("Row %d: Sweeping Left from X=%.2f to X=%.2f at Y=%.2f\n", 
+                             r, currentTcpX, targetTcpX, targetTcpY);
+            } else {
+                // Moving right (positive X direction)
+                targetTcpX = startTcpX;
+                Serial.printf("Row %d: Sweeping Right from X=%.2f to X=%.2f at Y=%.2f\n", 
+                             r, currentTcpX, targetTcpX, targetTcpY);
+            }
+            
+            // Execute the sweep
             moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
             currentTcpX = targetTcpX;
             
-            // If not the last row, move to the right side for the next sweep
-            if (r < placeGridRows - 1) {
-                targetTcpX = startTcpX; // Back to the right side
-                moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
-                currentTcpX = targetTcpX;
-            }
+            // Flip direction for next row
+            movingLeft = !movingLeft;
         }
     } else {
         // Original pattern for other sides
@@ -782,10 +789,14 @@ void paintSide(int sideIndex) {
     Serial.println("Moving Z axis up to safe height (0)...");
     moveZToPositionInches(0.0, patternZSpeed, patternZAccel);
 
-    // 11. Clear Busy State & Send Ready Message
+    // 11. Return to home position
+    Serial.println("Returning to home position...");
+    moveToPositionInches(0, 0, 0);
+
+    // 12. Clear Busy State & Send Ready Message
     isMoving = false;
     char readyMsg[100];
-    sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Painting Side %d complete.\"}", sideIndex);
+    sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Painting Side %d complete. Returned to home.\"}", sideIndex);
     webSocket.broadcastTXT(readyMsg);
     Serial.println(readyMsg);
 
@@ -1269,7 +1280,18 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         if (parsed == 5 && sideIndex >= 0 && sideIndex < 4) {
                             // Validate servo angles and speed
                             newPitch = constrain(newPitch, PITCH_SERVO_MIN, PITCH_SERVO_MAX);
-                            newRoll = constrain(newRoll, ROLL_VERTICAL, ROLL_HORIZONTAL); // Assuming VERTICAL=min, HORIZONTAL=max
+                            
+                            // Map the UI values (0=Vertical, 90=Horizontal) to the actual servo values
+                            if (newRoll == 0) {
+                                newRoll = ROLL_VERTICAL;  // Map 0 from UI to the actual vertical servo position
+                            } else if (newRoll == 90) {
+                                newRoll = ROLL_HORIZONTAL; // Map 90 from UI to the actual horizontal servo position
+                            } else {
+                                // For any unexpected values, default to vertical for safety
+                                Serial.printf("[WARN] Invalid Roll value %d from UI, defaulting to VERTICAL\n", newRoll);
+                                newRoll = ROLL_VERTICAL;
+                            }
+                            
                             newSpeed = constrain(newSpeed, 5000.0f, 20000.0f);
 
                             paintZHeight_inch[sideIndex] = newZ;
@@ -1567,8 +1589,21 @@ void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
         String keyS = "paintS_" + String(i);
         doc[keyZ] = paintZHeight_inch[i];
         doc[keyP] = paintPitchAngle[i];
-        doc[keyR] = paintRollAngle[i];
-        doc[keyS] = paintSpeed[i]; // Send speed as steps/s
+        
+        // Map the actual servo position values back to UI values
+        // UI expects 0 for vertical, 90 for horizontal
+        if (paintRollAngle[i] == ROLL_VERTICAL) {
+            doc[keyR] = 0; // Vertical in UI
+        } else if (paintRollAngle[i] == ROLL_HORIZONTAL) {
+            doc[keyR] = 90; // Horizontal in UI
+        } else {
+            // If the value is neither expected value, default to vertical in UI
+            Serial.printf("[WARN] Unexpected Roll value %d for side %d, mapping to VERTICAL (0) for UI\n", 
+                         paintRollAngle[i], i);
+            doc[keyR] = 0;
+        }
+        
+        doc[keyS] = paintSpeed[i] / 1000.0f; // Convert speed to UI value (divide by 1000)
     }
 
     // Serialize JSON to string
@@ -1674,8 +1709,11 @@ void setup() {
 
         // Clamp loaded servo values to their limits just in case
         paintPitchAngle[i] = constrain(paintPitchAngle[i], PITCH_SERVO_MIN, PITCH_SERVO_MAX);
-        paintRollAngle[i] = constrain(paintRollAngle[i], ROLL_VERTICAL, ROLL_HORIZONTAL); // Assuming VERTICAL is min, HORIZONTAL is max
-         paintSpeed[i] = constrain(paintSpeed[i], 5000.0f, 20000.0f); // Clamp speed 5k-20k
+        
+        // Note: We don't constrain paintRollAngle here since it will be mapped in the sendAllSettingsUpdate function
+        // This ensures the correct values are sent to the UI
+         
+        paintSpeed[i] = constrain(paintSpeed[i], 5000.0f, 20000.0f); // Clamp speed 5k-20k
     }
 
     preferences.end(); // Close NVS
