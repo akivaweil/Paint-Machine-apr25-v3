@@ -62,6 +62,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       -moz-appearance: textfield; /* Firefox */
     }
 
+    .exit-button { background-color: #f44336; } /* Red for Exit button */
+    .exit-button:active { background-color: #d32f2f; } /* Darker red on click */
+
   </style>
 </head>
 <body>
@@ -80,12 +83,17 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="gridRows" step="1" value="5">
         <span id="gridDisplay">Current: 4 x 5</span>
         <br>
-        <label for="spacingX">Space X:</label>
-        <input type="number" id="spacingX" step="0.1" value="4.0">
-        <label for="spacingY">Space Y:</label>
-        <input type="number" id="spacingY" step="0.1" value="4.0">
-        <span id="spacingDisplay">Current: X=4.00, Y=4.00</span>
-        <button id="setGridSpacingButton" class="button setting-button" onclick="setGridSpacing()">Set Grid/Spacing</button>
+        <span id="spacingDisplay">Spacing: X=Auto, Y=Auto</span> <!-- Updated display text -->
+        <button id="setGridSpacingButton" class="button setting-button" onclick="setGridSpacing()">Set Grid Columns/Rows</button> <!-- Updated button text -->
+    </div>
+    <div class="input-group"> <!-- Added Tray Dimensions Group -->
+        <h3>Tray Dimensions</h3>
+        <label for="trayWidth">Width:</label>
+        <input type="number" id="trayWidth" step="0.1" value="24.0"> <!-- Default Value -->
+        <label for="trayHeight">Height:</label>
+        <input type="number" id="trayHeight" step="0.1" value="18.0"> <!-- Default Value -->
+        <span id="traySizeDisplay">Current: W=24.00, H=18.00</span> <!-- Default Display -->
+        <button id="setTraySizeButton" class="button setting-button" onclick="setTraySize()">Set Tray Size</button>
     </div>
   </div> <!-- ADDED -->
   <hr>
@@ -268,11 +276,15 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       // Grid/Spacing Elements
       var gridColsInput = document.getElementById('gridCols');
       var gridRowsInput = document.getElementById('gridRows');
-      var spacingXInput = document.getElementById('spacingX');
-      var spacingYInput = document.getElementById('spacingY');
       var setGridSpacingButton = document.getElementById('setGridSpacingButton');
       var gridDisplaySpan = document.getElementById('gridDisplay');
       var spacingDisplaySpan = document.getElementById('spacingDisplay');
+
+      // Tray Size Elements (NEW)
+      var trayWidthInput = document.getElementById('trayWidth');
+      var trayHeightInput = document.getElementById('trayHeight');
+      var setTraySizeButton = document.getElementById('setTraySizeButton');
+      var traySizeDisplaySpan = document.getElementById('traySizeDisplay');
 
       var xSpeedInput = document.getElementById('xSpeed');
       var xAccelInput = document.getElementById('xAccel');
@@ -434,11 +446,18 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   let currentSX = parseFloat(data.spacingX).toFixed(2);
                   let currentSY = parseFloat(data.spacingY).toFixed(2);
                   gridDisplaySpan.innerHTML = `Current: ${currentCols} x ${currentRows}`;
-                  spacingDisplaySpan.innerHTML = `Current: X=${currentSX}, Y=${currentSY}`;
+                  spacingDisplaySpan.innerHTML = `Spacing: X=${currentSX}, Y=${currentSY}`; // Update display format
                   gridColsInput.value = currentCols;
                   gridRowsInput.value = currentRows;
-                  spacingXInput.value = currentSX;
-                  spacingYInput.value = currentSY;
+              }
+
+              // Update Tray Size display and inputs if info is present (NEW)
+              if (data.hasOwnProperty('trayWidth') && data.hasOwnProperty('trayHeight')) {
+                  let currentW = parseFloat(data.trayWidth).toFixed(2);
+                  let currentH = parseFloat(data.trayHeight).toFixed(2);
+                  traySizeDisplaySpan.innerHTML = `Current: W=${currentW}, H=${currentH}`;
+                  trayWidthInput.value = currentW;
+                  trayHeightInput.value = currentH;
               }
 
               // Update Paint Offsets display and inputs if info is present
@@ -496,6 +515,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   allHomed = (data.status === "Ready"); // <<< SET allHomed based on Ready status
                   enableButtons(true, false);
                   pnpButton.innerHTML = "Enter Pick/Place"; // Reset button text
+                  pnpButton.className = "button"; // Reset to default button style
                   pnpButton.onclick = function() { sendCommand('ENTER_PICKPLACE'); }; // Reset function
                   pnpStepButton.style.display = 'none'; // Hide PnP step button
                   enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button
@@ -504,15 +524,17 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   console.log("JS Debug: Executing 'PickPlaceReady' block"); // JS Debug
                   statusDiv.style.color = 'blue'; // Indicate special mode
                   enableButtons(true, true); // PnP ready state (enable=true, enablePnP=true)
-                  // Keep PnP button text, but disable it. Homing will exit mode.
-                  pnpButton.innerHTML = "Pick and Place Mode"; 
-                  pnpButton.disabled = true;
+                  // Change PnP button to Exit button with red color
+                  pnpButton.innerHTML = "Exit Pick and Place Mode";
+                  pnpButton.className = "button exit-button"; // Add red styling
+                  pnpButton.disabled = false;  
+                  pnpButton.onclick = function() { sendCommand('EXIT_PICKPLACE'); }; // Change function to exit
                   pnpStepButton.style.display = 'inline-block'; // Show PnP step button
-                   enterCalibrationButton.style.display = 'none'; // Hide Enter Cal button
-                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
-                   pnpSkipButton.style.display = 'inline-block'; // Show Skip button
-                   pnpBackButton.style.display = 'inline-block'; // Show Back button
-                   enableButtons(); // Ensure buttons are enabled correctly
+                  enterCalibrationButton.style.display = 'none'; // Hide Enter Cal button
+                  calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
+                  pnpSkipButton.style.display = 'inline-block'; // Show Skip button
+                  pnpBackButton.style.display = 'inline-block'; // Show Back button
+                  enableButtons(); // Ensure buttons are enabled correctly
               } else if (data.status === "Busy" || data.status === "Moving" || data.status === "Homing") {
                   console.log("JS Debug: Executing 'Busy/Moving/Homing' block"); // JS Debug
                   statusDiv.style.color = 'orange';
@@ -532,6 +554,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   enterCalibrationButton.style.display = 'none'; // Hide Enter Cal button
                   calibrationControlsDiv.style.display = 'block'; // Show Cal controls
                   pnpButton.innerHTML = "Enter Pick/Place"; // Ensure PnP button is reset
+                  pnpButton.className = "button"; // Reset to default button style
                   pnpButton.onclick = function() { sendCommand('ENTER_PICKPLACE'); };
                   pnpStepButton.style.display = 'none'; // Hide PnP step button
               } else if (data.status === "PickPlaceComplete") {
@@ -712,17 +735,15 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       function setGridSpacing() {
           const colsVal = gridColsInput.value;
           const rowsVal = gridRowsInput.value;
-          const sxVal = spacingXInput.value;
-          const syVal = spacingYInput.value;
-          // Basic validation
+          // Removed sxVal, syVal
+          // Basic validation for cols/rows only
           if (isNaN(parseInt(colsVal)) || parseInt(colsVal) <= 0 ||
-              isNaN(parseInt(rowsVal)) || parseInt(rowsVal) <= 0 ||
-              isNaN(parseFloat(sxVal)) || parseFloat(sxVal) <= 0 ||
-              isNaN(parseFloat(syVal)) || parseFloat(syVal) <= 0) {
-              alert("Invalid grid/spacing values. Cols/Rows must be positive integers, Spacing must be positive numbers.");
+              isNaN(parseInt(rowsVal)) || parseInt(rowsVal) <= 0) {
+              alert("Invalid grid columns/rows. Must be positive integers.");
               return;
           }
-          const command = `SET_GRID_SPACING ${colsVal} ${rowsVal} ${sxVal} ${syVal}`;
+          // Send only cols and rows
+          const command = `SET_GRID_SPACING ${colsVal} ${rowsVal}`;
           sendCommand(command);
       }
 
@@ -890,9 +911,11 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               },
               grid: {
                   cols: parseInt(gridColsInput.value) || 0,
-                  rows: parseInt(gridRowsInput.value) || 0,
-                  spacingX: parseFloat(spacingXInput.value) || 0,
-                  spacingY: parseFloat(spacingYInput.value) || 0
+                  rows: parseInt(gridRowsInput.value) || 0
+              },
+              traySize: { // NEW: Added Tray Size to download
+                  width: parseFloat(trayWidthInput.value) || 0,
+                  height: parseFloat(trayHeightInput.value) || 0
               },
               paintOffsets: {
                   patternX: parseFloat(paintPatternOffsetXInput.value) || 0,
@@ -973,8 +996,11 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   if (settings.grid) {
                       gridColsInput.value = settings.grid.cols;
                       gridRowsInput.value = settings.grid.rows;
-                      spacingXInput.value = settings.grid.spacingX;
-                      spacingYInput.value = settings.grid.spacingY;
+                  }
+                  
+                  if (settings.traySize) {
+                      trayWidthInput.value = settings.traySize.width;
+                      trayHeightInput.value = settings.traySize.height;
                   }
                   
                   if (settings.paintOffsets) {
@@ -1023,6 +1049,20 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
       function setRotationZero() {
           const command = `SET_ROT_ZERO`;
+          sendCommand(command);
+      }
+
+      // NEW Function to set Tray Size
+      function setTraySize() {
+          const widthVal = trayWidthInput.value;
+          const heightVal = trayHeightInput.value;
+          // Basic validation
+          if (isNaN(parseFloat(widthVal)) || parseFloat(widthVal) <= 0 ||
+              isNaN(parseFloat(heightVal)) || parseFloat(heightVal) <= 0) {
+              alert("Invalid tray dimensions. Width and Height must be positive numbers.");
+              return;
+          }
+          const command = `SET_TRAY_SIZE ${widthVal} ${heightVal}`;
           sendCommand(command);
       }
       // END NEW Rotation Control Functions

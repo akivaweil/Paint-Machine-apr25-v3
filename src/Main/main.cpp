@@ -54,6 +54,10 @@ volatile bool inPickPlaceMode = false; // Tracks if PnP sequence is active
 volatile bool pendingHomingAfterPnP = false; // Flag to home after exiting PnP
 volatile bool inCalibrationMode = false; // Tracks if calibration mode is active
 
+// NEW: Tray Dimension Variables
+float trayWidth_inch = 24.0; // Default tray width
+float trayHeight_inch = 18.0; // Default tray height
+
 // Pattern/General Speed/Accel Variables (declared extern in GeneralSettings_PinDef.h)
 float patternXSpeed = 20000.0; // Actual value
 float patternXAccel = 20000.0; // Actual value
@@ -113,6 +117,7 @@ void executePickPlaceCycle(); // Might be obsolete
 void executeNextPickPlaceStep();
 void enterPickPlaceMode();
 void exitPickPlaceMode();
+void calculateAndSetGridSpacing(int cols, int rows); // Added forward declaration here
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 void sendCurrentPositionUpdate(); // Forward declaration for position updates
 void sendAllSettingsUpdate(uint8_t specificClientNum, String message); // Helper to send all settings
@@ -1125,42 +1130,35 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format. Use: MOVE_TO_COORDS X Y\"}");
                          }
                      }
-                 } else if (command.startsWith("SET_GRID_SPACING ")) {
-                    Serial.println("WebSocket: Received SET_GRID_SPACING command.");
-                    if (isMoving || isHoming || inPickPlaceMode) {
-                        webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Cannot set grid/spacing while machine is busy or in PnP mode.\"}");
+                 } else if (command.startsWith("SET_GRID_SPACING ")) { // UPDATED
+                    Serial.println("[DEBUG] webSocketEvent: Handling SET_GRID_SPACING command."); // DEBUG
+                    int newCols, newRows;
+                    // Expecting "SET_GRID_SPACING C R"
+                    int parsed = sscanf(command.c_str() + strlen("SET_GRID_SPACING "), "%d %d", &newCols, &newRows);
+                    if (parsed == 2 && newCols > 0 && newRows > 0) {
+                        // Call the new calculation function
+                        calculateAndSetGridSpacing(newCols, newRows);
                     } else {
-                        int newCols, newRows;
-                        float newSX, newSY;
-                        int parsed = sscanf(command.c_str() + strlen("SET_GRID_SPACING "), "%d %d %f %f", &newCols, &newRows, &newSX, &newSY);
-                        if (parsed == 4 && newCols > 0 && newRows > 0 && newSX > 0 && newSY > 0) {
-                            placeGridCols = newCols;
-                            placeGridRows = newRows;
-                            placeSpacingX_inch = newSX;
-                            placeSpacingY_inch = newSY;
-
-                            // Save to Preferences
-                            preferences.begin("machineCfg", false);
-                            preferences.putInt("gridCols", placeGridCols);
-                            preferences.putInt("gridRows", placeGridRows);
-                            preferences.putFloat("spacingX", placeSpacingX_inch);
-                            preferences.putFloat("spacingY", placeSpacingY_inch);
-                            preferences.end();
-                            Serial.printf("[DEBUG] Set Grid/Spacing to Cols=%d, Rows=%d, SX=%.2f, SY=%.2f\n", placeGridCols, placeGridRows, placeSpacingX_inch, placeSpacingY_inch);
-
-                            // Send confirmation with all current settings
-                            char msgBuffer[400]; // Increased size
-                            sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"Grid/Spacing updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
-                                    pnpOffsetX_inch, pnpOffsetY_inch,
-                                    placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
-                                    patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
-                                    placeGridCols, placeGridRows,
-                                    placeSpacingX_inch, placeSpacingY_inch);
-                            webSocket.broadcastTXT(msgBuffer);
-                        } else {
-                            Serial.println("[ERROR] Failed to parse SET_GRID_SPACING values or values invalid.");
-                            webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Invalid SET_GRID_SPACING format/values. Use: SET_GRID_SPACING C R SX SY (all positive)\"}");
-                        }
+                        Serial.printf("[DEBUG] Failed to parse SET_GRID_SPACING command: %s\n", command.c_str());
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid SET_GRID_SPACING format. Use C R (integers > 0)\"}");
+                    }
+                 } else if (command.startsWith("SET_TRAY_SIZE ")) { // NEW
+                    Serial.println("[DEBUG] webSocketEvent: Handling SET_TRAY_SIZE command."); // DEBUG
+                    float newW, newH;
+                    // Expecting "SET_TRAY_SIZE W H"
+                    int parsed = sscanf(command.c_str() + strlen("SET_TRAY_SIZE "), "%f %f", &newW, &newH);
+                    if (parsed == 2 && newW > 0 && newH > 0) {
+                        trayWidth_inch = newW;
+                        trayHeight_inch = newH;
+                        preferences.begin("machineCfg", false);
+                        preferences.putFloat("trayWidth", trayWidth_inch);
+                        preferences.putFloat("trayHeight", trayHeight_inch);
+                        preferences.end();
+                        Serial.printf("[DEBUG] Set Tray Size to W=%.2f, H=%.2f\n", trayWidth_inch, trayHeight_inch);
+                        sendAllSettingsUpdate(num, "Tray Size updated."); // Send updated settings
+                    } else {
+                        Serial.printf("[DEBUG] Failed to parse SET_TRAY_SIZE command: %s\n", command.c_str());
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid SET_TRAY_SIZE format.\"}");
                     }
                  } else if (command.startsWith("SET_PAINT_PATTERN_OFFSET ")) {
                     Serial.println("WebSocket: Received SET_PAINT_PATTERN_OFFSET command.");
@@ -1466,14 +1464,15 @@ void sendCurrentPositionUpdate() {
 // Helper function to send ALL current settings
 // NOTE: Also does not include rotation angle
 void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
-    char settingsBuffer[600]; // Increased buffer size substantially
-    sprintf(settingsBuffer, "{\"status\":\"Ready\",\"message\":\"%s\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f,\"paintPatOffX\":%.2f,\"paintPatOffY\":%.2f,\"paintGunOffX\":%.2f,\"paintGunOffY\":%.2f,\"paintZ_0\":%.2f,\"paintP_0\":%d,\"paintR_0\":%d,\"paintS_0\":%.0f,\"paintZ_1\":%.2f,\"paintP_1\":%d,\"paintR_1\":%d,\"paintS_1\":%.0f,\"paintZ_2\":%.2f,\"paintP_2\":%d,\"paintR_2\":%d,\"paintS_2\":%.0f,\"paintZ_3\":%.2f,\"paintP_3\":%d,\"paintR_3\":%d,\"paintS_3\":%.0f}",
+    char settingsBuffer[650]; // Increased buffer size substantially
+    sprintf(settingsBuffer, "{\"status\":\"Ready\",\"message\":\"%s\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f,\"trayWidth\":%.2f,\"trayHeight\":%.2f,\"paintPatOffX\":%.2f,\"paintPatOffY\":%.2f,\"paintGunOffX\":%.2f,\"paintGunOffY\":%.2f,\"paintZ_0\":%.2f,\"paintP_0\":%d,\"paintR_0\":%d,\"paintS_0\":%.0f,\"paintZ_1\":%.2f,\"paintP_1\":%d,\"paintR_1\":%d,\"paintS_1\":%.0f,\"paintZ_2\":%.2f,\"paintP_2\":%d,\"paintR_2\":%d,\"paintS_2\":%.0f,\"paintZ_3\":%.2f,\"paintP_3\":%d,\"paintR_3\":%d,\"paintS_3\":%.0f}",
             message.c_str(),
             pnpOffsetX_inch, pnpOffsetY_inch,
             placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
             patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
             placeGridCols, placeGridRows,
             placeSpacingX_inch, placeSpacingY_inch,
+            trayWidth_inch, trayHeight_inch, // Added Tray Size
             paintPatternOffsetX_inch, paintPatternOffsetY_inch,
             paintGunOffsetX_inch, paintGunOffsetY_inch,
             paintZHeight_inch[0], paintPitchAngle[0], paintRollAngle[0], paintSpeed[0],
@@ -1532,6 +1531,10 @@ void setup() {
     placeSpacingX_inch = preferences.getFloat("spacingX", 4.0f);
     placeSpacingY_inch = preferences.getFloat("spacingY", 4.0f);
 
+    // Load Tray Dimensions (provide defaults) (NEW)
+    trayWidth_inch = preferences.getFloat("trayWidth", 24.0f);
+    trayHeight_inch = preferences.getFloat("trayHeight", 18.0f);
+
     // Load Painting Offsets
     paintPatternOffsetX_inch = preferences.getFloat("paintPatOffX", 0.0f);
     paintPatternOffsetY_inch = preferences.getFloat("paintPatOffY", 0.0f);
@@ -1562,6 +1565,7 @@ void setup() {
                   patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                   placeGridCols, placeGridRows,
                   placeSpacingX_inch, placeSpacingY_inch);
+    Serial.printf("Loaded Tray Size: W=%.2f, H=%.2f\n", trayWidth_inch, trayHeight_inch); // Added Tray Size log
     Serial.printf("Loaded Paint Settings: PatOffset(%.2f, %.2f), GunOffset(%.2f, %.2f)\n",
                   paintPatternOffsetX_inch, paintPatternOffsetY_inch,
                   paintGunOffsetX_inch, paintGunOffsetY_inch);
@@ -1820,3 +1824,65 @@ void loop() {
          delay(1);
     }
 } 
+
+// NEW: Function to calculate and set grid spacing automatically
+void calculateAndSetGridSpacing(int cols, int rows) {
+    Serial.printf("[DEBUG] Calculating spacing for %d cols, %d rows\n", cols, rows);
+    const float itemWidth = 3.0f;
+    const float itemHeight = 3.0f;
+    const float trayWidth = 18.0f;
+    const float trayHeight = 26.0f;
+    const float border = 0.25f;
+
+    // Calculate available span for item centers
+    float centerSpanX = trayWidth - 2 * border - itemWidth;
+    float centerSpanY = trayHeight - 2 * border - itemHeight;
+
+    // Calculate center-to-center spacing
+    if (cols > 1) {
+        placeSpacingX_inch = centerSpanX / (cols - 1);
+    } else {
+        placeSpacingX_inch = 0; // No spacing needed for 1 column
+    }
+
+    if (rows > 1) {
+        placeSpacingY_inch = centerSpanY / (rows - 1);
+    } else {
+        placeSpacingY_inch = 0; // No spacing needed for 1 row
+    }
+
+    // Basic validation: Ensure spacing isn't less than item size if multiple items
+    // This indicates items won't fit with the border.
+    bool fitError = false;
+    if (cols > 1 && placeSpacingX_inch < itemWidth) {
+        Serial.printf("[WARN] Calculated X spacing (%.2f) is less than item width (%.2f). Items may overlap or exceed tray width.\n", placeSpacingX_inch, itemWidth);
+        placeSpacingX_inch = itemWidth; // Clamp to minimum
+        fitError = true;
+    }
+    if (rows > 1 && placeSpacingY_inch < itemHeight) {
+        Serial.printf("[WARN] Calculated Y spacing (%.2f) is less than item height (%.2f). Items may overlap or exceed tray height.\n", placeSpacingY_inch, itemHeight);
+        placeSpacingY_inch = itemHeight; // Clamp to minimum
+        fitError = true;
+    }
+
+    // Update global column/row count
+    placeGridCols = cols;
+    placeGridRows = rows;
+
+    Serial.printf("[DEBUG] Calculated Spacing: X=%.3f, Y=%.3f\n", placeSpacingX_inch, placeSpacingY_inch);
+
+    // Save Cols, Rows, and *calculated* Spacing to Preferences
+    preferences.begin("machineCfg", false);
+    preferences.putInt("gridCols", placeGridCols);
+    preferences.putInt("gridRows", placeGridRows);
+    preferences.putFloat("spacingX", placeSpacingX_inch);
+    preferences.putFloat("spacingY", placeSpacingY_inch);
+    preferences.end();
+
+    // Send update to UI
+    String message = "Grid Columns/Rows updated. Spacing calculated.";
+    if (fitError) {
+        message += " Warning: Items may not fit with current settings.";
+    }
+    sendAllSettingsUpdate(255, message); // Send to all clients
+}
