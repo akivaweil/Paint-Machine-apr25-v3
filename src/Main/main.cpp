@@ -64,10 +64,6 @@ float patternZAccel = 1300.0;
 float patternRotSpeed = 2000.0; // Reduced from 3000 for more reliable movement
 float patternRotAccel = 1000.0; // Reduced from 2000 for more reliable movement
 
-// Tray Dimensions (NEW)
-float trayHeight_inch = 26.0; // Default height
-float trayWidth_inch = 18.0; // Default width
-
 // PnP variables (declared extern in PickPlace.h, defined in PickPlace.cpp)
 /*
 float pnpOffsetX_inch = 15.0; // Default X offset
@@ -538,16 +534,13 @@ void moveToXYPositionInches(float targetX_inch, float targetY_inch) {
 // Moves only the Z axis to the target position in inches, waits for completion
 void moveZToPositionInches(float targetZ_inch, float speedHz, float accel) {
     // Check if machine is busy or in a conflicting mode
-    // Note: Removed the isMoving check here as paintSide now manages the overall state
-    if (isHoming || inPickPlaceMode || inCalibrationMode) { 
-        Serial.printf("[ERROR] moveZToPositionInches denied: Machine state conflict (isHoming=%d, inPnP=%d, inCalib=%d)\\n", isHoming, inPickPlaceMode, inCalibrationMode);
-        // Corrected escaping for the JSON string
+    if (isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
+        Serial.printf("[ERROR] moveZToPositionInches denied: Machine state conflict (isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d)\n", isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
         webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Cannot move Z, machine busy or in special mode.\"}");
         return;
     }
 
     if (!stepper_z) {
-         // Corrected escaping for the JSON string
          webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Z Stepper not initialized.\"}");
          return;
     }
@@ -567,8 +560,9 @@ void moveZToPositionInches(float targetZ_inch, float speedHz, float accel) {
         return; // Already there
     }
 
-    // Temporarily set moving flag for this blocking move // <<< REMOVED isMoving = true;
-    // Serial.printf("Moving Z from %.2f to %.2f inches (Steps: %ld to %ld, Speed: %.0f, Accel: %.0f)\\n",
+    // Temporarily set moving flag for this blocking move
+    isMoving = true;
+    // Serial.printf("Moving Z from %.2f to %.2f inches (Steps: %ld to %ld, Speed: %.0f, Accel: %.0f)\n",
     //               (float)currentZ_steps / STEPS_PER_INCH_Z, targetZ_inch, currentZ_steps, targetZ_steps, speedHz, accel);
 
     stepper_z->setSpeedInHz(speedHz);
@@ -581,7 +575,7 @@ void moveZToPositionInches(float targetZ_inch, float speedHz, float accel) {
         yield();
     }
     // Serial.println("Z move complete.");
-    // isMoving = false; // Clear flag after blocking move completes // <<< REMOVED isMoving = false;
+    isMoving = false; // Clear flag after blocking move completes
 }
 
 // Moves X and Y axes to the target position using specified speed/accel for painting, waits for completion
@@ -602,7 +596,7 @@ void moveToXYPositionInches_Paint(float targetX_inch, float targetY_inch, float 
         return; // No move needed
     }
 
-    // Serial.printf("Painting move XY to (%.2f, %.2f) inches (Steps: X %ld, Y %ld, Speed: %.0f, Accel: %.0f)\\n",
+    // Serial.printf("Painting move XY to (%.2f, %.2f) inches (Steps: X %ld, Y %ld, Speed: %.0f, Accel: %.0f)\n",
     //               targetX_inch, targetY_inch, targetX_steps, targetY_steps, speedHz, accel);
 
     if (!x_at_target) {
@@ -632,11 +626,11 @@ void moveToXYPositionInches_Paint(float targetX_inch, float targetY_inch, float 
 // --- Painting Logic ---
 
 void paintSide(int sideIndex) {
-    Serial.printf("Starting paintSide for side %d\\n", sideIndex);
+    Serial.printf("Starting paintSide for side %d\n", sideIndex);
 
     // 1. Check Machine State
     if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
-        Serial.printf("[ERROR] paintSide denied: Invalid state (allHomed=%d, isMoving=%d, isHoming=%d, inPickPlaceMode=%d, inCalibrationMode=%d)\\n",
+        Serial.printf("[ERROR] paintSide denied: Invalid state (allHomed=%d, isMoving=%d, isHoming=%d, inPickPlaceMode=%d, inCalibrationMode=%d)\n",
                       allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
         webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Cannot start painting, invalid machine state.\"}");
         return;
@@ -657,181 +651,95 @@ void paintSide(int sideIndex) {
     // For now, use pattern accel, maybe add paintAccel later
     float accel = patternXAccel; // Assuming X/Y use same accel for painting
 
-    // 4. Rotate Tray Based on Side Index
-    if (stepper_rot) {
-        long targetRotSteps = 0;
-        float targetAngleDeg = 0.0f;
-
-        switch (sideIndex) {
-            case 0: // Back
-                targetAngleDeg = 0.0f;
-                break;
-            case 1: // Right
-                targetAngleDeg = 90.0f;
-                break;
-            case 2: // Front
-                targetAngleDeg = 180.0f;
-                break;
-            case 3: // Left
-                targetAngleDeg = 270.0f; // Or -90?
-                break;
-            default:
-                targetAngleDeg = 0.0f; // Default to 0
-                break;
-        }
-        targetRotSteps = round(targetAngleDeg * STEPS_PER_DEGREE);
-
-        Serial.printf("Painting Side %d: Rotating to %.1f degrees (%ld steps)...\\n", sideIndex, targetAngleDeg, targetRotSteps);
+    // 4. Optional: Rotate (Example: Rotate to 0 degrees for Side 0)
+    if (sideIndex == 0 && stepper_rot) {
+        Serial.println("Rotating to 0 degrees for Side 0 painting...");
+        long targetRotSteps = 0; // Assuming 0 steps = 0 degrees
         if (stepper_rot->getCurrentPosition() != targetRotSteps) {
-            // Use slightly slower speed for potentially larger rotation moves
-            stepper_rot->setSpeedInHz(patternRotSpeed); 
-            stepper_rot->setAcceleration(patternRotAccel);
+            stepper_rot->setSpeedInHz(patternZSpeed); // Use a reasonable speed/accel for rotation
+            stepper_rot->setAcceleration(patternZAccel);
             stepper_rot->moveTo(targetRotSteps);
             while (stepper_rot->isRunning()) {
                 yield();
-                webSocket.loop(); // Keep responsive during rotation
             }
             Serial.println("Rotation complete.");
         } else {
-            Serial.printf("Already at target rotation (%.1f degrees).\\n", targetAngleDeg);
+            Serial.println("Already at 0 degrees.");
         }
         delay(100); // Small delay after rotation
-    } else {
-        Serial.println("[WARN] Rotation stepper not available, skipping rotation.");
     }
+     // Add logic for other sides if needed
 
     // 5. Set Servo Angles
-    Serial.printf("Setting servos: Pitch=%d, Roll=%d\\n", pitch, roll);
+    Serial.printf("Setting servos: Pitch=%d, Roll=%d\n", pitch, roll);
     servo_pitch.write(pitch);
     servo_roll.write(roll);
     delay(300); // Allow servos to settle
 
-    // 6. Define Path Start Point & Calculate Grid Spacing based on Effective Dimensions
-    float pathStartX_itemGrid = placeFirstXAbsolute_inch; // Top-right X of the UNROTATED item grid relative to machine 0,0
-    float pathStartY_itemGrid = placeFirstYAbsolute_inch; // Top-right Y of the UNROTATED item grid relative to machine 0,0
-    float effectiveWidth, effectiveHeight;
-    
-    if (sideIndex == 1 || sideIndex == 3) { // Right or Left side uses rotated dimensions
-        effectiveWidth = trayHeight_inch; // Sweep along the original height (now width)
-        effectiveHeight = trayWidth_inch;  // Step along the original width (now height)
-        Serial.printf("[DEBUG-Paint Side %d] Using Rotated Dimensions: W=%.1f, H=%.1f\\n", sideIndex, effectiveWidth, effectiveHeight);
-    } else { // Back or Front side uses standard dimensions
-        effectiveWidth = trayWidth_inch;
-        effectiveHeight = trayHeight_inch;
-         Serial.printf("[DEBUG-Paint Side %d] Using Standard Dimensions: W=%.1f, H=%.1f\\n", sideIndex, effectiveWidth, effectiveHeight);
-    }
-
-    // Calculate spacing based on effective dimensions
-    float center_spacing_x_paint = (placeGridCols > 1) ? (effectiveWidth - 0.5f - 3.0f) / (placeGridCols - 1) : 0.0f;
-    float center_spacing_y_paint = (placeGridRows > 1) ? (effectiveHeight - 0.5f - 3.0f) / (placeGridRows - 1) : 0.0f;
-    int num_sweeps = placeGridRows; // Always corresponds to rows for horizontal sweeps
-    int sweep_steps = placeGridCols; // Always corresponds to columns for horizontal sweeps
-
-    Serial.printf("[DEBUG-Paint Side %d] Effective Spacing: X=%.2f, Y=%.2f\\n", sideIndex, center_spacing_x_paint, center_spacing_y_paint);
-    Serial.printf("[DEBUG-Paint Side %d] Item Grid Corner (Top-Right Unrotated): (%.2f, %.2f)\\n", sideIndex, pathStartX_itemGrid, pathStartY_itemGrid); 
-    Serial.printf("[DEBUG-Paint Side %d] Gun Offset: (%.2f, %.2f)\\n", sideIndex, paintGunOffsetX_inch, paintGunOffsetY_inch);
+    // 6. Define Path Start Point (Absolute PnP Drop Off Location)
+    float pathStartX = placeFirstXAbsolute_inch;
+    float pathStartY = placeFirstYAbsolute_inch;
+    Serial.printf("Path Start (PnP Drop Off): (%.2f, %.2f)\n", pathStartX, pathStartY);
+    Serial.printf("Using Gun Offset: (%.2f, %.2f)\n", paintGunOffsetX_inch, paintGunOffsetY_inch);
 
     // 7. Move to Start Z Height
     Serial.println("Moving to start Z height...");
     moveZToPositionInches(zHeight, patternZSpeed, patternZAccel);
 
-    // 8. Calculate and Move TCP to START of FIRST SWEEP
-    float startSweepTcpX, startSweepTcpY;
-    // Determine start based on side (ALL sides now use horizontal sweeps)
-    if (sideIndex == 2 || sideIndex == 3) { // Front (2) or Left (3): Start Bottom-Left/Top-Left and sweep Right first
-        // Start X at the leftmost point of the sweep
-        startSweepTcpX = (pathStartX_itemGrid - (sweep_steps - 1) * center_spacing_x_paint) + paintGunOffsetX_inch;
-        if (sideIndex == 2) { // Front: Start Y at the bottommost point
-            startSweepTcpY = (pathStartY_itemGrid - (num_sweeps - 1) * center_spacing_y_paint) + paintGunOffsetY_inch;
-            Serial.printf("Side 2 (Front): Start Sweep 0 (Bottom-Left): (%.2f, %.2f)\\n", startSweepTcpX, startSweepTcpY);
-        } else { // Left (3): Start Y at the topmost point
-            startSweepTcpY = pathStartY_itemGrid + paintGunOffsetY_inch;
-             Serial.printf("Side 3 (Left): Start Sweep 0 (Top-Left): (%.2f, %.2f)\\n", startSweepTcpX, startSweepTcpY);
-        }
-    } else { // Back (0) or Right (1): Start Top-Right and sweep Left first
-        startSweepTcpX = pathStartX_itemGrid + paintGunOffsetX_inch;
-        startSweepTcpY = pathStartY_itemGrid + paintGunOffsetY_inch;
-        Serial.printf("Side %d (Back/Right): Start Sweep 0 (Top-Right): (%.2f, %.2f)\\n", sideIndex, startSweepTcpX, startSweepTcpY);
-    }
-    moveToXYPositionInches_Paint(startSweepTcpX, startSweepTcpY, speed, accel);
+    // 8. Calculate and Move TCP to START of FIRST SWEEP (Top-Right Corner)
+    float startTcpX = pathStartX + paintGunOffsetX_inch;
+    float startTcpY = pathStartY + paintGunOffsetY_inch;
+    Serial.printf("Moving TCP to start of first sweep (Top-Right): (%.2f, %.2f)\n", startTcpX, startTcpY);
+    moveToXYPositionInches_Paint(startTcpX, startTcpY, speed, accel);
 
-    // 9. Execute Painting Path (Horizontal Sweeps for ALL sides)
+    // 9. Execute Painting Path (Sweep Left/Down/Sweep Right/Down...)
     Serial.println("Starting painting path...");
-    float currentTcpX = startSweepTcpX;
-    float currentTcpY = startSweepTcpY;
+    float currentTcpX = startTcpX;
+    float currentTcpY = startTcpY;
 
-    for (int sweep = 0; sweep < num_sweeps; ++sweep) { // Iterate through the number of ROWS (sweeps)
+    for (int r = 0; r < placeGridRows; ++r) {
         float targetTcpX;
+        // Corrected Y calculation: Subtract spacing to move down
+        float targetTcpY = (pathStartY - r * placeSpacingY_inch) + paintGunOffsetY_inch;
+
+        // --- Determine Sweep Target X --- 
+        if (r % 2 == 0) { // Even row (0, 2, ...): Sweep Left
+            targetTcpX = (pathStartX - (placeGridCols - 1) * placeSpacingX_inch) + paintGunOffsetX_inch;
+            Serial.printf("Row %d (Even): Sweeping Left to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
+        } else { // Odd row (1, 3, ...): Sweep Right
+            targetTcpX = pathStartX + paintGunOffsetX_inch;
+            Serial.printf("Row %d (Odd): Sweeping Right to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
+        }
         
-        // Determine current sweep's Y position (progressing vertically)
-        if (sideIndex == 2 || sideIndex == 3) { // Front or Left: Progress UP
-             currentTcpY = startSweepTcpY + sweep * center_spacing_y_paint; 
-        } else { // Back or Right: Progress DOWN
-             currentTcpY = startSweepTcpY - sweep * center_spacing_y_paint;
+        // --- Execute Horizontal Sweep --- 
+        // Only move if Y is already correct (it should be from previous step or initial move)
+        if (abs(currentTcpY - targetTcpY) < 0.001) { // Check if Y is already correct
+             moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+             currentTcpX = targetTcpX; // Update current X
+        } else {
+             Serial.printf("[WARN] Row %d: Y position mismatch before sweep (Current: %.3f, Target: %.3f). Skipping sweep, moving directly down.\n", r, currentTcpY, targetTcpY);
+             // If Y is wrong, just move to the correct Y at the *end* X of this sweep
+             moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+             currentTcpX = targetTcpX;
+             currentTcpY = targetTcpY; // Update Y as well
         }
-        // Clamp Y to prevent going below 0
-        currentTcpY = max(0.0f, currentTcpY);
 
-        // Determine Horizontal Sweep Target X based on sweep number (even/odd)
-        bool sweepLeft = false; // Flag to indicate sweep direction
-        if (sweep % 2 == 0) { // Even sweep (0, 2, ...):
-            if (sideIndex == 2 || sideIndex == 3) { // Front or Left: Sweep RIGHT (from left start)
-                 targetTcpX = pathStartX_itemGrid + paintGunOffsetX_inch;
-                 sweepLeft = false;
-            } else { // Back or Right: Sweep LEFT (from right start)
-                 targetTcpX = (pathStartX_itemGrid - (sweep_steps - 1) * center_spacing_x_paint) + paintGunOffsetX_inch; 
-                 sweepLeft = true;
-            }
-        } else { // Odd sweep (1, 3, ...):
-             if (sideIndex == 2 || sideIndex == 3) { // Front or Left: Sweep LEFT (from right end)
-                 targetTcpX = (pathStartX_itemGrid - (sweep_steps - 1) * center_spacing_x_paint) + paintGunOffsetX_inch; 
-                 sweepLeft = true;
-            } else { // Back or Right: Sweep RIGHT (from left end)
-                 targetTcpX = pathStartX_itemGrid + paintGunOffsetX_inch;
-                 sweepLeft = false;
-            }
+        // --- Move Down to Next Row (if not the last row) --- 
+        if (r < placeGridRows - 1) {
+            // Corrected Y calculation: Subtract spacing to move down
+            float nextRowTcpY = (pathStartY - (r + 1) * placeSpacingY_inch) + paintGunOffsetY_inch;
+            Serial.printf("Row %d: Moving Down to Y=%.2f (X=%.2f)\n", r, nextRowTcpY, currentTcpX);
+            // Move only Y axis - use moveZToPositionInches for XY? No, use XY function but keep X same.
+            // Need a specific Y-only move or use XY with same X
+            moveToXYPositionInches_Paint(currentTcpX, nextRowTcpY, speed, accel); // Move Y while keeping X constant
+            currentTcpY = nextRowTcpY; // Update current Y
         }
-        // Clamp X to prevent going below 0
-        targetTcpX = max(0.0f, targetTcpX);
-        
-        Serial.printf("Sweep %d (Side %d): %s to TCP X=%.2f, Y=%.2f\\n", sweep, sideIndex, sweepLeft ? "Sweeping Left" : "Sweeping Right", targetTcpX, currentTcpY);
-
-        // --- Execute Horizontal Sweep ---
-        moveToXYPositionInches_Paint(targetTcpX, currentTcpY, speed, accel);
-        currentTcpX = targetTcpX; // Update X
-
-        // --- Move Vertically to Next Sweep's starting Y (if not the last sweep) ---
-        if (sweep < num_sweeps - 1) {
-            float nextSweepStartY_raw;
-            float nextSweepStartY;
-            if (sideIndex == 2 || sideIndex == 3) { // Front or Left: Move UP
-                nextSweepStartY_raw = startSweepTcpY + (sweep + 1) * center_spacing_y_paint;
-                nextSweepStartY = max(0.0f, nextSweepStartY_raw); // Clamp
-                Serial.printf("Sweep %d (Side %d): Moving UP to Y=%.2f (Raw=%.2f) at X=%.2f\\n", sweep, sideIndex, nextSweepStartY, nextSweepStartY_raw, currentTcpX);
-            } else { // Back or Right: Move DOWN
-                 nextSweepStartY_raw = startSweepTcpY - (sweep + 1) * center_spacing_y_paint;
-                 nextSweepStartY = max(0.0f, nextSweepStartY_raw); // Clamp
-                 Serial.printf("Sweep %d (Side %d): Moving DOWN to Y=%.2f (Raw=%.2f) at X=%.2f\\n", sweep, sideIndex, nextSweepStartY, nextSweepStartY_raw, currentTcpX);
-            }
-            moveToXYPositionInches_Paint(currentTcpX, nextSweepStartY, speed, accel); // Move Y while keeping X constant
-            currentTcpY = nextSweepStartY; // Update Y
-
-            // If Y hit 0, stop further sweeps
-            if (nextSweepStartY == 0.0f) {
-                Serial.println("INFO: Reached Y=0. Finishing remaining sweeps at Y=0.");
-                // Optional: break; // Or just let subsequent sweeps run along Y=0
-            }
-        }
-    } // End for loop (sweeps)
+    }
     Serial.println("Painting path complete.");
 
     // 10. Move Z Axis Up (e.g., to safe height 0)
     Serial.println("Moving Z axis up to safe height (0)...");
     moveZToPositionInches(0.0, patternZSpeed, patternZAccel);
-
-    // 10.5 Move XY to Home (0,0)
-    Serial.println("Returning XY to home (0,0)...");
-    moveToXYPositionInches_Paint(0.0, 0.0, patternXSpeed, patternXAccel); // Use general pattern speeds
 
     // 11. Clear Busy State & Send Ready Message
     isMoving = false;
@@ -846,7 +754,7 @@ void paintSide(int sideIndex) {
 // --- Web Server and WebSocket Logic ---
 
 void handleRoot() {
-  Serial.println("Serving root page."); // Add debug print
+  // Serial.println("Serving root page.");
   webServer.send(200, "text/html", HTML_PROGMEM); // Use HTML_PROGMEM from html_content.h
 }
 
@@ -861,13 +769,13 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
             // Send initial status including current settings
              String initialStatusStr = (allHomed ? (isMoving ? "Busy" : "Ready") : "Needs Homing");
              char initialMsgBuffer[400]; // Increased buffer size for grid/spacing
-             sprintf(initialMsgBuffer, "{\"status\":\"%s\",\"message\":\"Welcome! System status: %s\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"trayHeight\":%.1f,\"trayWidth\":%.1f}",
+             sprintf(initialMsgBuffer, "{\"status\":\"%s\",\"message\":\"Welcome! System status: %s\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
                      initialStatusStr.c_str(), initialStatusStr.c_str(),
                      pnpOffsetX_inch, pnpOffsetY_inch,
                      placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                      patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                      placeGridCols, placeGridRows,
-                     trayHeight_inch, trayWidth_inch); // Added tray dimensions
+                     placeSpacingX_inch, placeSpacingY_inch);
              Serial.printf("[DEBUG] WebSocket [%u] Sending Initial State: %s\n", num, initialMsgBuffer); // DEBUG
              webSocket.sendTXT(num, initialMsgBuffer);
              // Also send initial position update immediately after settings
@@ -889,11 +797,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                     } else {
                         if (inPickPlaceMode) {
                             Serial.println("[DEBUG] Homing requested while in PnP mode. Exiting PnP mode first.");
-                            // Force isMoving to false if it's still set for some reason when exiting PnP mode
-                            if (isMoving) {
-                                Serial.println("[WARNING] isMoving flag was still true while trying to exit PnP mode. Forcing to false.");
-                                isMoving = false;
-                            }
                             inPickPlaceMode = false; // Exit PnP mode
                             // pnpSequenceComplete = false; // Reset PnP sequence status - This variable is defined in PickPlace.cpp, main doesn't need to set it directly.
                             // Fixed quotes
@@ -901,28 +804,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         }
                         homeAllAxes(); // Start homing (this function sends its own status updates)
                     }
-                } else if (command == "GET_STATUS") {
-                    Serial.println("WebSocket: Received GET_STATUS command.");
-                    // Send current machine state
-                    if (isMoving) {
-                        webSocket.sendTXT(num, "{\"status\":\"Moving\",\"message\":\"Machine is currently moving.\"}");
-                    } else if (isHoming) {
-                        webSocket.sendTXT(num, "{\"status\":\"Homing\",\"message\":\"Machine is currently homing.\"}");
-                    } else if (inPickPlaceMode) {
-                        webSocket.sendTXT(num, "{\"status\":\"PickPlaceReady\",\"message\":\"Pick and Place mode active.\"}");
-                    } else if (inCalibrationMode) {
-                        webSocket.sendTXT(num, "{\"status\":\"CalibrationActive\",\"message\":\"Manual Move mode active.\"}");
-                    } else if (allHomed) {
-                        webSocket.sendTXT(num, "{\"status\":\"Ready\",\"message\":\"Machine ready.\"}");
-                    } else {
-                        webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Machine not homed.\"}");
-                    }
-                    
-                    // Also send current settings
-                    sendAllSettingsUpdate(num, "Settings updated.");
-                    
-                    // Send current position
-                    sendCurrentPositionUpdate();
                 } else if (command == "GOTO_5_5_0") {
                     Serial.println("WebSocket: Received GOTO_5_5_0 command.");
                     moveToPositionInches(5.0, 5.0, 0.0); // This function now sends its own status updates
@@ -956,9 +837,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                  } else if (command == "PNP_NEXT_STEP") { // Renamed command
                     Serial.println("WebSocket: Received PNP_NEXT_STEP command.");
                     executeNextPickPlaceStep(); // Call function from PickPlace.h
-                 } else if (command == "PNP_NEXT_SQUARE") {
-                    Serial.println("WebSocket: Received PNP_NEXT_SQUARE command.");
-                    moveToNextPickPlaceSquare(); // Call function to update grid position only
                  } else if (command.startsWith("SET_PNP_OFFSET ")) {
                      Serial.println("WebSocket: Received SET_PNP_OFFSET command.");
                      if (isMoving || isHoming || inPickPlaceMode) {
@@ -979,12 +857,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                              Serial.printf("[DEBUG] Set PnP Offset to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch);
                              // Send confirmation with all current settings
                              char msgBuffer[400]; // Increased size
-                             sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"PnP offset updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"trayHeight\":%.1f,\"trayWidth\":%.1f}",
+                             sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"PnP offset updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
                                      pnpOffsetX_inch, pnpOffsetY_inch,
                                      placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                                      patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                                      placeGridCols, placeGridRows,
-                                     trayHeight_inch, trayWidth_inch); // Added tray dimensions
+                                     placeSpacingX_inch, placeSpacingY_inch);
                              webSocket.broadcastTXT(msgBuffer);
                          } else {
                              Serial.println("[ERROR] Failed to parse SET_PNP_OFFSET values.");
@@ -1026,12 +904,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 
                              // Send confirmation with all current settings (using actual values)
                              char msgBuffer[400]; // Increased size
-                             sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"Speed/Accel updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"trayHeight\":%.1f,\"trayWidth\":%.1f}",
+                             sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"Speed/Accel updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
                                      pnpOffsetX_inch, pnpOffsetY_inch,
                                      placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                                      patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                                      placeGridCols, placeGridRows,
-                                     trayHeight_inch, trayWidth_inch); // Added tray dimensions
+                                     placeSpacingX_inch, placeSpacingY_inch);
                              webSocket.broadcastTXT(msgBuffer);
                          } else {
                              Serial.println("[ERROR] Failed to parse SET_SPEED_ACCEL values or values invalid.");
@@ -1054,12 +932,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         Serial.printf("[DEBUG] Set First Place Absolute to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch);
                              // Send confirmation with all current settings
                         char msgBuffer[400]; // Increased size
-                        sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"First Place Absolute Pos updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"trayHeight\":%.1f,\"trayWidth\":%.1f}",
+                        sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"First Place Absolute Pos updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
                                      pnpOffsetX_inch, pnpOffsetY_inch,
                                 placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                                      patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                                      placeGridCols, placeGridRows,
-                                     trayHeight_inch, trayWidth_inch); // Added tray dimensions
+                                     placeSpacingX_inch, placeSpacingY_inch);
                             webSocket.broadcastTXT(msgBuffer);
                          } else {
                         Serial.printf("[DEBUG] Failed to parse SET_FIRST_PLACE_ABS command: %s\n", command.c_str());
@@ -1101,12 +979,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             
                             Serial.printf("[DEBUG] Set PnP Offset from current pos to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch);
                              char msgBuffer[400]; // Increased size
-                             sprintf(msgBuffer, "{\"status\":\"CalibrationActive\",\"message\":\"PnP Offset set from current position.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"trayHeight\":%.1f,\"trayWidth\":%.1f}",
+                             sprintf(msgBuffer, "{\"status\":\"CalibrationActive\",\"message\":\"PnP Offset set from current position.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
                                      pnpOffsetX_inch, pnpOffsetY_inch,
                                      placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                                      patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                                      placeGridCols, placeGridRows,
-                                     trayHeight_inch, trayWidth_inch); // Added tray dimensions
+                                     placeSpacingX_inch, placeSpacingY_inch);
                              webSocket.broadcastTXT(msgBuffer);
                          } else {
                               webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Steppers not available.\"}");
@@ -1127,12 +1005,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             
                              Serial.printf("[DEBUG] Set First Place Absolute from current pos to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch);
                               char msgBuffer[400]; // Increased size
-                               sprintf(msgBuffer, "{\"status\":\"CalibrationActive\",\"message\":\"First Place Absolute Pos set from current position.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"trayHeight\":%.1f,\"trayWidth\":%.1f}",
+                               sprintf(msgBuffer, "{\"status\":\"CalibrationActive\",\"message\":\"First Place Absolute Pos set from current position.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
                                        pnpOffsetX_inch, pnpOffsetY_inch,
                                        placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                                        patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                                        placeGridCols, placeGridRows,
-                                       trayHeight_inch, trayWidth_inch); // Added tray dimensions
+                                       placeSpacingX_inch, placeSpacingY_inch);
                               webSocket.broadcastTXT(msgBuffer);
                          } else {
                              Serial.println("[ERROR] Stepper X or Y_Left not initialized when setting First Place Abs from current.");
@@ -1247,34 +1125,35 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Cannot set grid/spacing while machine is busy or in PnP mode.\"}");
                     } else {
                         int newCols, newRows;
-                        // Removed float newSX, newSY;
-                        // MODIFIED sscanf to only parse Cols and Rows
-                        int parsed = sscanf(command.c_str() + strlen("SET_GRID_SPACING "), "%d %d", &newCols, &newRows);
-                        // MODIFIED validation check
-                        if (parsed == 2 && newCols > 0 && newRows > 0) { // REMOVED sxVal, syVal checks
+                        float newSX, newSY;
+                        int parsed = sscanf(command.c_str() + strlen("SET_GRID_SPACING "), "%d %d %f %f", &newCols, &newRows, &newSX, &newSY);
+                        if (parsed == 4 && newCols > 0 && newRows > 0 && newSX > 0 && newSY > 0) {
                             placeGridCols = newCols;
                             placeGridRows = newRows;
-                            // REMOVED placeSpacingX_inch, placeSpacingY_inch assignments
- 
+                            placeSpacingX_inch = newSX;
+                            placeSpacingY_inch = newSY;
+
                             // Save to Preferences
                             preferences.begin("machineCfg", false);
                             preferences.putInt("gridCols", placeGridCols);
                             preferences.putInt("gridRows", placeGridRows);
+                            preferences.putFloat("spacingX", placeSpacingX_inch);
+                            preferences.putFloat("spacingY", placeSpacingY_inch);
                             preferences.end();
-                            Serial.printf("[DEBUG] Set Grid/Spacing to Cols=%d, Rows=%d\n", placeGridCols, placeGridRows);
+                            Serial.printf("[DEBUG] Set Grid/Spacing to Cols=%d, Rows=%d, SX=%.2f, SY=%.2f\n", placeGridCols, placeGridRows, placeSpacingX_inch, placeSpacingY_inch);
 
                             // Send confirmation with all current settings
                             char msgBuffer[400]; // Increased size
-                            sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"Grid/Spacing updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"trayHeight\":%.1f,\"trayWidth\":%.1f}",
+                            sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"Grid/Spacing updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f}",
                                     pnpOffsetX_inch, pnpOffsetY_inch,
                                     placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                                     patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
                                     placeGridCols, placeGridRows,
-                                    trayHeight_inch, trayWidth_inch); // Added tray dimensions
+                                    placeSpacingX_inch, placeSpacingY_inch);
                             webSocket.broadcastTXT(msgBuffer);
                         } else {
                             Serial.println("[ERROR] Failed to parse SET_GRID_SPACING values or values invalid.");
-                            webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Invalid SET_GRID_SPACING format/values. Use: SET_GRID_SPACING C R (all positive)\"}");
+                            webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Invalid SET_GRID_SPACING format/values. Use: SET_GRID_SPACING C R SX SY (all positive)\"}");
                         }
                     }
                  } else if (command.startsWith("SET_PAINT_PATTERN_OFFSET ")) {
@@ -1527,38 +1406,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                 } else if (command == "PAINT_SIDE_0") { // <<< NEW COMMAND HANDLER
                     Serial.println("WebSocket: Received PAINT_SIDE_0 command.");
                     paintSide(0); // Call the painting function for Side 0
-                } else if (command == "PAINT_SIDE_1") { // <<< ADDED COMMAND HANDLER
-                    Serial.println("WebSocket: Received PAINT_SIDE_1 command.");
-                    paintSide(1); // Call the painting function for Side 1
-                } else if (command == "PAINT_SIDE_2") { // <<< NEW COMMAND HANDLER
-                    Serial.println("WebSocket: Received PAINT_SIDE_2 command.");
-                    paintSide(2); // Call the painting function for Side 2
-                } else if (command == "PAINT_SIDE_3") { // <<< ADDED COMMAND HANDLER
-                    Serial.println("WebSocket: Received PAINT_SIDE_3 command.");
-                    paintSide(3); // Call the painting function for Side 3
-                } else if (command.startsWith("SET_TRAY_SIZE ")) { // NEW Handler
-                    Serial.println("WebSocket: Received SET_TRAY_SIZE command.");
-                    if (isMoving || isHoming) { // Prevent changes while moving
-                        webSocket.sendTXT(num, "{\"status\":\"Busy\",\"message\":\"Cannot set tray size while machine is busy.\"}");
-                    } else {
-                        float newH, newW;
-                        int parsed = sscanf(command.c_str() + strlen("SET_TRAY_SIZE "), "%f %f", &newH, &newW);
-                        if (parsed == 2 && newH > 0 && newW > 0) {
-                            trayHeight_inch = newH;
-                            trayWidth_inch = newW;
-                            // Save to Preferences
-                            preferences.begin("machineCfg", false);
-                            preferences.putFloat("trayH", trayHeight_inch);
-                            preferences.putFloat("trayW", trayWidth_inch);
-                            preferences.end();
-                            Serial.printf("[DEBUG] Set Tray Size to H: %.1f, W: %.1f\n", trayHeight_inch, trayWidth_inch);
-                            // Send confirmation with all settings
-                            sendAllSettingsUpdate(num, "Tray Size updated.");
-                        } else {
-                            webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Invalid SET_TRAY_SIZE format/values. Use: SET_TRAY_SIZE H W (positive)\"}");
-                        }
-                    }
-                 } else {
+                } else {
                     // Handle unknown commands
                     Serial.printf("[DEBUG] WebSocket [%u] Unknown command received: %s\n", num, command.c_str());
                     // Fixed quotes and backslashes
@@ -1612,14 +1460,14 @@ void sendCurrentPositionUpdate() {
 // Helper function to send ALL current settings
 // NOTE: Also does not include rotation angle
 void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
-    char settingsBuffer[700]; // Increased buffer size substantially AGAIN
-    sprintf(settingsBuffer, "{\"status\":\"Ready\",\"message\":\"%s\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"trayHeight\":%.1f,\"trayWidth\":%.1f,\"paintPatOffX\":%.2f,\"paintPatOffY\":%.2f,\"paintGunOffX\":%.2f,\"paintGunOffY\":%.2f,\"paintZ_0\":%.2f,\"paintP_0\":%d,\"paintR_0\":%d,\"paintS_0\":%.0f,\"paintZ_1\":%.2f,\"paintP_1\":%d,\"paintR_1\":%d,\"paintS_1\":%.0f,\"paintZ_2\":%.2f,\"paintP_2\":%d,\"paintR_2\":%d,\"paintS_2\":%.0f,\"paintZ_3\":%.2f,\"paintP_3\":%d,\"paintR_3\":%d,\"paintS_3\":%.0f}",
+    char settingsBuffer[600]; // Increased buffer size substantially
+    sprintf(settingsBuffer, "{\"status\":\"Ready\",\"message\":\"%s\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"spacingX\":%.2f,\"spacingY\":%.2f,\"paintPatOffX\":%.2f,\"paintPatOffY\":%.2f,\"paintGunOffX\":%.2f,\"paintGunOffY\":%.2f,\"paintZ_0\":%.2f,\"paintP_0\":%d,\"paintR_0\":%d,\"paintS_0\":%.0f,\"paintZ_1\":%.2f,\"paintP_1\":%d,\"paintR_1\":%d,\"paintS_1\":%.0f,\"paintZ_2\":%.2f,\"paintP_2\":%d,\"paintR_2\":%d,\"paintS_2\":%.0f,\"paintZ_3\":%.2f,\"paintP_3\":%d,\"paintR_3\":%d,\"paintS_3\":%.0f}",
             message.c_str(),
             pnpOffsetX_inch, pnpOffsetY_inch,
             placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
             patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
             placeGridCols, placeGridRows,
-            trayHeight_inch, trayWidth_inch, // Added tray dimensions
+            placeSpacingX_inch, placeSpacingY_inch,
             paintPatternOffsetX_inch, paintPatternOffsetY_inch,
             paintGunOffsetX_inch, paintGunOffsetY_inch,
             paintZHeight_inch[0], paintPitchAngle[0], paintRollAngle[0], paintSpeed[0],
@@ -1668,10 +1516,6 @@ void setup() {
     // Note: Z and Rotation speeds/accels are not user-settable via UI currently,
     // so we don't load/save them, they use the defaults defined earlier.
 
-    // Load Tray Dimensions (NEW)
-    trayHeight_inch = preferences.getFloat("trayH", 26.0); // Default if key doesn't exist
-    trayWidth_inch = preferences.getFloat("trayW", 18.0); // Default if key doesn't exist
-
     // Load First Place Absolute Position (provide defaults)
     placeFirstXAbsolute_inch = preferences.getFloat("placeFirstXAbs", 20.0);
     placeFirstYAbsolute_inch = preferences.getFloat("placeFirstYAbs", 20.0);
@@ -1679,6 +1523,8 @@ void setup() {
     // Load Grid Dimensions and Spacing (provide defaults)
     placeGridCols = preferences.getInt("gridCols", 4);
     placeGridRows = preferences.getInt("gridRows", 5);
+    placeSpacingX_inch = preferences.getFloat("spacingX", 4.0f);
+    placeSpacingY_inch = preferences.getFloat("spacingY", 4.0f);
 
     // Load Painting Offsets
     paintPatternOffsetX_inch = preferences.getFloat("paintPatOffX", 0.0f);
@@ -1704,17 +1550,15 @@ void setup() {
     }
 
     preferences.end(); // Close NVS
-    Serial.printf("Loaded Settings: Offset(%.2f, %.2f), FirstPlaceAbs(%.2f, %.2f), X(S:%.0f, A:%.0f), Y(S:%.0f, A:%.0f), Grid(%d x %d)\n", // REMOVED: , Spacing(%.2f, %.2f)
+    Serial.printf("Loaded Settings: Offset(%.2f, %.2f), FirstPlaceAbs(%.2f, %.2f), X(S:%.0f, A:%.0f), Y(S:%.0f, A:%.0f), Grid(%d x %d), Spacing(%.2f, %.2f)\n",
                   pnpOffsetX_inch, pnpOffsetY_inch,
                   placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
                   patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
-                  placeGridCols, placeGridRows
-                  // REMOVED spacingX_inch, spacingY_inch arguments
-                  );
+                  placeGridCols, placeGridRows,
+                  placeSpacingX_inch, placeSpacingY_inch);
     Serial.printf("Loaded Paint Settings: PatOffset(%.2f, %.2f), GunOffset(%.2f, %.2f)\n",
                   paintPatternOffsetX_inch, paintPatternOffsetY_inch,
                   paintGunOffsetX_inch, paintGunOffsetY_inch);
-    Serial.printf("Loaded Tray Size: H=%.1f, W=%.1f\n", trayHeight_inch, trayWidth_inch); // Added log for tray size
     for (int i = 0; i < 4; i++) {
         Serial.printf("  Side %d: Z=%.2f, Pitch=%d, Roll=%d, Speed=%.0f\n",
                       i, paintZHeight_inch[i], paintPitchAngle[i], paintRollAngle[i], paintSpeed[i]);
@@ -1881,118 +1725,92 @@ void setup() {
 
 // --- Arduino Loop ---
 void loop() {
-    // Handle OTA first, if active
+    // Handle OTA requests if WiFi is connected
+    if (WiFi.status() == WL_CONNECTED) {
         ArduinoOTA.handle();
-    
-    // Handle HTTP Server requests
-    webServer.handleClient();
-    
-    // Handle websocket events
-    webSocket.loop();
+        webSocket.loop();       // Handle WebSocket connections
+        webServer.handleClient(); // Handle HTTP requests
+    }
 
-    // Update switch debouncers
+    // Update switch debouncers (less critical now, mainly for potential future use)
     debouncer_x_home.update();
     debouncer_y_left_home.update();
     debouncer_y_right_home.update();
     debouncer_z_home.update();
     debouncer_pnp_cycle_button.update();
 
-    // Static variables to track state changes for logging
-    static bool lastMovingState = false;
-    static bool lastHomingState = false;
-    static bool lastPnPMode = false;
-    
-    // Check if any state has changed
-    if (lastMovingState != isMoving || lastHomingState != isHoming || lastPnPMode != inPickPlaceMode) {
-        Serial.printf("[STATE-DEBUG] State change: isMoving:%d->%d, isHoming:%d->%d, inPickPlaceMode:%d->%d\n",
-                    lastMovingState, isMoving, lastHomingState, isHoming, lastPnPMode, inPickPlaceMode);
-        lastMovingState = isMoving;
-        lastHomingState = isHoming;
-        lastPnPMode = inPickPlaceMode;
-    }
-
-    // PnP move tracking variable
-    static bool stepMovementInProgress = false;
-    static unsigned long lastStepMoveCheck = 0;
-    static bool statusSent = false;
-
-    // Check stepper motors (if they've completed their moves)
-    // Only check every 200ms to avoid excessive serial output
-    if (millis() - lastStepMoveCheck > 200) {
-        lastStepMoveCheck = millis();
-        
-        // X/Y movement checking - non-calibration mode
-        if (isMoving && !inCalibrationMode) {
-            // Check if steppers are still running
-            bool xRunning = stepper_x->isRunning();
-            bool yLeftRunning = stepper_y_left->isRunning();
-            bool yRightRunning = stepper_y_right->isRunning();
-            bool zRunning = stepper_z->isRunning();
-            bool rotRunning = stepper_rot ? stepper_rot->isRunning() : false;
-            
-            if (inPickPlaceMode && stepMovementInProgress) {
-                bool stillRunning = xRunning || yLeftRunning || yRightRunning || zRunning;
-                
-                if (!stillRunning && !statusSent) {
-                    Serial.println("[DEBUG-LOOP] PnP move completed. Motors stopped.");
-                    stepMovementInProgress = false;
-                    
-                    // This is commented out because the isMoving flag should be managed by the executeNextPickPlaceStep function
-                    // But if it's not being cleared, this might be necessary
-                    // isMoving = false; 
-                }
-            }
-            else if (!xRunning && !yLeftRunning && !yRightRunning && !zRunning && !rotRunning) {
-                // All steppers have stopped
-                Serial.println("[DEBUG-LOOP] Movement completed. All motors stopped.");
-                isMoving = false;  // Clear moving flag
-                
-                if (inPickPlaceMode) {
-                    webSocket.broadcastTXT("{\"status\":\"PickPlaceReady\", \"message\":\"Ready for next PnP step.\"}");
-                } else {
-                    webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Move complete. Machine ready.\"}");
-                }
-                
-                // Send position update after move completes
-                sendCurrentPositionUpdate();
-                statusSent = true;
-            } else {
-                // At least one motor is still running
-                statusSent = false;
-                if (inPickPlaceMode) {
-                    stepMovementInProgress = true;
-                }
-            }
-        }
-        
-        // Check for end of homing
-        if (isHoming) {
-            if (!stepper_x->isRunning() && !stepper_y_left->isRunning() && !stepper_y_right->isRunning() && !stepper_z->isRunning()) {
-                isHoming = false;
-                Serial.println("[DEBUG-LOOP] Homing sequence completed.");
-                allHomed = true;
-                
-                // Send ready status
-                webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Homing complete.\"}");
-                
-                // Send position update after homing
-                sendCurrentPositionUpdate();
-            }
-        }
-    }
-    
-    // Check physical button press for PnP cycle (if implemented)
-    if (debouncer_pnp_cycle_button.rose()) { // Button pressed (active HIGH - LOW to HIGH edge)
+    // --- Handle Physical Button Press ---
+    if (debouncer_pnp_cycle_button.rose()) { // Trigger on button press (rising edge)
+        Serial.println("[DEBUG] Physical Button Pressed! (rose)"); // DEBUG
+        // Only trigger the cycle if in PnP mode and not already doing something
         if (inPickPlaceMode && !isMoving && !isHoming) {
-            Serial.println("Physical PnP Cycle button pressed, executing next step");
-            executeNextPickPlaceStep();
+             Serial.println("[DEBUG] Triggering PnP cycle from physical button."); // DEBUG
+             executeNextPickPlaceStep(); // Call the correct function
+        } else {
+             Serial.printf("[DEBUG] Ignoring physical button: inPnP=%d, isMoving=%d, isHoming=%d\n", inPickPlaceMode, isMoving, isHoming); // DEBUG
+            // Serial.println("Ignoring physical button press (not in PnP mode or busy).");
+            // Optional: Provide feedback? (e.g., short LED blink)
         }
     }
 
-    // Check for auto-retry of homing after exiting PnP mode
-    if (pendingHomingAfterPnP && !isMoving && !isHoming && !inPickPlaceMode) {
-        Serial.println("Auto-homing after PnP exit");
-        pendingHomingAfterPnP = false; // Clear flag first to avoid recursion
-        homeAllAxes();
+    // --- Handle Homing Request after PnP --- 
+    if (pendingHomingAfterPnP && !isMoving && !isHoming) {
+        Serial.println("[DEBUG] Handling pending homing request after PnP sequence.");
+        pendingHomingAfterPnP = false; // Clear the flag
+        homeAllAxes(); // Initiate homing
+    }
+
+    // Check if a move command (GOTO or JOG) is active and has finished
+    if (isMoving) { 
+        // Remember which motors were running at the start of this loop iteration
+        bool rot_was_running = stepper_rot && stepper_rot->isRunning();
+
+        bool x_running = stepper_x && stepper_x->isRunning();
+        bool yl_running = stepper_y_left && stepper_y_left->isRunning();
+        bool yr_running = stepper_y_right && stepper_y_right->isRunning();
+        bool z_running = stepper_z && stepper_z->isRunning(); // Include Z check
+        bool rot_running = stepper_rot && stepper_rot->isRunning(); // Keep this check for the condition
+
+        // Add detailed rotation debugging every 500ms
+        static unsigned long lastRotDebugTime = 0;
+        unsigned long currentTime = millis();
+        if (rot_running && currentTime - lastRotDebugTime > 500) {
+            lastRotDebugTime = currentTime;
+            Serial.printf("DEBUG ROTATION: Current pos: %ld steps, Target pos: %ld, Speed: %.2f us\n", 
+                        stepper_rot->getCurrentPosition(),
+                        stepper_rot->targetPos(),
+                        stepper_rot->getCurrentSpeedInUs());
+        }
+        
+        if (!x_running && !yl_running && !yr_running && !z_running && !rot_running) { // Added rot_running
+            Serial.printf("[DEBUG] loop(): Detected move completion. Clearing isMoving flag (was %d).\n", isMoving); // DEBUG
+            isMoving = false;
+            
+            if (inCalibrationMode) {
+                // If calibration is active, send position update and CalibrationActive status
+                // Serial.println("Jog move complete.");
+                webSocket.broadcastTXT("{\"status\":\"CalibrationActive\", \"message\":\"Jog complete.\"}");
+                sendCurrentPositionUpdate(); // Send updated position (without angle)
+            } else if (!inPickPlaceMode) { // Includes rotation moves now
+                 // If it was a general move (not PnP), send Ready status
+            // Serial.println("Generic move complete.");
+            webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Move complete.\"}");
+                 // If the rotation motor just finished, send a position update
+                 if (rot_was_running) {
+                    Serial.printf("DEBUG: Rotation move completed. Final position: %ld steps\n", 
+                                stepper_rot->getCurrentPosition());
+                    sendCurrentPositionUpdate(); // Send updated position (without angle)
+                 }
+            }
+            // Note: PnP move completion is handled within the PnP logic itself
+        }
+    }
+
+    // Small delay to prevent excessive polling if nothing else is happening
+    // But ensure yield() or delay() is called frequently enough for background tasks
+    // If WiFi/servers are active, their loop/handle calls provide yielding.
+    // If not connected, add a small delay.
+    if (WiFi.status() != WL_CONNECTED) {
+         delay(1);
     }
 } 

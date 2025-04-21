@@ -41,6 +41,8 @@ extern float placeFirstYAbsolute_inch;
 // Grid and Spacing (Constants)
 extern int placeGridCols;
 extern int placeGridRows;
+extern float placeSpacingX_inch;
+extern float placeSpacingY_inch;
 
 // === Function Declarations ===
 
@@ -51,7 +53,6 @@ extern int placeGridRows;
 void enterPickPlaceMode();
 void exitPickPlaceMode(bool shouldHomeAfterExit = false);
 void executeNextPickPlaceStep();
-void moveToNextPickPlaceSquare();
 
 // Helper function (called internally or possibly from main.cpp if needed)
 void moveToXYPositionInches_PnP(float targetX_inch, float targetY_inch); // PnP specific XY move

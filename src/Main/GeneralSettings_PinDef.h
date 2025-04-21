@@ -30,10 +30,6 @@ extern float patternZAccel;      // Accel for Z moves within patterns (steps/sec
 extern float patternRotSpeed;    // Speed for Rotation moves within patterns (steps/sec)
 extern float patternRotAccel;    // Accel for Rotation moves within patterns (steps/sec^2)
 
-// Tray Dimensions (NEW)
-extern float trayHeight_inch;     // Reference tray height (inches)
-extern float trayWidth_inch;      // Reference tray width (inches)
-
 // =====================
 // Servo Settings
 // =====================
