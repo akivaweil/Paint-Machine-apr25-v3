@@ -837,6 +837,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                  } else if (command == "PNP_NEXT_STEP") { // Renamed command
                     Serial.println("WebSocket: Received PNP_NEXT_STEP command.");
                     executeNextPickPlaceStep(); // Call function from PickPlace.h
+                 } else if (command == "PNP_SKIP_LOCATION") { // ADDED
+                    Serial.println("WebSocket: Received PNP_SKIP_LOCATION command.");
+                    skipPickPlaceLocation(); // Call function from PickPlace.h
+                 } else if (command == "PNP_BACK_LOCATION") { // ADDED
+                    Serial.println("WebSocket: Received PNP_BACK_LOCATION command.");
+                    goBackPickPlaceLocation(); // Call function from PickPlace.h
                  } else if (command.startsWith("SET_PNP_OFFSET ")) {
                      Serial.println("WebSocket: Received SET_PNP_OFFSET command.");
                      if (isMoving || isHoming || inPickPlaceMode) {

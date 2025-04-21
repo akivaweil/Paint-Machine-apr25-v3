@@ -53,6 +53,8 @@ extern float placeSpacingY_inch;
 void enterPickPlaceMode();
 void exitPickPlaceMode(bool shouldHomeAfterExit = false);
 void executeNextPickPlaceStep();
+void skipPickPlaceLocation();
+void goBackPickPlaceLocation();
 
 // Helper function (called internally or possibly from main.cpp if needed)
 void moveToXYPositionInches_PnP(float targetX_inch, float targetY_inch); // PnP specific XY move

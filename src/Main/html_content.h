@@ -131,6 +131,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
     <button id="pnpButton" class="button" onclick="sendCommand('ENTER_PICKPLACE')">Pick and Place Mode</button> <!-- Changed text -->
     <button id="pnpStepButton" class="button" onclick="sendCommand('PNP_NEXT_STEP')" style="display: none;">Next PnP Step (N)</button>
+    <button id="pnpSkipButton" class="button" onclick="sendCommand('PNP_SKIP_LOCATION')" style="display: none;">Skip Next</button>
+    <button id="pnpBackButton" class="button" onclick="sendCommand('PNP_BACK_LOCATION')" style="display: none;">Back One</button>
   </div> <!-- ADDED -->
   <hr>
   <div class="section-rotation"> <!-- ADDED Rotation Section -->
@@ -141,8 +143,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       <button id="rotateMinus90Button" class="button" onclick="rotateTray(-90)" style="width: 80px;">-90&deg;</button>
       <button id="rotatePlus90Button" class="button" onclick="rotateTray(90)" style="width: 80px;">+90&deg;</button>
 
-      <button id="rotateMinus5Button" class="button setting-button" onclick="rotateTray(-5)" style="width: 70px; margin-top: 10px;">-5&deg;</button>
-      <button id="rotatePlus5Button" class="button setting-button" onclick="rotateTray(5)" style="width: 70px; margin-top: 10px;">+5&deg;</button>
+      <button id="rotateMinus5Button" class="button" onclick="rotateTray(-5)" style="width: 70px; margin-top: 10px;">-5&deg;</button>
+    <button id="rotatePlus5Button" class="button" onclick="rotateTray(5)" style="width: 70px; margin-top: 10px;">+5&deg;</button>
 
       <!-- REMOVED Trim Buttons -->
       <!-- <button id="trimMinus1Button" class="button setting-button" onclick="trimRotation(-1)" style="padding: 5px 10px !important; font-size: 14px !important;">-1&deg; Trim</button> -->
@@ -337,6 +339,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       var rotatePlus5Button = document.getElementById('rotatePlus5Button');
       var setRotationZeroButton = document.getElementById('setRotationZeroButton');
 
+      // Pick and Place Control Elements
+      var pnpSkipButton = document.getElementById('pnpSkipButton');
+      var pnpBackButton = document.getElementById('pnpBackButton');
+
       function initWebSocket() {
         console.log('Trying to open a WebSocket connection...');
         statusDiv.innerHTML = 'Connecting...';
@@ -504,6 +510,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   pnpStepButton.style.display = 'inline-block'; // Show PnP step button
                    enterCalibrationButton.style.display = 'none'; // Hide Enter Cal button
                    calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
+                   pnpSkipButton.style.display = 'inline-block'; // Show Skip button
+                   pnpBackButton.style.display = 'inline-block'; // Show Back button
+                   enableButtons(); // Ensure buttons are enabled correctly
               } else if (data.status === "Busy" || data.status === "Moving" || data.status === "Homing") {
                   console.log("JS Debug: Executing 'Busy/Moving/Homing' block"); // JS Debug
                   statusDiv.style.color = 'orange';

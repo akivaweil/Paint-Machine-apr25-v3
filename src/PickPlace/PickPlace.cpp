@@ -230,7 +230,6 @@ void executeNextPickPlaceStep() {
     // == Pick Action (User Steps 1-5) ==
     Serial.println("[DEBUG] 1. Performing Pick Action...");
     // Move Z down to Pick height
-    // moveToZ_PnP(PNP_Z_PICK_INCH, true); // Wait for Z move <-- COMMENTED OUT
 
     digitalWrite(SUCTION_PIN, HIGH);       // 1. Suction ON
     digitalWrite(PICK_CYLINDER_PIN, HIGH); // 2. Extend Cylinder
@@ -241,7 +240,6 @@ void executeNextPickPlaceStep() {
     Serial.println("[DEBUG] Pick Action Complete (Suction ON).");
 
     // Move Z up to Travel height before XY move
-    // moveToZ_PnP(PNP_Z_TRAVEL_INCH, true); // Wait for Z move <-- COMMENTED OUT
 
     // == Move to Place Location (User Step 6) ==
     // Calculate target place coordinates for this step
@@ -282,7 +280,6 @@ void executeNextPickPlaceStep() {
     // == Place Action (User Steps 7-12) ==
     Serial.println("[DEBUG] 7. Performing Place Action...");
     // Move Z down to Place height
-    // moveToZ_PnP(PNP_Z_PLACE_INCH, true); // Wait for Z move <-- COMMENTED OUT
 
     digitalWrite(PICK_CYLINDER_PIN, HIGH); // 7. Extend Cylinder
     delay(500);                            // 8. Wait
@@ -293,7 +290,6 @@ void executeNextPickPlaceStep() {
     Serial.println("[DEBUG] Place Action Complete.");
 
     // Move Z up to Travel height
-    // moveToZ_PnP(PNP_Z_TRAVEL_INCH, true); // Wait for Z move <-- COMMENTED OUT
 
     // == Return to Pick Location (User Step 13) ==
     sprintf(msgBuffer, "{\"status\":\"Moving\", \"message\":\"PnP Step %d,%d: Returning to Pick (Abs: %.2f, %.2f)\"}",
@@ -348,4 +344,102 @@ void executeNextPickPlaceStep() {
                 currentPlaceRow + 1, currentPlaceCol + 1);
         webSocket.broadcastTXT(msgBuffer);
     }
+}
+
+// Function to skip the current target location and move to the next one
+void skipPickPlaceLocation() {
+    Serial.println("[DEBUG] skipPickPlaceLocation: Entered function.");
+    if (!inPickPlaceMode) {
+        webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Not in Pick/Place mode.\"}");
+        return;
+    }
+    if (isMoving || isHoming) {
+        webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Machine is busy.\"}");
+        return;
+    }
+    if (pnpSequenceComplete) {
+        webSocket.broadcastTXT("{\"status\":\"PickPlaceComplete\", \"message\":\"Sequence already completed.\"}");
+        return;
+    }
+
+    // Calculate the index of the *next* theoretical step
+    int currentIndex = currentPlaceRow * placeGridCols + currentPlaceCol;
+    int nextIndex = currentIndex + 1;
+    int totalLocations = placeGridRows * placeGridCols;
+
+    char msgBuffer[200];
+    sprintf(msgBuffer, "{\"status\":\"Busy\", \"message\":\"Skipping location [%d,%d]...\"}", currentPlaceCol, currentPlaceRow);
+    webSocket.broadcastTXT(msgBuffer);
+    Serial.println(msgBuffer);
+
+    if (nextIndex >= totalLocations) {
+        // Skipped the last location, sequence is now complete
+        Serial.println("[DEBUG] Skipped last location. Sequence complete.");
+        pnpSequenceComplete = true;
+        webSocket.broadcastTXT("{\"status\":\"PickPlaceComplete\", \"message\":\"Sequence completed by skipping last location.\"}");
+    } else {
+        // Update row and column to the next location (without moving)
+        currentPlaceCol = nextIndex % placeGridCols;
+        currentPlaceRow = nextIndex / placeGridCols;
+        Serial.printf("[DEBUG] Skipped to next location: Col=%d, Row=%d\n", currentPlaceCol, currentPlaceRow);
+
+        // Calculate new target coordinates (for reference only, no movement)
+        float absoluteTargetX = placeFirstXAbsolute_inch - (currentPlaceCol * placeSpacingX_inch);
+        float absoluteTargetY = placeFirstYAbsolute_inch - (currentPlaceRow * placeSpacingY_inch);
+        Serial.printf("[DEBUG] Next location coordinates (not moving): X=%.2f, Y=%.2f\n", absoluteTargetX, absoluteTargetY);
+
+        sprintf(msgBuffer, "{\"status\":\"PickPlaceReady\", \"message\":\"Skipped to location %d,%d. Ready for next step.\"}",
+                currentPlaceRow + 1, currentPlaceCol + 1);
+        webSocket.broadcastTXT(msgBuffer);
+    }
+}
+
+// Function to move back to the previous target location
+void goBackPickPlaceLocation() {
+    Serial.println("[DEBUG] goBackPickPlaceLocation: Entered function.");
+    if (!inPickPlaceMode) {
+        webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Not in Pick/Place mode.\"}");
+        return;
+    }
+    if (isMoving || isHoming) {
+        webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Machine is busy.\"}");
+        return;
+    }
+
+    // Calculate the index of the *previous* theoretical step
+    int currentIndex = currentPlaceRow * placeGridCols + currentPlaceCol;
+    int prevIndex = currentIndex - 1;
+
+    char msgBuffer[200];
+
+    if (prevIndex < 0) {
+        // Already at the first location (or before it)
+        Serial.println("[DEBUG] Cannot go back further.");
+        webSocket.broadcastTXT("{\"status\":\"PickPlaceReady\", \"message\":\"Already at first location.\"}");
+        return;
+    }
+
+    sprintf(msgBuffer, "{\"status\":\"Busy\", \"message\":\"Going back from [%d,%d]...\"}", currentPlaceCol, currentPlaceRow);
+    webSocket.broadcastTXT(msgBuffer);
+    Serial.println(msgBuffer);
+
+    // If the sequence was marked complete, going back means it's no longer complete
+    if (pnpSequenceComplete) {
+        Serial.println("[DEBUG] Sequence was complete, marking as incomplete due to move back.");
+        pnpSequenceComplete = false;
+    }
+
+    // Update row and column to the previous location (without moving)
+    currentPlaceCol = prevIndex % placeGridCols;
+    currentPlaceRow = prevIndex / placeGridCols;
+    Serial.printf("[DEBUG] Went back to location: Col=%d, Row=%d\n", currentPlaceCol, currentPlaceRow);
+
+    // Calculate coordinates (for reference only, no movement)
+    float absoluteTargetX = placeFirstXAbsolute_inch - (currentPlaceCol * placeSpacingX_inch);
+    float absoluteTargetY = placeFirstYAbsolute_inch - (currentPlaceRow * placeSpacingY_inch);
+    Serial.printf("[DEBUG] Previous location coordinates (not moving): X=%.2f, Y=%.2f\n", absoluteTargetX, absoluteTargetY);
+
+    sprintf(msgBuffer, "{\"status\":\"PickPlaceReady\", \"message\":\"Moved back to location %d,%d. Ready for next step.\"}",
+            currentPlaceRow + 1, currentPlaceCol + 1);
+    webSocket.broadcastTXT(msgBuffer);
 }
