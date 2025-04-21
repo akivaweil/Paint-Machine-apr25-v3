@@ -24,6 +24,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     .input-group h3 { margin-top: 0; text-align: center; color: #eee; } /* Explicit color for headings */
     .input-group label { margin-right: 5px; display: inline-block; width: 60px; color: #ddd;} /* Lighter label text */
     .input-group input { padding: 8px; width: 90px; text-align: right; margin-bottom: 5px; background-color: #555; color: #eee; border: 1px solid #777; border-radius: 5px; } /* Darker input fields, slightly lighter border, rounded corners */
+    .input-group select { padding: 8px; width: 110px; background-color: #555; color: #eee; border: 1px solid #777; border-radius: 5px; margin-bottom: 5px; } /* Styling for select elements to match inputs */
     .input-group span { display: block; font-size: 0.8em; color: #bbb; margin-top: 0px; margin-bottom: 10px; } /* Lighter span text */
     .setting-button { padding: 10px 15px !important; margin-left: 10px !important; display: block; margin: 5px auto !important;}
     #status { margin-top: 20px; font-weight: bold; clear: both; }
@@ -243,7 +244,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Direction:</label>
         <select id="paintR_0">
-          <option value="0">Vertical</option>
+          <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
         </select>
         <span id="paintRDisplay_0">Vertical</span>
@@ -269,7 +270,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Direction:</label>
         <select id="paintR_1">
-          <option value="0">Vertical</option>
+          <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
         </select>
         <span id="paintRDisplay_1">Vertical</span>
@@ -295,7 +296,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Direction:</label>
         <select id="paintR_2">
-          <option value="0">Vertical</option>
+          <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
         </select>
         <span id="paintRDisplay_2">Vertical</span>
@@ -321,7 +322,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Direction:</label>
         <select id="paintR_3">
-          <option value="0">Vertical</option>
+          <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
         </select>
         <span id="paintRDisplay_3">Vertical</span>
@@ -784,7 +785,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           if (pnpButton.innerHTML.includes('Mode')) { // Ensure PnP Step button visibility is correct
                pnpStepButton.style.display = 'inline-block';
                pnpSkipButton.style.display = 'inline-block'; // Show Skip/Back in PnP Mode
-               pnpBackButton.style.display = 'inline-block';
+               pnpBackButton.style.display = 'inlineblock';
           } else {
                pnpStepButton.style.display = 'none';
                pnpSkipButton.style.display = 'none'; // Hide Skip/Back outside PnP Mode
@@ -1018,17 +1019,15 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       // Helper to update slider value display
       function updateSliderDisplay(sliderId) {
           const slider = document.getElementById(sliderId);
-          const displaySpanId = sliderId.replace(/_(\d)$/, 'Display_$1').replace(/([PR])/, '$1Display');
+          // Reverted regex to original simple version for speed slider only
+          const displaySpanId = sliderId.replace(/_(\\d)$/, 'Display_$1').replace('paintS_', 'paintSDisplay_'); 
           const displaySpan = document.getElementById(displaySpanId);
 
           if (slider && displaySpan) {
               let value = slider.value;
               let suffix = '';
               
-              // Add degree symbol for pitch angles
-              if (sliderId.includes('paintP_')) {
-                  suffix = '&deg;';
-              }
+              // Removed degree symbol and Z formatting logic
               
               displaySpan.innerHTML = value + suffix;
           }
@@ -1161,9 +1160,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                                   rollSelect.value = settings.paintSides[i].roll;
                               }
                               
-                              paintSInputs[i].value = settings.paintSides[i].speed;
+                              paintSInputs[i].value = settings.paintSides[i].speed; // Assume saved speed is 5-25 range
                               
                               // Update displays
+                              // Reverted updateSliderDisplay calls for Z/P, reverted Z/P display updates
                               updateSliderDisplay(`paintS_${i}`);
                               document.getElementById(`paintZDisplay_${i}`).innerText = `Current: ${settings.paintSides[i].z}`;
                               document.getElementById(`paintPDisplay_${i}`).innerText = `${settings.paintSides[i].pitch}&deg;`;

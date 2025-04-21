@@ -1278,8 +1278,17 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                                            &sideIndex, &newZ, &newPitch, &newRoll, &newSpeed);
 
                         if (parsed == 5 && sideIndex >= 0 && sideIndex < 4) {
-                            // Validate servo angles and speed
-                            newPitch = constrain(newPitch, PITCH_SERVO_MIN, PITCH_SERVO_MAX);
+                            // Validate UI pitch value first (0-90)
+                            if (newPitch < 0 || newPitch > 90) {
+                                Serial.printf("[ERROR] Invalid pitch value %d from UI (must be 0-90)\n", newPitch);
+                                webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Pitch Angle for side " + String(sideIndex) + " must be between 0 and 90.\"}");
+                                return;
+                            }
+                            
+                            // Map the UI pitch value (0-90) to servo value (PITCH_SERVO_MIN to PITCH_SERVO_MAX)
+                            // For example: 0 -> PITCH_SERVO_MIN, 90 -> PITCH_SERVO_MAX
+                            newPitch = map(newPitch, 0, 90, PITCH_SERVO_MIN, PITCH_SERVO_MAX);
+                            Serial.printf("[DEBUG] Mapped UI pitch %d to servo pitch %d\n", newPitch, newPitch);
                             
                             // Map the UI values (0=Vertical, 90=Horizontal) to the actual servo values
                             if (newRoll == 0) {
@@ -1588,7 +1597,10 @@ void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
         String keyR = "paintR_" + String(i);
         String keyS = "paintS_" + String(i);
         doc[keyZ] = paintZHeight_inch[i];
-        doc[keyP] = paintPitchAngle[i];
+        
+        // Map the actual servo pitch values back to UI values (0-90)
+        int uiPitchValue = map(paintPitchAngle[i], PITCH_SERVO_MIN, PITCH_SERVO_MAX, 0, 90);
+        doc[keyP] = uiPitchValue;
         
         // Map the actual servo position values back to UI values
         // UI expects 0 for vertical, 90 for horizontal
