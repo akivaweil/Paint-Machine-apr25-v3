@@ -300,29 +300,25 @@ void executeNextPickPlaceStep() {
     // Move Z up to Travel height before XY move
 
     // == Move to Place Location (User Step 6) ==
-    // Calculate target place coordinates for this step
-    // Use absolute first place position (center of 0,0) and add grid offsets
-    // Offset includes the item width + gap
-    // const float itemWidth = 3.0f; // REMOVED - Use global pnpItemWidth_inch
-    // const float itemHeight = 3.0f; // REMOVED - Use global pnpItemHeight_inch
-
-    // Determine effective column for serpentine pattern
+    // Determine effective column index for serpentine pattern (relative to starting X)
     int effectiveCol = currentPlaceCol;
-    if (currentPlaceRow % 2 != 0) { // Odd rows (1, 3, 5...)
+    if (currentPlaceRow % 2 != 0) { // Odd rows (1, 3, 5...): Reverse direction
         effectiveCol = (placeGridCols - 1 - currentPlaceCol);
     }
 
-    // Calculate target X based on effective column
-    float absoluteTargetX = placeFirstXAbsolute_inch + (effectiveCol * (pnpItemWidth_inch + placeGapX_inch));
-    // Calculate target Y based on current row
-    float absoluteTargetY = placeFirstYAbsolute_inch + (currentPlaceRow * (pnpItemHeight_inch + placeGapY_inch));
+    // Calculate target X: Start at placeFirstXAbsolute_inch and SUBTRACT offset based on effectiveCol
+    float stepX = pnpItemWidth_inch + placeGapX_inch;
+    float absoluteTargetX = placeFirstXAbsolute_inch - (effectiveCol * stepX);
+    // Calculate target Y: Start at placeFirstYAbsolute_inch and SUBTRACT offset based on row (changed from ADD to make Y move in negative direction)
+    float stepY = pnpItemHeight_inch + placeGapY_inch;
+    float absoluteTargetY = placeFirstYAbsolute_inch - (currentPlaceRow * stepY);
 
     char msgBuffer[150];
-    Serial.printf("[DEBUG] PnP Step Target Calc: Row=%d, Col=%d (EffCol=%d), FirstAbs(%.2f, %.2f), Item(%.2f, %.2f), Gap(%.3f, %.3f) -> Target(%.2f, %.2f)\n",
-                   currentPlaceRow, currentPlaceCol, effectiveCol, // Added EffCol to log
+    // Update debug log format slightly
+    Serial.printf("[DEBUG] PnP Step Target Calc: Row=%d, Col=%d (EffCol=%d), FirstAbs(%.2f, %.2f), Step(%.3f, %.3f) -> Target(%.2f, %.2f)\n",
+                   currentPlaceRow, currentPlaceCol, effectiveCol,
                    placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
-                   pnpItemWidth_inch, pnpItemHeight_inch, // Use global constants
-                   placeGapX_inch, placeGapY_inch,
+                   stepX, stepY, // Log step size
                    absoluteTargetX, absoluteTargetY); // DEBUG
     sprintf(msgBuffer, "{\"status\":\"Moving\", \"message\":\"PnP Step %d,%d: Moving to Place (Abs: %.2f, %.2f)\"}",
             currentPlaceRow + 1, currentPlaceCol + 1, absoluteTargetX, absoluteTargetY);

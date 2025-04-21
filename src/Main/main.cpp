@@ -703,44 +703,79 @@ void paintSide(int sideIndex) {
     float currentTcpX = startTcpX;
     float currentTcpY = startTcpY;
 
-    for (int r = 0; r < placeGridRows; ++r) {
-        float targetTcpX;
-        // Corrected Y calculation: Subtract spacing to move down
-        float targetTcpY = (pathStartY - r * placeGapY_inch) + paintGunOffsetY_inch;
-
-        // --- Determine Sweep Target X --- 
-        if (r % 2 == 0) { // Even row (0, 2, ...): Sweep Left
-            targetTcpX = (pathStartX - (placeGridCols - 1) * placeGapX_inch) + paintGunOffsetX_inch;
-            Serial.printf("Row %d (Even): Sweeping Left to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
-        } else { // Odd row (1, 3, ...): Sweep Right
-            targetTcpX = pathStartX + paintGunOffsetX_inch;
-            Serial.printf("Row %d (Odd): Sweeping Right to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
-        }
+    // Special pattern for back side (side 0)
+    if (sideIndex == 0) {
+        float rowSpacing = 3.0 + placeGapY_inch; // Move down by 3 inches + y gap
+        Serial.printf("Back side painting: Using row spacing of %.2f (3.0 + gap %.2f)\n", rowSpacing, placeGapY_inch);
         
-        // --- Execute Horizontal Sweep --- 
-        // Only move if Y is already correct (it should be from previous step or initial move)
-        if (abs(currentTcpY - targetTcpY) < 0.001) { // Check if Y is already correct
-             moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
-             currentTcpX = targetTcpX; // Update current X
-        } else {
-             Serial.printf("[WARN] Row %d: Y position mismatch before sweep (Current: %.3f, Target: %.3f). Skipping sweep, moving directly down.\n", r, currentTcpY, targetTcpY);
-             // If Y is wrong, just move to the correct Y at the *end* X of this sweep
-             moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
-             currentTcpX = targetTcpX;
-             currentTcpY = targetTcpY; // Update Y as well
+        for (int r = 0; r < placeGridRows; ++r) {
+            // Calculate Y position for this row
+            float targetTcpY = startTcpY - (r * rowSpacing);
+            
+            // Always sweep from right to left (move in -X direction)
+            float targetTcpX = startTcpX - trayWidth_inch;
+            Serial.printf("Row %d: Sweeping Left from X=%.2f to X=%.2f at Y=%.2f\n", 
+                         r, currentTcpX, targetTcpX, targetTcpY);
+            
+            // First move to correct Y position if needed
+            if (abs(currentTcpY - targetTcpY) > 0.001) {
+                moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
+                currentTcpY = targetTcpY;
+            }
+            
+            // Then sweep left (X- direction)
+            moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+            currentTcpX = targetTcpX;
+            
+            // If not the last row, move to the right side for the next sweep
+            if (r < placeGridRows - 1) {
+                targetTcpX = startTcpX; // Back to the right side
+                moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+                currentTcpX = targetTcpX;
+            }
         }
-
-        // --- Move Down to Next Row (if not the last row) --- 
-        if (r < placeGridRows - 1) {
+    } else {
+        // Original pattern for other sides
+        for (int r = 0; r < placeGridRows; ++r) {
+            float targetTcpX;
             // Corrected Y calculation: Subtract spacing to move down
-            float nextRowTcpY = (pathStartY - (r + 1) * placeGapY_inch) + paintGunOffsetY_inch;
-            Serial.printf("Row %d: Moving Down to Y=%.2f (X=%.2f)\n", r, nextRowTcpY, currentTcpX);
-            // Move only Y axis - use moveZToPositionInches for XY? No, use XY function but keep X same.
-            // Need a specific Y-only move or use XY with same X
-            moveToXYPositionInches_Paint(currentTcpX, nextRowTcpY, speed, accel); // Move Y while keeping X constant
-            currentTcpY = nextRowTcpY; // Update current Y
+            float targetTcpY = (pathStartY - r * placeGapY_inch) + paintGunOffsetY_inch;
+
+            // --- Determine Sweep Target X --- 
+            if (r % 2 == 0) { // Even row (0, 2, ...): Sweep Left
+                targetTcpX = (pathStartX - (placeGridCols - 1) * placeGapX_inch) + paintGunOffsetX_inch;
+                Serial.printf("Row %d (Even): Sweeping Left to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
+            } else { // Odd row (1, 3, ...): Sweep Right
+                targetTcpX = pathStartX + paintGunOffsetX_inch;
+                Serial.printf("Row %d (Odd): Sweeping Right to TCP X=%.2f, Y=%.2f\n", r, targetTcpX, targetTcpY);
+            }
+            
+            // --- Execute Horizontal Sweep --- 
+            // Only move if Y is already correct (it should be from previous step or initial move)
+            if (abs(currentTcpY - targetTcpY) < 0.001) { // Check if Y is already correct
+                 moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+                 currentTcpX = targetTcpX; // Update current X
+            } else {
+                 Serial.printf("[WARN] Row %d: Y position mismatch before sweep (Current: %.3f, Target: %.3f). Skipping sweep, moving directly down.\n", r, currentTcpY, targetTcpY);
+                 // If Y is wrong, just move to the correct Y at the *end* X of this sweep
+                 moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+                 currentTcpX = targetTcpX;
+                 currentTcpY = targetTcpY; // Update Y as well
+            }
+
+            // --- Move Down to Next Row (if not the last row) --- 
+            if (r < placeGridRows - 1) {
+                // Corrected Y calculation: Subtract spacing to move down
+                float nextRowTcpY = (pathStartY - (r + 1) * placeGapY_inch) + paintGunOffsetY_inch;
+                Serial.printf("Row %d: Moving Down to Y=%.2f (X=%.2f)\n", r, nextRowTcpY, currentTcpX);
+                // Move only Y axis - use moveZToPositionInches for XY? No, use XY function but keep X same.
+                // Need a specific Y-only move or use XY with same X
+                moveToXYPositionInches_Paint(currentTcpX, nextRowTcpY, speed, accel); // Move Y while keeping X constant
+                currentTcpY = nextRowTcpY; // Update current Y
+            }
         }
     }
+    
     Serial.println("Painting path complete.");
 
     // 10. Move Z Axis Up (e.g., to safe height 0)
@@ -772,24 +807,16 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
         case WStype_CONNECTED: {
             IPAddress ip = webSocket.remoteIP(num);
             Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
-            // Send initial status including current settings
-             String initialStatusStr = (allHomed ? (isMoving ? "Busy" : "Ready") : "Needs Homing");
-             char initialMsgBuffer[400]; // Increased buffer size for grid/spacing
-             sprintf(initialMsgBuffer, "{\"status\":\"%s\",\"message\":\"Welcome! System status: %s\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"gapX\":%.3f,\"gapY\":%.3f}",
-                     initialStatusStr.c_str(), initialStatusStr.c_str(),
-                     pnpOffsetX_inch, pnpOffsetY_inch,
-                     placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
-                     patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
-                     placeGridCols, placeGridRows,
-                     placeGapX_inch, placeGapY_inch);
-             Serial.printf("[DEBUG] WebSocket [%u] Sending Initial State: %s\n", num, initialMsgBuffer); // DEBUG
-             webSocket.sendTXT(num, initialMsgBuffer);
-             // Also send initial position update immediately after settings
-             if(allHomed) {
-                 sendCurrentPositionUpdate();
-             }
+            // Send initial status and all settings using the helper function
+            String welcomeMsg = "Welcome! Connected to Paint + PnP Machine.";
+            sendAllSettingsUpdate(num, welcomeMsg);
+            
+            // Also send initial position update immediately after settings if homed
+            if (allHomed) {
+                sendCurrentPositionUpdate();
             }
-            break;
+        }
+        break;
         case WStype_TEXT:
             Serial.printf("[%u] get Text: %s\n", num, payload);
             if (length > 0) {
@@ -1144,14 +1171,41 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                     // Expecting "SET_TRAY_SIZE W H"
                     int parsed = sscanf(command.c_str() + strlen("SET_TRAY_SIZE "), "%f %f", &newW, &newH);
                     if (parsed == 2 && newW > 0 && newH > 0) {
+                        Serial.printf("[DEBUG] New tray dimensions: width=%.2f, height=%.2f (old: width=%.2f, height=%.2f)\n", 
+                                    newW, newH, trayWidth_inch, trayHeight_inch);
+                        
+                        // Save the new tray dimensions
                         trayWidth_inch = newW;
                         trayHeight_inch = newH;
+                        
+                        // Open preferences, save values, and close immediately
                         preferences.begin("machineCfg", false);
                         preferences.putFloat("trayWidth", trayWidth_inch);
                         preferences.putFloat("trayHeight", trayHeight_inch);
                         preferences.end();
+                        
                         Serial.printf("[DEBUG] Set Tray Size to W=%.2f, H=%.2f\n", trayWidth_inch, trayHeight_inch);
-                        sendAllSettingsUpdate(num, "Tray Size updated."); // Send updated settings
+                        
+                        // Recalculate grid spacing with current grid dimensions to reflect new tray size
+                        float oldGapX = placeGapX_inch;
+                        float oldGapY = placeGapY_inch;
+                        calculateAndSetGridSpacing(placeGridCols, placeGridRows);
+                        
+                        Serial.printf("[DEBUG] Gap values changed: X: %.3f → %.3f, Y: %.3f → %.3f\n", 
+                                    oldGapX, placeGapX_inch, oldGapY, placeGapY_inch);
+                        
+                        // Instead of using a redundant call to sendAllSettingsUpdate, create a more specific message
+                        // about the changes that were made
+                        char msgBuffer[200];
+                        sprintf(msgBuffer, "Tray Size updated to W=%.2f, H=%.2f. Gap recalculated: X=%.3f, Y=%.3f", 
+                               trayWidth_inch, trayHeight_inch, placeGapX_inch, placeGapY_inch);
+                        
+                        // Send settings update to the specific client that requested the change
+                        sendAllSettingsUpdate(num, msgBuffer);
+                        // Also broadcast to all other clients
+                        if (num != 255) {
+                            sendAllSettingsUpdate(255, msgBuffer);
+                        }
                     } else {
                         Serial.printf("[DEBUG] Failed to parse SET_TRAY_SIZE command: %s\n", command.c_str());
                         webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid SET_TRAY_SIZE format.\"}");
@@ -1569,11 +1623,32 @@ void setup() {
     // Load Grid Dimensions (provide defaults)
     placeGridCols = preferences.getInt("gridCols", 4);
     placeGridRows = preferences.getInt("gridRows", 5);
-    // Note: Gaps are not loaded directly, they are recalculated below.
-
+    
+    // Load existing gap values if they exist
+    placeGapX_inch = preferences.getFloat("gapX", 0.0f);
+    placeGapY_inch = preferences.getFloat("gapY", 0.0f);
+    
+    Serial.printf("[DEBUG] Loaded from NVS - Grid: %d x %d, Gap: X=%.3f, Y=%.3f\n", 
+                 placeGridCols, placeGridRows, placeGapX_inch, placeGapY_inch);
+    
     // Load Tray Dimensions (provide defaults) (NEW)
     trayWidth_inch = preferences.getFloat("trayWidth", 24.0f);
     trayHeight_inch = preferences.getFloat("trayHeight", 18.0f);
+    
+    // Validate the loaded tray dimensions
+    if (trayWidth_inch <= 0 || trayHeight_inch <= 0) {
+        Serial.printf("[ERROR] Invalid tray dimensions loaded: width=%.2f, height=%.2f. Using defaults.\n", 
+                     trayWidth_inch, trayHeight_inch);
+        trayWidth_inch = 24.0f;
+        trayHeight_inch = 18.0f;
+        
+        // Immediately save the corrected values
+        preferences.putFloat("trayWidth", trayWidth_inch);
+        preferences.putFloat("trayHeight", trayHeight_inch);
+    }
+    
+    Serial.printf("[DEBUG] Loaded tray dimensions: width=%.2f, height=%.2f\n", 
+                 trayWidth_inch, trayHeight_inch);
 
     // Calculate initial grid gap based on loaded dimensions
     calculateAndSetGridSpacing(placeGridCols, placeGridRows);
@@ -1872,47 +1947,68 @@ void loop() {
 
 // NEW: Function to calculate and set grid spacing automatically
 void calculateAndSetGridSpacing(int cols, int rows) {
-    Serial.printf("[DEBUG] Calculating grid gap for %d cols, %d rows\n", cols, rows);
-    // const float itemWidth = 3.0f; // REMOVED - Moved to GeneralSettings_PinDef.h
-    // const float itemHeight = 3.0f; // REMOVED - Moved to GeneralSettings_PinDef.h
-    // const float trayWidth = 18.0f; // REMOVED - Using global trayWidth_inch
-    // const float trayHeight = 26.0f; // REMOVED - Using global trayHeight_inch
-    // const float border = 0.25f; // REMOVED - Moved to GeneralSettings_PinDef.h
+    Serial.printf("[DEBUG] calculateAndSetGridSpacing with cols=%d, rows=%d, trayWidth=%.2f, trayHeight=%.2f\n", 
+                 cols, rows, trayWidth_inch, trayHeight_inch);
+                 
+    // Input validation for columns and rows
+    if (cols <= 0 || rows <= 0) {
+        Serial.printf("[ERROR] Invalid grid dimensions: cols=%d, rows=%d. Must be positive.\n", cols, rows);
+        return; // Exit without calculations
+    }
+    
+    if (trayWidth_inch <= 0 || trayHeight_inch <= 0) {
+        Serial.printf("[ERROR] Invalid tray dimensions: width=%.2f, height=%.2f. Must be positive.\n", 
+                     trayWidth_inch, trayHeight_inch);
+        // Use defaults to prevent crashes
+        trayWidth_inch = max(trayWidth_inch, 24.0f);
+        trayHeight_inch = max(trayHeight_inch, 18.0f);
+        Serial.printf("[WARN] Using default tray dimensions: width=%.2f, height=%.2f\n", 
+                     trayWidth_inch, trayHeight_inch);
+    }
+    
+    // UPDATED X GAP CALCULATION FORMULA:
+    // X gap = (trayWidth - (.25 border * 2) - (3 inch squares * # of columns)) / (# of columns - 1)
+    // Y gap = (trayHeight - (borderWidth * 2) - (itemHeight * rows)) / (rows - 1)
 
-    // Calculate total available width/height inside the border
-    float availableWidth = trayWidth_inch - 2 * pnpBorderWidth_inch; // Use global variables
-    float availableHeight = trayHeight_inch - 2 * pnpBorderWidth_inch; // Use global variables
+    float placeGapX_inch_old = placeGapX_inch; // Store old value for comparison
 
-    // Calculate total width/height occupied by items
-    float totalItemWidth = cols * pnpItemWidth_inch; // Use global variable
-    float totalItemHeight = rows * pnpItemHeight_inch; // Use global variable
-
-    // Calculate total gap space
-    float totalGapX = availableWidth - totalItemWidth;
-    float totalGapY = availableHeight - totalItemHeight;
-
-    // Calculate individual gap size
+    // X-direction gap calculation with the formula
     if (cols > 1) {
-        placeGapX_inch = totalGapX / (cols - 1);
+        placeGapX_inch = (trayWidth_inch - (2 * pnpBorderWidth_inch) - (pnpItemWidth_inch * cols)) / (cols - 1);
     } else {
         placeGapX_inch = 0; // No gap needed for 1 column
     }
 
+    // Y-direction gap calculation (unchanged)
+    // For Y: traySize = trayHeight, itemSize = pnpItemHeight_inch, numItems = rows
+    float totalYSpace = trayHeight_inch - (2 * pnpBorderWidth_inch); // Total available space minus borders
+    float totalItemYSpace = rows * pnpItemHeight_inch; // Total space occupied by items
+    float totalGapYSpace = totalYSpace - totalItemYSpace; // Total space for gaps
+    
+    Serial.printf("[DEBUG] Using tray dimensions: Width=%.2f, Height=%.2f\n", trayWidth_inch, trayHeight_inch);
+    Serial.printf("[DEBUG] Border width: %.2f, Item width: %.2f, Item height: %.2f\n", 
+                 pnpBorderWidth_inch, pnpItemWidth_inch, pnpItemHeight_inch);
+    Serial.printf("[DEBUG] Using formula: (%.2f - (.25*2) - (3*%d))/%d for X gap\n", 
+                 trayWidth_inch, cols, (cols-1));
+    Serial.printf("[DEBUG] X gap changed from %.3f to %.3f\n", placeGapX_inch_old, placeGapX_inch);
+
     if (rows > 1) {
-        placeGapY_inch = totalGapY / (rows - 1);
+        placeGapY_inch = totalGapYSpace / (rows - 1);
     } else {
         placeGapY_inch = 0; // No gap needed for 1 row
     }
 
-    // Basic validation: Check if calculated gap is negative (items + border > tray)
+    // Basic validation: Check if calculated gap is negative
     bool fitError = false;
-    if (totalGapX < 0) {
-        Serial.printf("[WARN] Items (%.2f) + border (%.2f) exceed tray width (%.2f). Calculated X Gap=%.3f\n", totalItemWidth, 2*pnpBorderWidth_inch, trayWidth_inch, placeGapX_inch);
+    if (placeGapX_inch < 0) {
+        Serial.printf("[WARN] Calculated X Gap is negative: %.3f. Items don't fit in fixed width of 26 inches.\n", 
+                     placeGapX_inch);
         fitError = true;
         placeGapX_inch = 0; // Clamp gap to 0 if negative
     }
-    if (totalGapY < 0) {
-        Serial.printf("[WARN] Items (%.2f) + border (%.2f) exceed tray height (%.2f). Calculated Y Gap=%.3f\n", totalItemHeight, 2*pnpBorderWidth_inch, trayHeight_inch, placeGapY_inch);
+    if (totalGapYSpace < 0) {
+        Serial.printf("[WARN] Items (%.2f) + borders (%.2f) exceed tray height (%.2f). Calculated Y Gap=%.3f\n", 
+                     totalItemYSpace, 2*pnpBorderWidth_inch, trayHeight_inch, placeGapY_inch);
         fitError = true;
         placeGapY_inch = 0; // Clamp gap to 0 if negative
     }
@@ -1921,20 +2017,29 @@ void calculateAndSetGridSpacing(int cols, int rows) {
     placeGridCols = cols;
     placeGridRows = rows;
 
-    Serial.printf("[DEBUG] Calculated Gap: X=%.3f, Y=%.3f\n", placeGapX_inch, placeGapY_inch);
+    Serial.printf("[INFO] Final calculated gap values: X=%.3f, Y=%.3f\n", placeGapX_inch, placeGapY_inch);
 
-    // Save Cols, Rows, and *calculated* Gap to Preferences
+    // Save Cols, Rows, Gap, and tray dimensions to Preferences
     preferences.begin("machineCfg", false);
     preferences.putInt("gridCols", placeGridCols);
     preferences.putInt("gridRows", placeGridRows);
-    preferences.putFloat("gapX", placeGapX_inch); // Use new key "gapX"
-    preferences.putFloat("gapY", placeGapY_inch); // Use new key "gapY"
+    preferences.putFloat("gapX", placeGapX_inch);
+    preferences.putFloat("gapY", placeGapY_inch);
+    
+    // Also save tray dimensions to ensure consistency
+    preferences.putFloat("trayWidth", trayWidth_inch);
+    preferences.putFloat("trayHeight", trayHeight_inch);
     preferences.end();
+    
+    Serial.printf("[DEBUG] Saved to preferences: gridCols=%d, gridRows=%d, gapX=%.3f, gapY=%.3f, trayWidth=%.2f, trayHeight=%.2f\n",
+                 placeGridCols, placeGridRows, placeGapX_inch, placeGapY_inch, trayWidth_inch, trayHeight_inch);
 
     // Send update to UI
     String message = "Grid Columns/Rows updated. Gap calculated.";
     if (fitError) {
         message += " Warning: Items may not fit within tray dimensions!";
     }
+    
+    Serial.printf("[DEBUG] Sending update to UI with message: %s\n", message.c_str());
     sendAllSettingsUpdate(255, message); // Send to all clients
 }

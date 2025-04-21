@@ -198,7 +198,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           <span id="currentPosDisplay">X: 0.000, Y: 0.000, Z: 0.000</span>
        </div>
        <br style="clear:both;">
-       <button id="exitCalibrationButton" class="button" onclick="sendCommand('EXIT_CALIBRATION')" style="background-color: #f44336;">Exit Manual Mode</button> <!-- Changed text -->
      </div>
      <button id="enterCalibrationButton" class="button" onclick="sendCommand('ENTER_CALIBRATION')">Manual Mode</button> <!-- Changed text -->
   </div> <!-- ADDED -->
@@ -207,36 +206,134 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
   <div class="section-paint"> <!-- ADDED -->
     <h2>Paint Control</h2>
     <div id="paintControls">
-      <!-- Settings for Global Paint Offsets -->
+      <!-- Settings for Paint Gun Offset Only -->
       <div class="input-group">
-          <h3>Global Paint Offsets</h3>
-          <label for="paintPatternOffsetX">Pattern X:</label>
-          <input type="number" id="paintPatternOffsetX" step="0.1" value="0.0">
-          <label for="paintPatternOffsetY">Pattern Y:</label>
-          <input type="number" id="paintPatternOffsetY" step="0.1" value="0.0">
-          <span id="paintPatternOffsetDisplay">Current: X=0.00, Y=0.00</span>
-          <br>
+          <h3>Paint Gun Offset</h3>
           <label for="paintGunOffsetX">Gun X:</label>
           <input type="number" id="paintGunOffsetX" step="0.1" value="0.0">
           <label for="paintGunOffsetY">Gun Y:</label>
-          <input type="number" id="paintGunOffsetY" step="0.1" value="0.0">
-          <span id="paintGunOffsetDisplay">Current: X=0.00, Y=0.00</span>
-          <button id="setPaintOffsetsButton" class="button setting-button" onclick="setPaintOffsets()">Set Paint Offsets</button>
+          <input type="number" id="paintGunOffsetY" step="0.1" value="1.5">
+          <span id="paintGunOffsetDisplay">Current: X=0.00, Y=1.50</span>
+          <button id="setPaintOffsetsButton" class="button setting-button" onclick="setPaintOffsets()">Set Gun Offset</button>
       </div>
 
-      <!-- Placeholder for Side Settings Panels -->
+      <!-- Side Buttons -->
+      <div style="margin: 15px 0;">
+        <button id="paintBackButton" class="button" onclick="sendCommand('PAINT_SIDE_0')" style="background-color: #A142F4;">Paint Back Side</button>
+        <button id="paintRightButton" class="button" onclick="sendCommand('PAINT_SIDE_1')" style="background-color: #A142F4;">Paint Right Side</button>
+        <button id="paintFrontButton" class="button" onclick="sendCommand('PAINT_SIDE_2')" style="background-color: #A142F4;">Paint Front Side</button>
+        <button id="paintLeftButton" class="button" onclick="sendCommand('PAINT_SIDE_3')" style="background-color: #A142F4;">Paint Left Side</button>
+        <button id="stopButton" class="button" onclick="sendCommand('STOP')" style="background-color: #dc3545;">STOP</button>
+      </div>
+
+      <!-- Side Settings Panels -->
       <div style="clear:both;"></div>
-      <p>(Side settings panels will go here)</p>
-
-      <!-- Placeholder for Start Button -->
-       <button id="startPaintingButton" class="button setting-button" onclick="sendCommand('START_PAINTING')" style="background-color: #dc3545;">Start Painting</button>
-       <button id="paintBackButton" class="button setting-button" onclick="sendCommand('PAINT_SIDE_0')" style="background-color: #A142F4;">Paint Back Side</button>
-       <!-- Placeholder for additional paint side buttons if needed -->
-       <!-- Placeholder for Stop Button -->
-       <button id="stopButton" class="button setting-button" onclick="sendCommand('STOP')" style="background-color: #ffc107;">STOP</button>
-
-              </div>
-    </div> <!-- ADDED -->
+      
+      <!-- Back Side Settings -->
+      <div class="input-group">
+        <h3>Back Side Settings</h3>
+        <label for="paintZ_0">Z Height:</label>
+        <input type="number" id="paintZ_0" step="0.1" value="1.0" min="0" max="2.5">
+        <span id="paintZDisplay_0">Current: 1.0</span>
+        <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small>
+        
+        <label for="paintP_0">Pitch:</label>
+        <input type="number" id="paintP_0" step="1" value="0" min="0" max="90">
+        <span id="paintPDisplay_0">0&deg;</span>
+        
+        <label>Direction:</label>
+        <select id="paintR_0">
+          <option value="0">Vertical</option>
+          <option value="90">Horizontal</option>
+        </select>
+        <span id="paintRDisplay_0">Vertical</span>
+        
+        <label for="paintS_0">Speed:</label>
+        <input type="range" id="paintS_0" min="5" max="25" value="10" oninput="updateSliderDisplay('paintS_0')">
+        <span id="paintSDisplay_0">10</span>
+        
+        <button id="setPaintSideButton_0" class="button setting-button" onclick="setPaintSideSettings(0)">Save Settings</button>
+      </div>
+      
+      <!-- Right Side Settings -->
+      <div class="input-group">
+        <h3>Right Side Settings</h3>
+        <label for="paintZ_1">Z Height:</label>
+        <input type="number" id="paintZ_1" step="0.1" value="1.0" min="0" max="2.5">
+        <span id="paintZDisplay_1">Current: 1.0</span>
+        <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small>
+        
+        <label for="paintP_1">Pitch:</label>
+        <input type="number" id="paintP_1" step="1" value="0" min="0" max="90">
+        <span id="paintPDisplay_1">0&deg;</span>
+        
+        <label>Direction:</label>
+        <select id="paintR_1">
+          <option value="0">Vertical</option>
+          <option value="90">Horizontal</option>
+        </select>
+        <span id="paintRDisplay_1">Vertical</span>
+        
+        <label for="paintS_1">Speed:</label>
+        <input type="range" id="paintS_1" min="5" max="25" value="10" oninput="updateSliderDisplay('paintS_1')">
+        <span id="paintSDisplay_1">10</span>
+        
+        <button id="setPaintSideButton_1" class="button setting-button" onclick="setPaintSideSettings(1)">Save Settings</button>
+      </div>
+      
+      <!-- Front Side Settings -->
+      <div class="input-group">
+        <h3>Front Side Settings</h3>
+        <label for="paintZ_2">Z Height:</label>
+        <input type="number" id="paintZ_2" step="0.1" value="1.0" min="0" max="2.5">
+        <span id="paintZDisplay_2">Current: 1.0</span>
+        <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small>
+        
+        <label for="paintP_2">Pitch:</label>
+        <input type="number" id="paintP_2" step="1" value="0" min="0" max="90">
+        <span id="paintPDisplay_2">0&deg;</span>
+        
+        <label>Direction:</label>
+        <select id="paintR_2">
+          <option value="0">Vertical</option>
+          <option value="90">Horizontal</option>
+        </select>
+        <span id="paintRDisplay_2">Vertical</span>
+        
+        <label for="paintS_2">Speed:</label>
+        <input type="range" id="paintS_2" min="5" max="25" value="10" oninput="updateSliderDisplay('paintS_2')">
+        <span id="paintSDisplay_2">10</span>
+        
+        <button id="setPaintSideButton_2" class="button setting-button" onclick="setPaintSideSettings(2)">Save Settings</button>
+      </div>
+      
+      <!-- Left Side Settings -->
+      <div class="input-group">
+        <h3>Left Side Settings</h3>
+        <label for="paintZ_3">Z Height:</label>
+        <input type="number" id="paintZ_3" step="0.1" value="1.0" min="0" max="2.5">
+        <span id="paintZDisplay_3">Current: 1.0</span>
+        <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small>
+        
+        <label for="paintP_3">Pitch:</label>
+        <input type="number" id="paintP_3" step="1" value="0" min="0" max="90">
+        <span id="paintPDisplay_3">0&deg;</span>
+        
+        <label>Direction:</label>
+        <select id="paintR_3">
+          <option value="0">Vertical</option>
+          <option value="90">Horizontal</option>
+        </select>
+        <span id="paintRDisplay_3">Vertical</span>
+        
+        <label for="paintS_3">Speed:</label>
+        <input type="range" id="paintS_3" min="5" max="25" value="10" oninput="updateSliderDisplay('paintS_3')">
+        <span id="paintSDisplay_3">10</span>
+        
+        <button id="setPaintSideButton_3" class="button setting-button" onclick="setPaintSideSettings(3)">Save Settings</button>
+      </div>
+    </div>
+  </div> <!-- ADDED -->
     <hr>
 
     <button id="downloadSettingsButton" class="button setting-button" onclick="downloadSettings()" style="background-color: #007bff; float: right; margin: 10px;">Download Settings</button>
@@ -298,7 +395,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
       // Calibration Elements
       var enterCalibrationButton = document.getElementById('enterCalibrationButton');
-      var exitCalibrationButton = document.getElementById('exitCalibrationButton');
       var calibrationControlsDiv = document.getElementById('calibrationControls');
       var jogStepInput = document.getElementById('jogStep');
       var currentPosDisplaySpan = document.getElementById('currentPosDisplay');
@@ -306,12 +402,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       var setFirstPlaceAbsCurrentButton = document.getElementById('setFirstPlaceAbsCurrentButton'); // Updated ID
 
       // Paint Offset Elements
-      var paintPatternOffsetXInput = document.getElementById('paintPatternOffsetX');
-      var paintPatternOffsetYInput = document.getElementById('paintPatternOffsetY');
       var paintGunOffsetXInput = document.getElementById('paintGunOffsetX');
       var paintGunOffsetYInput = document.getElementById('paintGunOffsetY');
       var setPaintOffsetsButton = document.getElementById('setPaintOffsetsButton');
-      var paintPatternOffsetDisplaySpan = document.getElementById('paintPatternOffsetDisplay');
       var paintGunOffsetDisplaySpan = document.getElementById('paintGunOffsetDisplay');
 
       // Paint Side Settings Elements (Arrays)
@@ -445,9 +538,14 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   let currentRows = parseInt(data.gridRows);
                   let currentGapX = parseFloat(data.gapX).toFixed(3); // Use gapX, maybe more precision?
                   let currentGapY = parseFloat(data.gapY).toFixed(3); // Use gapY, maybe more precision?
+                  
+                  console.log(`[DEBUG] Processing grid settings from server: cols=${currentCols}, rows=${currentRows}, gapX=${currentGapX}, gapY=${currentGapY}`);
+                  
                   gridDisplaySpan.innerHTML = `Current: ${currentCols} x ${currentRows}`;
-                  // Update display text to show Gap
+                  // Update display text to show Gap with more information
                   spacingDisplaySpan.innerHTML = `Gap: X=${currentGapX}, Y=${currentGapY}`;
+                  
+                  // Update the input fields
                   gridColsInput.value = currentCols;
                   gridRowsInput.value = currentRows;
                   // Note: We don't update input fields for gapX/gapY as they are calculated, not set directly.
@@ -457,19 +555,15 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               if (data.hasOwnProperty('trayWidth') && data.hasOwnProperty('trayHeight')) {
                   let currentW = parseFloat(data.trayWidth).toFixed(2);
                   let currentH = parseFloat(data.trayHeight).toFixed(2);
+                  
+                  console.log(`[DEBUG] Processing tray dimensions from server: width=${currentW}, height=${currentH}`);
+                  
                   traySizeDisplaySpan.innerHTML = `Current: W=${currentW}, H=${currentH}`;
                   trayWidthInput.value = currentW;
                   trayHeightInput.value = currentH;
               }
 
               // Update Paint Offsets display and inputs if info is present
-              if (data.hasOwnProperty('paintPatOffX') && data.hasOwnProperty('paintPatOffY')) {
-                  let currentX = parseFloat(data.paintPatOffX).toFixed(2);
-                  let currentY = parseFloat(data.paintPatOffY).toFixed(2);
-                  paintPatternOffsetDisplaySpan.innerHTML = `Current: X=${currentX}, Y=${currentY}`;
-                  paintPatternOffsetXInput.value = currentX;
-                  paintPatternOffsetYInput.value = currentY;
-              }
               if (data.hasOwnProperty('paintGunOffX') && data.hasOwnProperty('paintGunOffY')) {
                   let currentX = parseFloat(data.paintGunOffX).toFixed(2);
                   let currentY = parseFloat(data.paintGunOffY).toFixed(2);
@@ -489,20 +583,22 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                       paintZInputs[i].value = currentZ;
                       paintZDisplays[i].innerHTML = `Current: ${currentZ}`;
                   }
-                   if (data.hasOwnProperty(keyP) && paintPInputs[i] && paintPDisplays[i]) {
+                  if (data.hasOwnProperty(keyP) && paintPInputs[i] && paintPDisplays[i]) {
                       let currentP = parseInt(data[keyP]);
                       paintPInputs[i].value = currentP;
-                      paintPDisplays[i].innerHTML = `${currentP}°`;
+                      paintPDisplays[i].innerHTML = `${currentP}&deg;`;
                   }
-                   if (data.hasOwnProperty(keyR) && paintRInputs[i] && paintRDisplays[i]) {
+                  if (data.hasOwnProperty(keyR) && paintRInputs[i] && paintRDisplays[i]) {
                       let currentR = parseInt(data[keyR]);
                       paintRInputs[i].value = currentR;
-                      paintRDisplays[i].innerHTML = `${currentR}°`;
+                      paintRDisplays[i].innerHTML = currentR == 0 ? "Vertical" : "Horizontal";
                   }
                   if (data.hasOwnProperty(keyS) && paintSInputs[i] && paintSDisplays[i]) {
-                      let currentS = parseInt(data[keyS]);
-                      paintSInputs[i].value = currentS;
-                      paintSDisplays[i].innerHTML = `${currentS}`;
+                      // Display speed divided by 1000 for cleaner UI
+                      let rawSpeed = parseFloat(data[keyS]);
+                      let displaySpeed = Math.round(rawSpeed / 1000);
+                      paintSInputs[i].value = displaySpeed;
+                      paintSDisplays[i].innerHTML = `${displaySpeed}`;
                   }
               }
 
@@ -514,7 +610,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               if (data.status === "Ready" || data.status === "Error") {
                   console.log("JS Debug: Executing 'Ready' or 'Error' block"); // JS Debug
                   statusDiv.style.color = (data.status === "Ready") ? 'green' : 'red';
-                  allHomed = (data.status === "Ready"); // <<< SET allHomed based on Ready status
+                  if (data.status === "Ready") allHomed = true; // Set homed on Ready but don't unset on Error
                   enableButtons(true, false);
                   pnpButton.innerHTML = "Enter Pick/Place"; // Reset button text
                   pnpButton.className = "button"; // Reset to default button style
@@ -608,7 +704,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           let inCalibMode = calibrationControlsDiv.style.display === 'block';
           let canStop = connected && (isMoving || isHoming || inPnPMode || inCalibMode); // Can stop if doing anything interruptible
 
-          homeButton.disabled = !connected || isMoving || isHoming || inPnPMode || inCalibMode;
+          homeButton.disabled = !connected; // Home All button is always enabled if connected
           stopButton.disabled = !canStop;
 
           // PnP Button Logic - UPDATED
@@ -629,11 +725,13 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           paintBackButton.disabled = startPaintingButton.disabled; // Same logic as start
 
           // Rotation Buttons
-          rotateMinus90Button.disabled = !connected || isMoving || isHoming || inPnPMode || inCalibMode; // Allow rotation before homing
+          // MODIFIED: Only disable if not connected or actively moving/homing
+          // Now matching the Grid and Tray Size buttons behavior
+          rotateMinus90Button.disabled = !connected || isMoving || isHoming;
           rotatePlus90Button.disabled = rotateMinus90Button.disabled;
           rotateMinus5Button.disabled = rotateMinus90Button.disabled;
           rotatePlus5Button.disabled = rotateMinus90Button.disabled;
-          setRotationZeroButton.disabled = rotateMinus90Button.disabled; // Allow setting zero before homing
+          setRotationZeroButton.disabled = rotateMinus90Button.disabled;
 
           // --- Settings Buttons/Inputs ---
           // Generally disable settings inputs/buttons if disconnected, moving, homing, in PnP, or calibrating
@@ -659,8 +757,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           xAccelInput.disabled = setSpeedButton.disabled;
           ySpeedInput.disabled = setSpeedButton.disabled;
           yAccelInput.disabled = setSpeedButton.disabled;
-          paintPatternOffsetXInput.disabled = setPaintOffsetsButton.disabled;
-          paintPatternOffsetYInput.disabled = setPaintOffsetsButton.disabled;
           paintGunOffsetXInput.disabled = setPaintOffsetsButton.disabled;
           paintGunOffsetYInput.disabled = setPaintOffsetsButton.disabled;
 
@@ -674,11 +770,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           let calibControlsDisable = !connected || !inCalibMode || isMoving || isHoming;
           let calibInputs = calibrationControlsDiv.querySelectorAll('input, button');
           calibInputs.forEach(el => {
-              if (el.id !== 'exitCalibrationButton') { // Exit button handled separately
-                el.disabled = calibControlsDisable;
-              }
+              el.disabled = calibControlsDisable;
           });
-          exitCalibrationButton.disabled = !connected || !inCalibMode; // Can exit calibration even if moving
 
           // Download/Upload Buttons (only need connection)
           document.getElementById('downloadSettingsButton').disabled = !connected;
@@ -867,19 +960,14 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       }
 
       function setPaintOffsets() {
-          const patX = paintPatternOffsetXInput.value;
-          const patY = paintPatternOffsetYInput.value;
           const gunX = paintGunOffsetXInput.value;
           const gunY = paintGunOffsetYInput.value;
           // Basic validation
-          if (isNaN(parseFloat(patX)) || isNaN(parseFloat(patY)) || isNaN(parseFloat(gunX)) || isNaN(parseFloat(gunY)) ) {
-              alert("Invalid paint offset values. Please enter numbers.");
+          if (isNaN(parseFloat(gunX)) || isNaN(parseFloat(gunY))) {
+              alert("Invalid paint gun offset values. Please enter numbers.");
               return;
           }
-          // Send both in separate commands for simplicity on ESP32 side
-          sendCommand(`SET_PAINT_PATTERN_OFFSET ${patX} ${patY}`);
-          // Add a small delay or wait for confirmation before sending the next?
-          // For now, send immediately after.
+          // Send command to set gun offset
           sendCommand(`SET_PAINT_GUN_OFFSET ${gunX} ${gunY}`);
       }
 
@@ -920,19 +1008,28 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               return;
           }
 
-          const command = `SET_PAINT_SIDE_SETTINGS ${sideIndex} ${zVal} ${pVal} ${rVal} ${sVal}`;
+          // Convert the displayed speed (e.g., 10) to actual speed value (e.g., 10000)
+          const actualSpeed = parseInt(sVal) * 1000;
+          
+          const command = `SET_PAINT_SIDE_SETTINGS ${sideIndex} ${zVal} ${pVal} ${rVal} ${actualSpeed}`;
           sendCommand(command);
       }
 
       // Helper to update slider value display
       function updateSliderDisplay(sliderId) {
           const slider = document.getElementById(sliderId);
-          const displaySpanId = sliderId.replace(/_(\d)$/, 'Display_$1').replace(/([PR])/, '$1Display'); // More robust replace
+          const displaySpanId = sliderId.replace(/_(\d)$/, 'Display_$1').replace(/([PR])/, '$1Display');
           const displaySpan = document.getElementById(displaySpanId);
 
           if (slider && displaySpan) {
               let value = slider.value;
-              let suffix = sliderId.includes('paintS_') ? '' : '°'; // Add degree symbol for angles
+              let suffix = '';
+              
+              // Add degree symbol for pitch angles
+              if (sliderId.includes('paintP_')) {
+                  suffix = '&deg;';
+              }
+              
               displaySpan.innerHTML = value + suffix;
           }
       }
@@ -964,8 +1061,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   height: parseFloat(trayHeightInput.value) || 0
               },
               paintOffsets: {
-                  patternX: parseFloat(paintPatternOffsetXInput.value) || 0,
-                  patternY: parseFloat(paintPatternOffsetYInput.value) || 0,
                   gunX: parseFloat(paintGunOffsetXInput.value) || 0,
                   gunY: parseFloat(paintGunOffsetYInput.value) || 0
               },
@@ -1050,8 +1145,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   }
                   
                   if (settings.paintOffsets) {
-                      paintPatternOffsetXInput.value = settings.paintOffsets.patternX;
-                      paintPatternOffsetYInput.value = settings.paintOffsets.patternY;
                       paintGunOffsetXInput.value = settings.paintOffsets.gunX;
                       paintGunOffsetYInput.value = settings.paintOffsets.gunY;
                   }
@@ -1061,13 +1154,21 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                           if (settings.paintSides[i]) {
                               paintZInputs[i].value = settings.paintSides[i].z;
                               paintPInputs[i].value = settings.paintSides[i].pitch;
-                              paintRInputs[i].value = settings.paintSides[i].roll;
+                              
+                              // For roll, we need to set the select element
+                              const rollSelect = document.getElementById(`paintR_${i}`);
+                              if (rollSelect) {
+                                  rollSelect.value = settings.paintSides[i].roll;
+                              }
+                              
                               paintSInputs[i].value = settings.paintSides[i].speed;
                               
-                              // Update slider displays if applicable
-                              updateSliderDisplay('paintP_' + i);
-                              updateSliderDisplay('paintR_' + i);
-                              updateSliderDisplay('paintS_' + i);
+                              // Update displays
+                              updateSliderDisplay(`paintS_${i}`);
+                              document.getElementById(`paintZDisplay_${i}`).innerText = `Current: ${settings.paintSides[i].z}`;
+                              document.getElementById(`paintPDisplay_${i}`).innerText = `${settings.paintSides[i].pitch}&deg;`;
+                              document.getElementById(`paintRDisplay_${i}`).innerText = 
+                                  settings.paintSides[i].roll == 0 ? "Vertical" : "Horizontal";
                           }
                       }
                   }
