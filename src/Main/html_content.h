@@ -191,6 +191,15 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           <h3>Current Position</h3>
           <span id="currentPosDisplay">X: 0.000, Y: 0.000, Z: 0.000</span>
        </div>
+       <!-- ADDED SERVO CONTROL GROUP -->
+       <div class="input-group">
+          <h3>Pitch Servo</h3>
+          <label for="manualPitchServo">Angle:</label>
+          <input type="range" id="manualPitchServo" min="0" max="180" value="90" step="1" style="width: 150px; vertical-align: middle;" oninput="updateSliderDisplay('manualPitchServo')">
+          <span id="manualPitchServoDisplay" style="margin-left: 10px; display: inline-block; width: 30px;">90</span> <!-- Added display span -->
+          <button class="button setting-button" onclick="setManualServoPitch()" style="margin-top: 10px;">Set Pitch Angle</button>
+       </div>
+       <!-- END ADDED SERVO CONTROL GROUP -->
        <br style="clear:both;">
      </div>
      <button id="enterCalibrationButton" class="button" onclick="sendCommand('ENTER_CALIBRATION')">Manual Mode</button> <!-- Changed text -->
@@ -224,23 +233,19 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintBackButton" class="button" onclick="sendCommand('PAINT_SIDE_0')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Back Side</button>
         <label for="paintZ_0">Z Height:</label>
         <input type="number" id="paintZ_0" step="0.1" value="1.0" onchange="setPaintSideSettings(0)">
-        <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_0">Pitch:</label>
-        <input type="number" id="paintP_0" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(0)">
+        <input type="number" id="paintP_0" step="1" value="90" min="0" max="180" onchange="setPaintSideSettings(0)">
         
         <label>Pattern:</label>
         <select id="paintR_0" onchange="setPaintSideSettings(0)">
           <option value="0" selected>Up-Down</option>
           <option value="90">Left-Right</option>
         </select>
-        <!-- <span id="paintRDisplay_0">Up-Down Pattern</span> -->
         
         <label for="paintS_0">Speed:</label>
         <input type="range" id="paintS_0" min="5" max="25" value="20" step="1" oninput="updateSliderDisplay('paintS_0')" onchange="setPaintSideSettings(0)">
         <span id="paintSDisplay_0">20</span>
-        
-        <!-- <button id="setPaintSideSettingsButton_0" class="button setting-button" onclick="setPaintSideSettings(0)">Set Side 0</button> --> <!-- REMOVED -->
       </div>
       
       <!-- Front Side Settings (Side 2) - Moves to Second -->
@@ -249,24 +254,19 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintFrontButton" class="button" onclick="sendCommand('PAINT_SIDE_2')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Front Side</button>
         <label for="paintZ_2">Z Height:</label>
         <input type="number" id="paintZ_2" step="0.1" value="1.0" onchange="setPaintSideSettings(2)">
-        <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_2">Pitch:</label>
-        <input type="number" id="paintP_2" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(2)">
-        <!-- <span id="paintPDisplay_2">0&deg;</span> -->
+        <input type="number" id="paintP_2" step="1" value="90" min="0" max="180" onchange="setPaintSideSettings(2)">
         
         <label>Pattern:</label>
         <select id="paintR_2" onchange="setPaintSideSettings(2)">
           <option value="0" selected>Up-Down</option>
           <option value="90">Left-Right</option>
         </select>
-        <!-- <span id="paintRDisplay_2">Up-Down Pattern</span> -->
         
         <label for="paintS_2">Speed:</label>
         <input type="range" id="paintS_2" min="5" max="25" value="20" step="1" oninput="updateSliderDisplay('paintS_2')" onchange="setPaintSideSettings(2)">
         <span id="paintSDisplay_2">20</span>
-        
-        <!-- <button id="setPaintSideSettingsButton_2" class="button setting-button" onclick="setPaintSideSettings(2)">Set Side 2</button> --> <!-- REMOVED -->
       </div>
 
       <!-- Left Side Settings (Side 3) - Moves to Third -->
@@ -275,24 +275,19 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintLeftButton" class="button" onclick="sendCommand('PAINT_SIDE_3')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Left Side</button>
         <label for="paintZ_3">Z Height:</label>
         <input type="number" id="paintZ_3" step="0.1" value="1.0" onchange="setPaintSideSettings(3)">
-        <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_3">Pitch:</label>
-        <input type="number" id="paintP_3" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(3)">
-        <!-- <span id="paintPDisplay_3">0&deg;</span> -->
+        <input type="number" id="paintP_3" step="1" value="90" min="0" max="180" onchange="setPaintSideSettings(3)">
         
         <label>Pattern:</label>
         <select id="paintR_3" onchange="setPaintSideSettings(3)">
           <option value="0" selected>Up-Down</option>
           <option value="90">Left-Right</option>
         </select>
-        <!-- <span id="paintRDisplay_3">Up-Down Pattern</span> -->
         
         <label for="paintS_3">Speed:</label>
         <input type="range" id="paintS_3" min="5" max="25" value="20" step="1" oninput="updateSliderDisplay('paintS_3')" onchange="setPaintSideSettings(3)">
         <span id="paintSDisplay_3">20</span>
-        
-        <!-- <button id="setPaintSideSettingsButton_3" class="button setting-button" onclick="setPaintSideSettings(3)">Set Side 3</button> --> <!-- REMOVED -->
       </div>
 
       <!-- Right Side Settings (Side 1) - Moves to Fourth/Last -->
@@ -301,24 +296,19 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintRightButton" class="button" onclick="sendCommand('PAINT_SIDE_1')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Right Side</button>
         <label for="paintZ_1">Z Height:</label>
         <input type="number" id="paintZ_1" step="0.1" value="1.0" onchange="setPaintSideSettings(1)">
-        <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_1">Pitch:</label>
-        <input type="number" id="paintP_1" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(1)">
-        <!-- <span id="paintPDisplay_1">0&deg;</span> -->
+        <input type="number" id="paintP_1" step="1" value="90" min="0" max="180" onchange="setPaintSideSettings(1)">
         
         <label>Pattern:</label>
         <select id="paintR_1" onchange="setPaintSideSettings(1)">
           <option value="0" selected>Up-Down</option>
           <option value="90">Left-Right</option>
         </select>
-        <!-- <span id="paintRDisplay_1">Up-Down Pattern</span> -->
         
         <label for="paintS_1">Speed:</label>
         <input type="range" id="paintS_1" min="5" max="25" value="20" step="1" oninput="updateSliderDisplay('paintS_1')" onchange="setPaintSideSettings(1)">
         <span id="paintSDisplay_1">20</span>
-        
-        <!-- <button id="setPaintSideSettingsButton_1" class="button setting-button" onclick="setPaintSideSettings(1)">Set Side 1</button> --> <!-- REMOVED -->
       </div>
     </div>
   </div> <!-- ADDED -->
@@ -642,13 +632,13 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               } else if (data.status === "PickPlaceComplete") {
                   console.log("JS Debug: Executing 'PickPlaceComplete' block"); // JS Debug
                   statusDiv.style.color = 'green';
-                  pnpButton.innerHTML = "Sequence Complete"; // Update PnP button text
-                  pnpButton.disabled = true; // Disable PnP button as sequence is done
+                  if(pnpButton) { // Add null check for safety
+                     pnpButton.innerHTML = "Sequence Complete"; // Update PnP button text
+                     pnpButton.disabled = true; // Disable PnP button as sequence is done
+                  }
                   enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button
                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
-              } else if (command == "START_PAINTING") { // This check likely belongs on ESP side
-                      Serial.println("WebSocket: Received START_PAINTING command."); // ESP log, not JS
-                   }
+              }
 
               // --- Final step: Update all button states based on the latest JS state variables ---
               console.log(`JS Debug: Before final enableButtons: isMoving=${isMoving}, isHoming=${isHoming}`); // JS Debug
@@ -958,40 +948,29 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         const rVal = paintRInputs[sideIndex].value;
         const sVal = paintSInputs[sideIndex].value;
 
-        // Basic validation
-        if (isNaN(parseFloat(zVal)) || isNaN(parseInt(pVal)) || (rVal !== '0' && rVal !== '90') || isNaN(parseFloat(sVal))) { // Check rVal is '0' or '90' string
-            alert(`Invalid settings for side ${sideIndex}. Please enter numbers/valid pattern.`);
-            return;
-        }
+        // Convert speed from slider value (5-25) back to steps/sec (5k-25k) -> Max speed updated to 25k
+        const speedSteps = parseFloat(sVal) * 1000; 
+        const constrainedSpeed = Math.max(5000, Math.min(25000, speedSteps)); // Use 25k max
 
-        // Further validation (already constrained on ESP side, but good practice here too)
-        // Pitch:
-        const minP = parseInt(paintPInputs[sideIndex].min);
-        const maxP = parseInt(paintPInputs[sideIndex].max);
-        if (parseInt(pVal) < minP || parseInt(pVal) > maxP) {
-            alert(`Pitch Angle for side ${sideIndex} must be between ${minP} and ${maxP}.`);
-            return;
-        }
-        // Roll:
-        const minR = parseInt(paintRInputs[sideIndex].min);
-        const maxR = parseInt(paintRInputs[sideIndex].max);
-         if (parseInt(rVal) < minR || parseInt(rVal) > maxR) {
-            alert(`Roll Angle for side ${sideIndex} must be between ${minR} and ${maxR}.`);
-            return;
-        }
-         // Speed:
-        const minS = parseInt(paintSInputs[sideIndex].min);
-        const maxS = parseInt(paintSInputs[sideIndex].max);
-        if (parseInt(sVal) < minS || parseInt(sVal) > maxS) {
-            alert(`Paint Speed for side ${sideIndex} must be between ${minS} and ${maxS}.`);
-            return;
-        }
+        // REMOVED MAPPING - UI value (pVal) is now 0-180 and sent directly
+        const pitchToSend = parseInt(pVal); // Send the value directly (0-180)
 
-        // Convert the displayed speed (e.g., 10) to actual speed value (e.g., 10000)
-        const actualSpeed = parseFloat(sVal) * 1000;
         const patternValue = parseInt(rVal); // Convert pattern string '0' or '90' to integer
-        
-        const command = `SET_PAINT_SIDE_SETTINGS ${sideIndex} ${zVal} ${pVal} ${patternValue} ${actualSpeed}`;
+
+        // Validate pitch (0-180)
+        if (pitchToSend < 0 || pitchToSend > 180) {
+            alert(`Error: Pitch for side ${sideIndex} must be between 0 and 180.`);
+            return; // Stop before sending command
+        }
+        // Validate pattern (0 or 90)
+        if (patternValue !== 0 && patternValue !== 90) {
+             alert(`Error: Pattern for side ${sideIndex} must be 0 or 90.`);
+             return; // Stop before sending command
+        }
+
+        // Send command with direct pitch value
+        const command = `SET_PAINT_SIDE_SETTINGS ${sideIndex} ${zVal} ${pitchToSend} ${patternValue} ${constrainedSpeed}`;
+        console.log("Sending Paint Side Settings:", command); // DEBUG
         sendCommand(command);
     }
 
@@ -1188,7 +1167,12 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         const command = `SET_TRAY_SIZE ${widthVal} ${heightVal}`;
         sendCommand(command);
     }
-    // END NEW Rotation Control Functions
+
+    // Function to send the manual servo pitch command
+    function setManualServoPitch() {
+        const angle = document.getElementById('manualPitchServo').value;
+        sendCommand(`SET_SERVO_PITCH ${angle}`);
+    }
     </script>
   </body>
 </html>

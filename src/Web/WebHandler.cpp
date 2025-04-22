@@ -304,14 +304,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                  } else if (command.startsWith("JOG ")) {
                     // Serial.println("WebSocket: Received JOG command.");
                     if (!inCalibrationMode) {
-                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Must be in calibration mode to jog.\"}");
+                        webSocket.sendTXT(num, "{\\\"status\\\":\\\"Error\\\", \\\"message\\\":\\\"Must be in calibration mode to jog.\\\"}");
                     } else if (isMoving || isHoming) {
-                        webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Cannot jog while machine is moving.\"}");
+                        webSocket.sendTXT(num, "{\\\"status\\\":\\\"Busy\\\", \\\"message\\\":\\\"Cannot jog while machine is moving.\\\"}");
                     } else {
                         char axis;
                         float distance_inch;
                         int parsed = sscanf(command.c_str() + strlen("JOG "), "%c %f", &axis, &distance_inch);
-                        
+
                         if (parsed == 2) {
                             long current_steps = 0;
                             long jog_steps = 0;
@@ -322,7 +322,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                                 stepper_to_move = stepper_x;
                                 current_steps = stepper_x->getCurrentPosition();
                                 jog_steps = (long)(distance_inch * STEPS_PER_INCH_XY);
-                                speed = patternXSpeed;
+                                speed = patternXSpeed; // Use pattern speed/accel for consistency? Or define specific jog speeds?
                                 accel = patternXAccel;
                             } else if (axis == 'Y' && stepper_y_left && stepper_y_right) { // Assuming both Y move together
                                 stepper_to_move = stepper_y_left; // Use left for current pos, command both
@@ -330,273 +330,79 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                                 jog_steps = (long)(distance_inch * STEPS_PER_INCH_XY);
                                 speed = patternYSpeed;
                                 accel = patternYAccel;
-                            } else {
-                                Serial.printf("[ERROR] Invalid axis '%c' or stepper not available for JOG.\n", axis);
-                                webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid axis for jog.\"}");
+                            } else if (axis == 'Z' && stepper_z) { // ADDED JOG Z
+                                stepper_to_move = stepper_z;
+                                current_steps = stepper_z->getCurrentPosition();
+                                jog_steps = (long)(distance_inch * STEPS_PER_INCH_Z); // Use Z steps per inch
+                                speed = patternZSpeed; // Use Z speed/accel
+                                accel = patternZAccel;
+                             } else {
+                                Serial.printf("[ERROR] Invalid axis '%c' or stepper not available for JOG.\\n", axis);
+                                webSocket.sendTXT(num, "{\\\"status\\\":\\\"Error\\\", \\\"message\\\":\\\"Invalid axis for jog.\\\"}");
                             }
 
                             if (stepper_to_move) {
                                 isMoving = true; // Set flag, loop() will handle completion
-                                webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Jogging...\"}");
-                                
-                                long target_steps = current_steps + jog_steps;
-                                //Serial.printf("  Jogging %c by %.3f inches (%ld steps) from %ld to %ld\n", axis, distance_inch, jog_steps, current_steps, target_steps);
+                                webSocket.broadcastTXT("{\\\"status\\\":\\\"Busy\\\", \\\"message\\\":\\\"Jogging...\\\"}");
 
+                                long target_steps = current_steps + jog_steps;
+                                //Serial.printf("  Jogging %c by %.3f inches (%ld steps) from %ld to %ld\\n", axis, distance_inch, jog_steps, current_steps, target_steps); // DEBUG
+
+                                // Apply speed and acceleration
                                 stepper_to_move->setSpeedInHz(speed);
                                 stepper_to_move->setAcceleration(accel);
-                                stepper_to_move->moveTo(target_steps);
 
-                                if (axis == 'Y' && stepper_y_right) { // Command right Y too
+                                // If Z axis, check bounds BEFORE moving
+                                if (axis == 'Z') {
+                                     float target_pos_inch = (float)target_steps / STEPS_PER_INCH_Z;
+                                     if (target_pos_inch < Z_MAX_TRAVEL_NEG_INCH || target_pos_inch > Z_MAX_TRAVEL_POS_INCH) {
+                                         Serial.printf("[WARN] Jog Z target (%.3f in) out of bounds (%.3f to %.3f in). Cancelling jog.\\n", target_pos_inch, Z_MAX_TRAVEL_NEG_INCH, Z_MAX_TRAVEL_POS_INCH);
+                                         webSocket.sendTXT(num, "{\\\"status\\\":\\\"Error\\\", \\\"message\\\":\\\"Jog target Z out of bounds.\\\"}");
+                                         isMoving = false; // Reset flag
+                                         // Send Ready status if nothing else is moving? Might be complex. Rely on next position update.
+                                     } else {
+                                         stepper_to_move->moveTo(target_steps);
+                                     }
+                                } else {
+                                     // For X and Y, just move (assuming limits are less critical or handled elsewhere)
+                                     stepper_to_move->moveTo(target_steps);
+                                }
+
+
+                                // Command right Y too if Y axis was selected
+                                if (axis == 'Y' && stepper_y_right) {
                                     stepper_y_right->setSpeedInHz(speed);
                                     stepper_y_right->setAcceleration(accel);
-                                    stepper_y_right->moveTo(target_steps);
+                                    stepper_y_right->moveTo(target_steps); // Assume same target steps
                                 }
                             }
                         } else {
                             Serial.println("[ERROR] Failed to parse JOG command.");
-                            webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid JOG format. Use: JOG X/Y distance\"}");
+                            webSocket.sendTXT(num, "{\\\"status\\\":\\\"Error\\\", \\\"message\\\":\\\"Invalid JOG format. Use: JOG X/Y/Z distance\\\"}");
                         }
                     }
-                 } else if (command.startsWith("MOVE_TO_COORDS ")) {
-                    Serial.println("WebSocket: Received MOVE_TO_COORDS command.");
-                    if (!inCalibrationMode) {
-                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Must be in calibration mode to move to coordinates.\"}");
-                    } else if (isMoving || isHoming) {
-                        webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Cannot move while machine is busy.\"}");
-                    } else {
-                        float targetX_inch, targetY_inch;
-                        int parsed = sscanf(command.c_str() + strlen("MOVE_TO_COORDS "), "%f %f", &targetX_inch, &targetY_inch);
-                        
-                        if (parsed == 2) {
-                            // Validate coordinates (optional, add bounds checking if needed)
-                            if (targetX_inch < 0 || targetY_inch < 0) {
-                                webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid coordinates. Must be non-negative.\"}");
-                                return;
-                            }
-                            
-                            // Set up the move
-                            isMoving = true; // Set flag, loop() will handle completion
-                            webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Moving to coordinates...\"}");
-                            
-                            // Convert to steps
-                            long targetX_steps = (long)(targetX_inch * STEPS_PER_INCH_XY);
-                            long targetY_steps = (long)(targetY_inch * STEPS_PER_INCH_XY);
-                            
-                            // Command the move
-                            if (stepper_x) {
-                                stepper_x->setSpeedInHz(patternXSpeed);
-                                stepper_x->setAcceleration(patternXAccel);
-                                stepper_x->moveTo(targetX_steps);
-                            }
-                            
-                            if (stepper_y_left && stepper_y_right) {
-                                stepper_y_left->setSpeedInHz(patternYSpeed);
-                                stepper_y_left->setAcceleration(patternYAccel);
-                                stepper_y_left->moveTo(targetY_steps);
-                                
-                                stepper_y_right->setSpeedInHz(patternYSpeed);
-                                stepper_y_right->setAcceleration(patternYAccel);
-                                stepper_y_right->moveTo(targetY_steps);
-                            }
-                        } else {
-                            Serial.println("[ERROR] Failed to parse MOVE_TO_COORDS command.");
-                            webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format. Use: MOVE_TO_COORDS X Y\"}");
+                 } else if (command.startsWith("SET_SERVO_PITCH ")) { // <<< ADDED THIS BLOCK
+                    Serial.println("WebSocket: Received SET_SERVO_PITCH command.");
+                    int angle;
+                    // Expecting \\\"SET_SERVO_PITCH angle\\\"
+                    int parsed = sscanf(command.c_str() + strlen("SET_SERVO_PITCH "), "%d", &angle);
+                    if (parsed == 1) {
+                        // Basic validation (0-180 is typical for servos)
+                        if (angle >= 0 && angle <= 180) {
+                             // Call the function to set the angle (will be defined in main.cpp)
+                             setPitchServoAngle(angle);
+                             Serial.printf("[DEBUG] Set Pitch Servo Angle to: %d\\n", angle);
+                             // Send confirmation back to the specific client
+                             char msgBuffer[100];
+                             sprintf(msgBuffer, "{\\\"status\\\":\\\"Info\\\", \\\"message\\\":\\\"Pitch servo angle set to %d\\\"}", angle);
+                             webSocket.sendTXT(num, msgBuffer);
+                         } else {
+                             Serial.println("[ERROR] Invalid angle for SET_SERVO_PITCH. Must be 0-180.");
+                             webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid angle. Must be 0-180.\"}");
                          }
-                     }
-                 } else if (command.startsWith("SET_GRID_SPACING ")) { // UPDATED
-                    Serial.println("[DEBUG] webSocketEvent: Handling SET_GRID_SPACING command."); // DEBUG
-                        int newCols, newRows;
-                    // Expecting "SET_GRID_SPACING C R"
-                    int parsed = sscanf(command.c_str() + strlen("SET_GRID_SPACING "), "%d %d", &newCols, &newRows);
-                    if (parsed == 2 && newCols > 0 && newRows > 0) {
-                        saveSettings(); // Save new grid dims
                     } else {
-                        Serial.printf("[DEBUG] Failed to parse SET_GRID_SPACING command: %s\n", command.c_str());
-                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid SET_GRID_SPACING format. Use C R (integers > 0)\"}");
-                    }
-                 } else if (command.startsWith("SET_TRAY_SIZE ")) { // NEW
-                    Serial.println("[DEBUG] webSocketEvent: Handling SET_TRAY_SIZE command."); // DEBUG
-                    float newW, newH;
-                    // Expecting "SET_TRAY_SIZE W H"
-                    int parsed = sscanf(command.c_str() + strlen("SET_TRAY_SIZE "), "%f %f", &newW, &newH);
-                    if (parsed == 2 && newW > 0 && newH > 0) {
-                        Serial.printf("[DEBUG] New tray dimensions: width=%.2f, height=%.2f (old: width=%.2f, height=%.2f)\n", 
-                                    newW, newH, trayWidth_inch, trayHeight_inch);
-                        
-                        // Save the new tray dimensions
-                        trayWidth_inch = newW;
-                        trayHeight_inch = newH;
-                        
-                        // Save settings AFTER recalculating grid/gap
-                        Serial.printf("[DEBUG] Set Tray Size to W=%.2f, H=%.2f\n", trayWidth_inch, trayHeight_inch);
-                        
-                        // Recalculate grid spacing with current grid dimensions to reflect new tray size
-                        float oldGapX = placeGapX_inch;
-                        float oldGapY = placeGapY_inch;
-                        calculateAndSetGridSpacing(placeGridCols, placeGridRows);
-                        saveSettings(); // Save new tray dims and potentially updated grid cols/rows
-                        
-                        Serial.printf("[DEBUG] Gap values changed: X: %.3f → %.3f, Y: %.3f → %.3f\n", 
-                                    oldGapX, placeGapX_inch, oldGapY, placeGapY_inch);
-                        
-                        // Instead of using a redundant call to sendAllSettingsUpdate, create a more specific message
-                        // about the changes that were made
-                        char msgBuffer[200];
-                        sprintf(msgBuffer, "Tray Size updated to W=%.2f, H=%.2f. Gap recalculated: X=%.3f, Y=%.3f", 
-                               trayWidth_inch, trayHeight_inch, placeGapX_inch, placeGapY_inch);
-                        
-                        // Send settings update to the specific client that requested the change
-                        sendAllSettingsUpdate(num, msgBuffer);
-                        // Also broadcast to all other clients
-                        if (num != 255) {
-                            sendAllSettingsUpdate(255, msgBuffer);
-                        }
-                    } else {
-                        Serial.printf("[DEBUG] Failed to parse SET_TRAY_SIZE command: %s\n", command.c_str());
-                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid SET_TRAY_SIZE format.\"}");
-                    }
-                 } else if (command.startsWith("SET_PAINT_PATTERN_OFFSET ")) {
-                    Serial.println("WebSocket: Received SET_PAINT_PATTERN_OFFSET command.");
-                    if (isMoving || isHoming) { // Prevent changes while moving
-                        webSocket.sendTXT(num, "{\"status\":\"Busy\",\"message\":\"Cannot set paint offsets while machine is busy.\"}");
-                    } else {
-                        float newX, newY;
-                        int parsed = sscanf(command.c_str() + strlen("SET_PAINT_PATTERN_OFFSET "), "%f %f", &newX, &newY);
-                        if (parsed == 2) {
-                            paintPatternOffsetX_inch = newX;
-                            paintPatternOffsetY_inch = newY;
-                            saveSettings(); // Save updated settings
-                            Serial.printf("[DEBUG] Set Paint Pattern Offset to X: %.2f, Y: %.2f\n", paintPatternOffsetX_inch, paintPatternOffsetY_inch);
-                            // Send confirmation with all settings
-                            sendAllSettingsUpdate(num, "Paint Pattern Offset updated.");
-                        } else {
-                            webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Invalid SET_PAINT_PATTERN_OFFSET format. Use: SET_PAINT_PATTERN_OFFSET X Y\"}");
-                        }
-                    }
-                } else if (command.startsWith("SET_PAINT_GUN_OFFSET ")) {
-                    Serial.println("WebSocket: Received SET_PAINT_GUN_OFFSET command.");
-                     if (isMoving || isHoming) { // Prevent changes while moving
-                        webSocket.sendTXT(num, "{\"status\":\"Busy\",\"message\":\"Cannot set paint offsets while machine is busy.\"}");
-                    } else {
-                        float newX, newY;
-                        int parsed = sscanf(command.c_str() + strlen("SET_PAINT_GUN_OFFSET "), "%f %f", &newX, &newY);
-                        if (parsed == 2) {
-                            paintGunOffsetX_inch = newX;
-                            paintGunOffsetY_inch = newY;
-                            saveSettings(); // Save updated settings
-                            Serial.printf("[DEBUG] Set Paint Gun Offset to X: %.2f, Y: %.2f\n", paintGunOffsetX_inch, paintGunOffsetY_inch);
-                            // Send confirmation with all settings
-                            sendAllSettingsUpdate(num, "Paint Gun Offset updated.");
-                        } else {
-                            webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Invalid SET_PAINT_GUN_OFFSET format. Use: SET_PAINT_GUN_OFFSET X Y\"}");
-                        }
-                    }
-                } else if (command.startsWith("SET_PAINT_SIDE_SETTINGS ")) {
-                    Serial.println("WebSocket: Received SET_PAINT_SIDE_SETTINGS command.");
-                     if (isMoving || isHoming) { // Prevent changes while moving
-                        webSocket.sendTXT(num, "{\"status\":\"Busy\",\"message\":\"Cannot set side settings while machine is busy.\"}");
-                    } else {
-                        int sideIndex, newPitch, newPattern; // Added newPattern
-                        float newZ, newSpeed;
-                        // Format: SET_PAINT_SIDE_SETTINGS sideIndex zHeight pitch pattern speed <-- Added pattern
-                        int parsed = sscanf(command.c_str() + strlen("SET_PAINT_SIDE_SETTINGS "), "%d %f %d %d %f", // Added %d for pattern
-                                           &sideIndex, &newZ, &newPitch, &newPattern, &newSpeed); // Added &newPattern
-
-                        if (parsed == 5 && sideIndex >= 0 && sideIndex < 4) { // Changed parsed count to 5
-                            // Validate UI pitch value first (0-90)
-                            if (newPitch < 0 || newPitch > 90) {
-                                Serial.printf("[ERROR] Invalid pitch value %d from UI (must be 0-90)\n", newPitch);
-                                webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Pitch Angle for side " + String(sideIndex) + " must be between 0 and 90.\"}");
-                                return; // Changed from continue to return for clarity
-                            }
-                            // Validate UI pattern value (must be 0 or 90)
-                            if (newPattern != 0 && newPattern != 90) {
-                                Serial.printf("[ERROR] Invalid pattern value %d from UI (must be 0 or 90)\n", newPattern);
-                                webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Pattern for side " + String(sideIndex) + " must be 0 (Up-Down) or 90 (Left-Right).\"}");
-                                return; // Changed from continue to return
-                            }
-
-                            // Map the UI pitch value (0-90) to servo value (PITCH_SERVO_MIN to PITCH_SERVO_MAX)
-                            int mappedPitch = map(newPitch, 0, 90, PITCH_SERVO_MIN, PITCH_SERVO_MAX);
-                            Serial.printf("[DEBUG] Mapped UI pitch %d to servo pitch %d\n", newPitch, mappedPitch);
-
-                            // Speed constraint
-                            newSpeed = constrain(newSpeed, 5000.0f, 20000.0f);
-
-                            // Store the validated and mapped/constrained values
-                            paintZHeight_inch[sideIndex] = newZ;
-                            paintPitchAngle[sideIndex] = mappedPitch; // Use mapped value
-                            paintPatternType[sideIndex] = newPattern; // Store pattern
-                            paintSpeed[sideIndex] = newSpeed;
-
-                              
-                            Serial.printf("[DEBUG] Set Side %d Settings: Z=%.2f, P=%d, Pat=%d, S=%.0f\n", // Updated log, removed "and saved to NVS"
-                                          sideIndex, paintZHeight_inch[sideIndex], paintPitchAngle[sideIndex],
-                                          paintPatternType[sideIndex], paintSpeed[sideIndex]); // Added pattern
-                            
-                            // Send confirmation with all settings
-                            sendAllSettingsUpdate(num, "Paint settings for side " + String(sideIndex) + " updated.");
-
-                        } else {
-                            Serial.printf("[ERROR] Invalid SET_PAINT_SIDE_SETTINGS format or values. Parsed %d args. Command: %s\n", parsed, command.c_str());
-                            webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Invalid SET_PAINT_SIDE_SETTINGS format. Use: SET_PAINT_SIDE_SETTINGS sideIndex zHeight pitch pattern(0/90) speed\"}");
-                        }
-                    }
-                 } else if (command.startsWith("JOG ")) {
-                    // Serial.println("WebSocket: Received JOG command.");
-                    if (!inCalibrationMode) {
-                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Must be in calibration mode to jog.\"}");
-                    } else if (isMoving || isHoming) {
-                        webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Cannot jog while machine is moving.\"}");
-                    } else {
-                        char axis;
-                        float distance_inch;
-                        int parsed = sscanf(command.c_str() + strlen("JOG "), "%c %f", &axis, &distance_inch);
-                        
-                        if (parsed == 2) {
-                            long current_steps = 0;
-                            long jog_steps = 0;
-                            FastAccelStepper* stepper_to_move = NULL;
-                            float speed = 0, accel = 0;
-
-                            if (axis == 'X' && stepper_x) {
-                                stepper_to_move = stepper_x;
-                                current_steps = stepper_x->getCurrentPosition();
-                                jog_steps = (long)(distance_inch * STEPS_PER_INCH_XY);
-                                speed = patternXSpeed;
-                                accel = patternXAccel;
-                            } else if (axis == 'Y' && stepper_y_left && stepper_y_right) { // Assuming both Y move together
-                                stepper_to_move = stepper_y_left; // Use left for current pos, command both
-                                current_steps = stepper_y_left->getCurrentPosition();
-                                jog_steps = (long)(distance_inch * STEPS_PER_INCH_XY);
-                                speed = patternYSpeed;
-                                accel = patternYAccel;
-                            } else {
-                                Serial.printf("[ERROR] Invalid axis '%c' or stepper not available for JOG.\n", axis);
-                                webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid axis for jog.\"}");
-                            }
-
-                            if (stepper_to_move) {
-                                isMoving = true; // Set flag, loop() will handle completion
-                                webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Jogging...\"}");
-                                
-                                long target_steps = current_steps + jog_steps;
-                                //Serial.printf("  Jogging %c by %.3f inches (%ld steps) from %ld to %ld\n", axis, distance_inch, jog_steps, current_steps, target_steps);
-
-                                stepper_to_move->setSpeedInHz(speed);
-                                stepper_to_move->setAcceleration(accel);
-                                stepper_to_move->moveTo(target_steps);
-
-                                if (axis == 'Y' && stepper_y_right) { // Command right Y too
-                                    stepper_y_right->setSpeedInHz(speed);
-                                    stepper_y_right->setAcceleration(accel);
-                                    stepper_y_right->moveTo(target_steps);
-                                }
-                            }
-                        } else {
-                            Serial.println("[ERROR] Failed to parse JOG command.");
-                            webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid JOG format. Use: JOG X/Y distance\"}");
-                        }
+                        Serial.println("[ERROR] Failed to parse SET_SERVO_PITCH angle.");
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format for SET_SERVO_PITCH. Use: SET_SERVO_PITCH angle\"}");
                     }
                  } else if (command == "START_PAINTING") {
                     Serial.println("WebSocket: Received START_PAINTING command.");
@@ -803,10 +609,11 @@ void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
         String keyS = "paintS_" + String(i);
         
         // --- ADDED: Add values from global arrays to JSON --- 
-        // Need to map servo value back to UI value (0-90) for pitch
-        int uiPitch = map(paintPitchAngle[i], PITCH_SERVO_MIN, PITCH_SERVO_MAX, 0, 90);
+        // Map the stored servo angle (MIN-MAX) back to UI range (0-90)
+        // int uiPitch = map(paintPitchAngle[i], PITCH_SERVO_MIN, PITCH_SERVO_MAX, 0, 90); // REMOVED MAPPING
+        int uiPitch = paintPitchAngle[i]; // Send raw servo angle (0-180)
         doc[keyZ] = paintZHeight_inch[i];
-        doc[keyP] = uiPitch; // Send the UI-mapped value
+        doc[keyP] = uiPitch; // Send the potentially raw angle
         doc[keyPat] = paintPatternType[i];
         doc[keyS] = paintSpeed[i];
         // --- END ADDED ---

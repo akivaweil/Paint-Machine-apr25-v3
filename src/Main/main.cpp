@@ -13,7 +13,7 @@
 
 // Painting Specific Settings (Arrays) - DEFINITIONS
 float paintZHeight_inch[4] = {1.0, 1.0, 1.0, 1.0};
-int paintPitchAngle[4] = {PITCH_SERVO_MAX, PITCH_SERVO_MAX, PITCH_SERVO_MAX, PITCH_SERVO_MAX}; // Use defined constant from header
+int paintPitchAngle[4] = {SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH}; // Use defined constant from header (Replaced PITCH_SERVO_MAX)
 int paintPatternType[4] = {0, 90, 0, 90}; // Default: Back/Front=Up-Down(0), Left/Right=Left-Right(90)
 float paintSpeed[4] = {10000.0, 10000.0, 10000.0, 10000.0};
 
@@ -109,6 +109,8 @@ void sendCurrentPositionUpdate(); // Forward declaration for position updates
 void sendAllSettingsUpdate(uint8_t specificClientNum, String message); // Helper to send all settings
 void saveSettings(); // Defined above
 void loadSettings(); // Defined above
+void setPitchServoAngle(int angle);
+void movePitchServoSmoothly(int targetAngle);
 
 // Function to home a single axis (modified slightly for reuse)
 // Returns true if homing was successful, false otherwise (timeout or error)
@@ -819,24 +821,29 @@ void setup() {
     servo_pitch.attach(PITCH_SERVO_PIN);
     // servo_roll.attach(ROLL_SERVO_PIN);
     // Move servos to initial max positions
-    Serial.printf("[DEBUG Setup] Setting initial Pitch Servo position to %d\n", PITCH_SERVO_MAX); // DEBUG
-    servo_pitch.write(PITCH_SERVO_MAX); // Use defined max value
-    delay(500); // Give servos time to reach position
+    Serial.printf("[DEBUG Setup] Setting initial Pitch Servo position to %d\n", SERVO_INIT_POS_PITCH); // DEBUG (Replaced PITCH_SERVO_MAX)
+    servo_pitch.write(SERVO_INIT_POS_PITCH); // Use defined init position (Replaced PITCH_SERVO_MAX)
+    delay(500); // Allow servo to reach position
 
-    // --- ADDED: Servo Test Sequence ---
-    Serial.println("[DEBUG Setup] Starting servo test sequence...");
-    int testUpPosition = PITCH_SERVO_MAX - 10; // Calculate 10 degrees 'up'
-    // Ensure test position is within limits
-    testUpPosition = max(PITCH_SERVO_MIN, testUpPosition); 
-    Serial.printf("[DEBUG Setup] Moving pitch servo UP to %d\n", testUpPosition); // DEBUG
-    servo_pitch.write(testUpPosition);
-    delay(1000); // Wait 1 second
-
-    Serial.printf("[DEBUG Setup] Moving pitch servo DOWN to %d\n", PITCH_SERVO_MAX); // DEBUG
-    servo_pitch.write(PITCH_SERVO_MAX);
-    delay(1000); // Wait 1 second
-    Serial.println("[DEBUG Setup] Servo test sequence complete.");
-    // --- END: Servo Test Sequence ---
+    // Add a simple servo test sequence if needed
+    int currentPitch = servo_pitch.read();
+    // Serial.printf("[DEBUG Setup] Current actual pitch read: %d\n", currentPitch);
+    // int testDownPosition = currentPitch + 20; // Example: Try to move down 20 deg
+    // int testUpPosition = currentPitch - 20;   // Example: Try to move up 20 deg
+    // testDownPosition = min(180, testDownPosition); // Use 180 as general max
+    // // testUpPosition = max(PITCH_SERVO_MIN, testUpPosition); // << COMMENTED OUT - Limit removed
+    // testUpPosition = max(0, testUpPosition); // Use 0 as general min
+    // 
+    // Serial.printf("[DEBUG Setup] Testing servo: moving towards %d...\n", testDownPosition);
+    // servo_pitch.write(testDownPosition);
+    // delay(1000);
+    // Serial.printf("[DEBUG Setup] Testing servo: moving towards %d...\n", testUpPosition);
+    // servo_pitch.write(testUpPosition);
+    // delay(1000);
+    // Serial.printf("[DEBUG Setup] Testing servo: returning to init %d...\n", SERVO_INIT_POS_PITCH);
+    // servo_pitch.write(SERVO_INIT_POS_PITCH); // Return to init pos (Replaced PITCH_SERVO_MAX)
+    // delay(1000);
+    // Serial.println("[DEBUG Setup] Servo test complete.");
 
     // Serial.println("Servos Initialized.");
     // --- End Servo Setup ---
@@ -1184,12 +1191,12 @@ void saveSettings() {
     // Paint Side Settings
     for (int i = 0; i < 4; ++i) {
         String keyZ = "paintZ_" + String(i);
-        String keyP = "paintP_" + String(i); // Stores mapped servo value
-        String keyPat = "paintPat_" + String(i);
+        String keyP = "paintP_" + String(i);
+        String keyR = "paintR_" + String(i); // Use R for Pattern
         String keyS = "paintS_" + String(i);
         preferences.putFloat(keyZ.c_str(), paintZHeight_inch[i]);
         preferences.putInt(keyP.c_str(), paintPitchAngle[i]);
-        preferences.putInt(keyPat.c_str(), paintPatternType[i]);
+        preferences.putInt(keyR.c_str(), paintPatternType[i]);
         preferences.putFloat(keyS.c_str(), paintSpeed[i]);
     }
 
@@ -1229,11 +1236,11 @@ void loadSettings() {
     for (int i = 0; i < 4; ++i) {
         String keyZ = "paintZ_" + String(i);
         String keyP = "paintP_" + String(i);
-        String keyPat = "paintPat_" + String(i);
+        String keyR = "paintR_" + String(i); // Use R for Pattern
         String keyS = "paintS_" + String(i);
         paintZHeight_inch[i] = preferences.getFloat(keyZ.c_str(), 1.0f);
-        paintPitchAngle[i] = preferences.getInt(keyP.c_str(), PITCH_SERVO_MAX); // Load mapped servo value
-        paintPatternType[i] = preferences.getInt(keyPat.c_str(), (i == 0 || i == 2) ? 0 : 90); // Default pattern based on side
+        paintPitchAngle[i] = preferences.getInt(keyP.c_str(), SERVO_INIT_POS_PITCH); // Load mapped servo value (Replaced PITCH_SERVO_MAX w/ init pos)
+        paintPatternType[i] = preferences.getInt(keyR.c_str(), (i % 2 == 0) ? 0 : 90); // Load pattern, default based on side
         paintSpeed[i] = preferences.getFloat(keyS.c_str(), 10000.0f);
     }
 
@@ -1242,5 +1249,25 @@ void loadSettings() {
     // Log a sample value
     Serial.printf("[DEBUG] loadSettings: Loaded pnpOffsetX = %.2f\n", pnpOffsetX_inch);
     Serial.println("[DEBUG] loadSettings() finished.");
+}
+
+// Function to set the pitch servo angle directly
+void setPitchServoAngle(int angle) {
+    // Ensure angle is within the servo's physical limits (0-180 typical)
+    // Even without software limits, it's good practice to clamp to the standard range
+    int targetAngle = constrain(angle, 0, 180); 
+
+    if (servo_pitch.attached()) {
+        // Serial.printf("Setting pitch servo to %d degrees\n", targetAngle); // Optional debug
+        servo_pitch.write(targetAngle);
+        delay(15); // Small delay to allow servo to start moving
+    } else {
+        Serial.println("[ERROR] Pitch servo not attached!");
+    }
+}
+
+// Function to smoothly move the pitch servo to a target angle
+void movePitchServoSmoothly(int targetAngle) {
+    // ... existing code ...
 }
 

@@ -35,9 +35,9 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 // =====================
 // Servo Settings
 // =====================
-#define PITCH_SERVO_MIN 150         // Minimum safe pitch angle (degrees) - adjusted after servo swap
-#define PITCH_SERVO_MAX 180         // Maximum safe pitch angle (degrees) - matches ROLL_HORIZONTAL
-#define SERVO_INIT_POS_PITCH PITCH_SERVO_MAX // Initial pitch position on boot
+// #define PITCH_SERVO_MIN 150         // Minimum safe pitch angle (degrees) - adjusted after servo swap
+// #define PITCH_SERVO_MAX 180         // Maximum safe pitch angle (degrees) - matches ROLL_HORIZONTAL
+#define SERVO_INIT_POS_PITCH 180 // Initial pitch position on boot (Was PITCH_SERVO_MAX)
 
 // =====================
 // Miscellaneous Settings

@@ -100,6 +100,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 extern void saveSettings(); // Declare saveSettings defined in main.cpp
 void sendCurrentPositionUpdate(); // Sends position via WebSocket
 void sendAllSettingsUpdate(uint8_t specificClientNum, String message); // Sends all settings via WebSocket
+extern void setPitchServoAngle(int angle); // Declaration for the new function
 
 
 #endif // WEBHANLDER_H 
