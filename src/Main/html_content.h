@@ -220,10 +220,11 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
       <!-- Side Buttons -->
       <div style="margin: 15px 0;">
-        <button id="paintBackButton" class="button" onclick="sendCommand('PAINT_SIDE_0')" style="background-color: #A142F4;">Paint Back Side</button>
-        <button id="paintRightButton" class="button" onclick="sendCommand('PAINT_SIDE_1')" style="background-color: #A142F4;">Paint Right Side</button>
-        <button id="paintFrontButton" class="button" onclick="sendCommand('PAINT_SIDE_2')" style="background-color: #A142F4;">Paint Front Side</button>
-        <button id="paintLeftButton" class="button" onclick="sendCommand('PAINT_SIDE_3')" style="background-color: #A142F4;">Paint Left Side</button>
+        <!-- REMOVED Paint Side Buttons - Moved into individual sections -->
+        <!-- <button id="paintBackButton" class="button" onclick="sendCommand('PAINT_SIDE_0')" style="background-color: #A142F4;">Paint Back Side</button> -->
+        <!-- <button id="paintRightButton" class="button" onclick="sendCommand('PAINT_SIDE_1')" style="background-color: #A142F4;">Paint Right Side</button> -->
+        <!-- <button id="paintFrontButton" class="button" onclick="sendCommand('PAINT_SIDE_2')" style="background-color: #A142F4;">Paint Front Side</button> -->
+        <!-- <button id="paintLeftButton" class="button" onclick="sendCommand('PAINT_SIDE_3')" style="background-color: #A142F4;">Paint Left Side</button> -->
         <button id="stopButton" class="button" onclick="sendCommand('STOP')" style="background-color: #dc3545;">STOP</button>
       </div>
 
@@ -232,6 +233,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       
       <!-- Back Side Settings -->
       <div class="input-group">
+        <button id="paintBackButton" class="button" onclick="sendCommand('PAINT_SIDE_0')" style="background-color: #A142F4; margin-bottom: 10px;">Paint Back Side</button> <!-- MOVED -->
         <h3>Back Side Settings</h3>
         <label for="paintZ_0">Z Height:</label>
         <input type="number" id="paintZ_0" step="0.1" value="1.0" min="0" max="2.5">
@@ -258,6 +260,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       
       <!-- Right Side Settings -->
       <div class="input-group">
+        <button id="paintRightButton" class="button" onclick="sendCommand('PAINT_SIDE_1')" style="background-color: #A142F4; margin-bottom: 10px;">Paint Right Side</button> <!-- MOVED -->
         <h3>Right Side Settings</h3>
         <label for="paintZ_1">Z Height:</label>
         <input type="number" id="paintZ_1" step="0.1" value="1.0" min="0" max="2.5">
@@ -284,6 +287,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       
       <!-- Front Side Settings -->
       <div class="input-group">
+        <button id="paintFrontButton" class="button" onclick="sendCommand('PAINT_SIDE_2')" style="background-color: #A142F4; margin-bottom: 10px;">Paint Front Side</button> <!-- MOVED -->
         <h3>Front Side Settings</h3>
         <label for="paintZ_2">Z Height:</label>
         <input type="number" id="paintZ_2" step="0.1" value="1.0" min="0" max="2.5">
@@ -310,6 +314,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       
       <!-- Left Side Settings -->
       <div class="input-group">
+        <button id="paintLeftButton" class="button" onclick="sendCommand('PAINT_SIDE_3')" style="background-color: #A142F4; margin-bottom: 10px;">Paint Left Side</button> <!-- MOVED -->
         <h3>Left Side Settings</h3>
         <label for="paintZ_3">Z Height:</label>
         <input type="number" id="paintZ_3" step="0.1" value="1.0" min="0" max="2.5">
