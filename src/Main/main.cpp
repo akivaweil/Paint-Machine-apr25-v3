@@ -761,6 +761,12 @@ void paintSide(int sideIndex) {
     // 10. Move Z Axis Up (e.g., to safe height 0)
     Serial.println("Moving Z axis up to safe height (0)...");
     moveZToPositionInches(0.0, patternZSpeed, patternZAccel);
+    if (stopRequested) {
+        Serial.println("STOP requested. Aborting paintSide after Z move.");
+        isMoving = false;
+        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}");
+        return;
+    }
 
     // 11. Return to home position (X=0, Y=0, Z=0)
     Serial.println("Returning to home position (X=0, Y=0, Z=0)...");
@@ -770,6 +776,12 @@ void paintSide(int sideIndex) {
     while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning()) || (stepper_z && stepper_z->isRunning())) {
         webSocket.loop();
         yield();
+        if (stopRequested) {
+            Serial.println("STOP requested. Aborting paintSide during return to home.");
+            isMoving = false;
+            webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}");
+            return;
+        }
     }
     Serial.println("Return to home complete.");
 

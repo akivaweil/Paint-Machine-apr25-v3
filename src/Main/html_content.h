@@ -193,7 +193,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
        <div class="input-group">
           <h3>Set Positions</h3>
           <button id="setOffsetCurrentButton" class="button setting-button" onclick="sendCommand('SET_OFFSET_FROM_CURRENT')">Set PnP Offset<br>From Current</button>
-          <button id="setFirstPlaceAbsCurrentButton" class="button setting-button" onclick="sendCommand('SET_FIRST_PLACE_ABS_FROM_CURRENT')">Set First Place Abs<br>From Current</button> <!-- ID, text, and command updated -->
+          <button id="setFirstPlaceAbsCurrentButton" class="button setting-button" onclick="sendCommand('SET_FIRST_PLACE_ABS_FROM_CURRENT')">Set First Place Abs<br>From Current</button <!-- ID, text, and command updated -->
        </div>
        <div class="input-group">
           <h3>Current Position</h3>
@@ -233,7 +233,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintBackButton" class="button" onclick="sendCommand('PAINT_SIDE_0')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Back Side</button>
         <label for="paintZ_0">Z Height:</label>
         <input type="number" id="paintZ_0" step="0.1" value="1.0" onchange="setPaintSideSettings(0)">
-        <span id="paintZDisplay_0">Current: 1.0</span>
+        <span id="paintZDisplay_0">1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_0">Pitch:</label>
@@ -260,7 +260,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintFrontButton" class="button" onclick="sendCommand('PAINT_SIDE_2')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Front Side</button>
         <label for="paintZ_2">Z Height:</label>
         <input type="number" id="paintZ_2" step="0.1" value="1.0" onchange="setPaintSideSettings(2)">
-        <span id="paintZDisplay_2">Current: 1.0</span>
+        <span id="paintZDisplay_2">1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_2">Pitch:</label>
@@ -287,7 +287,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintLeftButton" class="button" onclick="sendCommand('PAINT_SIDE_3')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Left Side</button>
         <label for="paintZ_3">Z Height:</label>
         <input type="number" id="paintZ_3" step="0.1" value="1.0" onchange="setPaintSideSettings(3)">
-        <span id="paintZDisplay_3">Current: 1.0</span>
+        <span id="paintZDisplay_3">1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_3">Pitch:</label>
@@ -314,7 +314,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintRightButton" class="button" onclick="sendCommand('PAINT_SIDE_1')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Right Side</button>
         <label for="paintZ_1">Z Height:</label>
         <input type="number" id="paintZ_1" step="0.1" value="1.0" onchange="setPaintSideSettings(1)">
-        <span id="paintZDisplay_1">Current: 1.0</span>
+        <span id="paintZDisplay_1">1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_1">Pitch:</label>
