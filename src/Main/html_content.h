@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
-<!DOCTYPE HTML><html>
+<!DOCTYPE html><html>
 <head>
   <title>ESP32 Stepper Control</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
