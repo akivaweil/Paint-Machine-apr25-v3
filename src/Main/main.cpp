@@ -851,6 +851,16 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                     
                     // Initiate Homing Sequence
                     homeAllAxes(); // This will set isHoming = true and send Homing status updates
+
+                    // After homing, move to (0,0,0)
+                    moveToPositionInches(0.0, 0.0, 0.0);
+                    // Wait for all axes to finish moving
+                    while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning()) || (stepper_z && stepper_z->isRunning())) {
+                        webSocket.loop();
+                        yield();
+                    }
+                    isMoving = false;
+                    webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"STOP complete. Machine returned to zero.\"}");
                 }
                 // --- End STOP Command Handler ---
                 

@@ -248,9 +248,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <!-- <span id="paintRDisplay_0">Up-Down Pattern</span> -->
         
         <label for="paintS_0">Speed:</label>
-        <input type="range" id="paintS_0" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_0')" onchange="setPaintSideSettings(0)">
+        <input type="range" id="paintS_0" min="5" max="25" value="20" step="1" oninput="updateSliderDisplay('paintS_0')" onchange="setPaintSideSettings(0)">
         <span id="paintSDisplay_0">20</span>
-        <small style="display: block; margin-top: -5px; color: #aaa;">(5000-20000)</small> <!-- Speed hint -->
         
         <!-- <button id="setPaintSideSettingsButton_0" class="button setting-button" onclick="setPaintSideSettings(0)">Set Side 0</button> --> <!-- REMOVED -->
       </div>
@@ -276,9 +275,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <!-- <span id="paintRDisplay_2">Up-Down Pattern</span> -->
         
         <label for="paintS_2">Speed:</label>
-        <input type="range" id="paintS_2" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_2')" onchange="setPaintSideSettings(2)">
+        <input type="range" id="paintS_2" min="5" max="25" value="20" step="1" oninput="updateSliderDisplay('paintS_2')" onchange="setPaintSideSettings(2)">
         <span id="paintSDisplay_2">20</span>
-        <small style="display: block; margin-top: -5px; color: #aaa;">(5000-20000)</small> <!-- Speed hint -->
         
         <!-- <button id="setPaintSideSettingsButton_2" class="button setting-button" onclick="setPaintSideSettings(2)">Set Side 2</button> --> <!-- REMOVED -->
       </div>
@@ -304,9 +302,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <!-- <span id="paintRDisplay_3">Up-Down Pattern</span> -->
         
         <label for="paintS_3">Speed:</label>
-        <input type="range" id="paintS_3" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_3')" onchange="setPaintSideSettings(3)">
+        <input type="range" id="paintS_3" min="5" max="25" value="20" step="1" oninput="updateSliderDisplay('paintS_3')" onchange="setPaintSideSettings(3)">
         <span id="paintSDisplay_3">20</span>
-        <small style="display: block; margin-top: -5px; color: #aaa;">(5000-20000)</small> <!-- Speed hint -->
         
         <!-- <button id="setPaintSideSettingsButton_3" class="button setting-button" onclick="setPaintSideSettings(3)">Set Side 3</button> --> <!-- REMOVED -->
       </div>
@@ -332,9 +329,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <!-- <span id="paintRDisplay_1">Up-Down Pattern</span> -->
         
         <label for="paintS_1">Speed:</label>
-        <input type="range" id="paintS_1" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_1')" onchange="setPaintSideSettings(1)">
+        <input type="range" id="paintS_1" min="5" max="25" value="20" step="1" oninput="updateSliderDisplay('paintS_1')" onchange="setPaintSideSettings(1)">
         <span id="paintSDisplay_1">20</span>
-        <small style="display: block; margin-top: -5px; color: #aaa;">(5000-20000)</small> <!-- Speed hint -->
         
         <!-- <button id="setPaintSideSettingsButton_1" class="button setting-button" onclick="setPaintSideSettings(1)">Set Side 1</button> --> <!-- REMOVED -->
       </div>
