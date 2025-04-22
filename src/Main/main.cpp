@@ -54,6 +54,7 @@ volatile bool isHoming = false; // Tracks if homing sequence is active
 volatile bool inPickPlaceMode = false; // Tracks if PnP sequence is active
 volatile bool pendingHomingAfterPnP = false; // Flag to home after exiting PnP
 volatile bool inCalibrationMode = false; // Tracks if calibration mode is active
+volatile bool stopRequested = false; // <<< ADDED: Flag to signal stop request
 
 // NEW: Tray Dimension Variables
 float trayWidth_inch = 24.0; // Default tray width
@@ -577,7 +578,7 @@ void moveZToPositionInches(float targetZ_inch, float speedHz, float accel) {
     stepper_z->moveTo(targetZ_steps);
 
     // Wait for Z move completion (blocking)
-    while (stepper_z->isRunning()) {
+    while (stepper_z->isRunning() && !stopRequested) { // <<< MODIFIED: Added !stopRequested check
         webSocket.loop(); // Keep websocket alive
         yield();
     }
@@ -623,7 +624,7 @@ void moveToXYPositionInches_Paint(float targetX_inch, float targetY_inch, float 
     }
 
     // Wait for XY move completion (blocking for simplicity in painting sequence)
-    while (stepper_x->isRunning() || stepper_y_left->isRunning() || stepper_y_right->isRunning()) {
+    while ((stepper_x->isRunning() || stepper_y_left->isRunning() || stepper_y_right->isRunning()) && !stopRequested) { // <<< MODIFIED: Added !stopRequested check
         yield();
     }
     // Serial.println("Paint XY move complete.");
@@ -634,6 +635,7 @@ void moveToXYPositionInches_Paint(float targetX_inch, float targetY_inch, float 
 
 void paintSide(int sideIndex) {
     Serial.printf("Starting paintSide for side %d\n", sideIndex);
+    stopRequested = false; // <<< ADDED: Reset stop flag at start
 
     // 1. Check Machine State
     if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
@@ -679,6 +681,13 @@ void paintSide(int sideIndex) {
     // 7. Move to Start Z Height
     Serial.println("Moving to start Z height...");
     moveZToPositionInches(zHeight, patternZSpeed, patternZAccel); // Use sideIndex's zHeight
+    // <<< ADDED: Check for stop request after initial Z move >>>
+    if (stopRequested) {
+        Serial.println("STOP requested. Aborting paintSide.");
+        isMoving = false; 
+        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+        return;
+    }
 
     // 8. Calculate Start Point and Execute Painting Path based on sideIndex
 
@@ -693,6 +702,13 @@ void paintSide(int sideIndex) {
         startTcpY = backStartY;
         Serial.printf("Moving TCP to start of Back sweep (Top-Right): (%.2f, %.2f)\n", startTcpX, startTcpY);
         moveToXYPositionInches_Paint(startTcpX, startTcpY, speed, accel);
+        // <<< ADDED: Check for stop request >>>
+        if (stopRequested) {
+            Serial.println("STOP requested. Aborting paintSide.");
+            isMoving = false; 
+            webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+            return;
+        }
 
         float currentTcpX = startTcpX;
         float currentTcpY = startTcpY;
@@ -704,11 +720,25 @@ void paintSide(int sideIndex) {
                 float targetTcpY = backStartY - (r * rowSpacing);
                 if (abs(currentTcpY - targetTcpY) > 0.001) {
                     moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
+                    // <<< ADDED: Check for stop request >>>
+                    if (stopRequested) {
+                        Serial.println("STOP requested. Aborting paintSide.");
+                        isMoving = false; 
+                        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                        return;
+                    }
                     currentTcpY = targetTcpY;
                 }
                 float targetTcpX = movingLeft ? (backStartX - trayWidth_inch) : backStartX;
                 Serial.printf("Back Row %d (%s): Target X=%.2f, Y=%.2f\n", r, movingLeft ? "Left" : "Right", targetTcpX, targetTcpY);
                 moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+                // <<< ADDED: Check for stop request >>>
+                if (stopRequested) {
+                    Serial.println("STOP requested. Aborting paintSide.");
+                    isMoving = false; 
+                    webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                    return;
+                }
                 currentTcpX = targetTcpX;
                 movingLeft = !movingLeft;
             }
@@ -719,11 +749,25 @@ void paintSide(int sideIndex) {
                 float targetTcpX = backStartX - (c * colSpacing);
                 if (abs(currentTcpX - targetTcpX) > 0.001) {
                     moveToXYPositionInches_Paint(targetTcpX, currentTcpY, speed, accel);
+                    // <<< ADDED: Check for stop request >>>
+                    if (stopRequested) {
+                        Serial.println("STOP requested. Aborting paintSide.");
+                        isMoving = false; 
+                        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                        return;
+                    }
                     currentTcpX = targetTcpX;
                 }
                 float targetTcpY = movingDown ? (backStartY - (placeGridRows - 1) * rowSpacing) : backStartY;
                 Serial.printf("Back Col %d (%s): Target X=%.2f, Y=%.2f\n", c, movingDown ? "Down" : "Up", targetTcpX, targetTcpY);
                 moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+                // <<< ADDED: Check for stop request >>>
+                if (stopRequested) {
+                    Serial.println("STOP requested. Aborting paintSide.");
+                    isMoving = false; 
+                    webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                    return;
+                }
                 currentTcpY = targetTcpY;
                 movingDown = !movingDown;
             }
@@ -753,6 +797,13 @@ void paintSide(int sideIndex) {
 
         Serial.printf("Moving TCP to start of Front sweep (End of theoretical Back): (%.2f, %.2f)\n", startTcpX, startTcpY);
         moveToXYPositionInches_Paint(startTcpX, startTcpY, speed, accel);
+        // <<< ADDED: Check for stop request >>>
+        if (stopRequested) {
+            Serial.println("STOP requested. Aborting paintSide.");
+            isMoving = false; 
+            webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+            return;
+        }
 
         float currentTcpX = startTcpX;
         float currentTcpY = startTcpY;
@@ -769,6 +820,13 @@ void paintSide(int sideIndex) {
                 if (abs(currentTcpY - targetTcpY) > 0.001) {
                     Serial.printf("Front Row %d: Moving UP to Y=%.2f\n", r, targetTcpY);
                     moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
+                    // <<< ADDED: Check for stop request >>>
+                    if (stopRequested) {
+                        Serial.println("STOP requested. Aborting paintSide.");
+                        isMoving = false; 
+                        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                        return;
+                    }
                     currentTcpY = targetTcpY;
                 }
 
@@ -776,6 +834,13 @@ void paintSide(int sideIndex) {
                 float targetTcpX = movingRight ? backStartX : (backStartX - trayWidth_inch);
                 Serial.printf("Front Row %d (%s): Target X=%.2f, Y=%.2f\n", r, movingRight ? "Right" : "Left", targetTcpX, targetTcpY);
                 moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+                // <<< ADDED: Check for stop request >>>
+                if (stopRequested) {
+                    Serial.println("STOP requested. Aborting paintSide.");
+                    isMoving = false; 
+                    webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                    return;
+                }
                 currentTcpX = targetTcpX;
 
                 movingRight = !movingRight; // Flip direction
@@ -792,6 +857,13 @@ void paintSide(int sideIndex) {
                 if (abs(currentTcpX - targetTcpX) > 0.001) {
                      Serial.printf("Front Col %d: Moving LEFT to X=%.2f\n", c, targetTcpX);
                      moveToXYPositionInches_Paint(targetTcpX, currentTcpY, speed, accel);
+                     // <<< ADDED: Check for stop request >>>
+                     if (stopRequested) {
+                         Serial.println("STOP requested. Aborting paintSide.");
+                         isMoving = false; 
+                         webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                         return;
+                     }
                      currentTcpX = targetTcpX;
                  }
 
@@ -799,6 +871,13 @@ void paintSide(int sideIndex) {
                 float targetTcpY = movingUp ? backStartY : (backStartY - (placeGridRows - 1) * rowSpacing);
                 Serial.printf("Front Col %d (%s): Target X=%.2f, Y=%.2f\n", c, movingUp ? "Up" : "Down", targetTcpX, targetTcpY);
                 moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+                // <<< ADDED: Check for stop request >>>
+                if (stopRequested) {
+                    Serial.println("STOP requested. Aborting paintSide.");
+                    isMoving = false; 
+                    webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                    return;
+                }
                 currentTcpY = targetTcpY;
 
                 movingUp = !movingUp; // Flip direction
@@ -812,6 +891,13 @@ void paintSide(int sideIndex) {
         startTcpY = backStartY;
         Serial.printf("Moving TCP to start of Side %d sweep (Top-Right): (%.2f, %.2f)\n", sideIndex, startTcpX, startTcpY);
         moveToXYPositionInches_Paint(startTcpX, startTcpY, speed, accel);
+        // <<< ADDED: Check for stop request >>>
+        if (stopRequested) {
+            Serial.println("STOP requested. Aborting paintSide.");
+            isMoving = false; 
+            webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+            return;
+        }
 
         float currentTcpX = startTcpX;
         float currentTcpY = startTcpY;
@@ -832,10 +918,24 @@ void paintSide(int sideIndex) {
             // Execute Sweep
             if (abs(currentTcpY - targetTcpY) < 0.001) {
                  moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+                 // <<< ADDED: Check for stop request >>>
+                 if (stopRequested) {
+                     Serial.println("STOP requested. Aborting paintSide.");
+                     isMoving = false; 
+                     webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                     return;
+                 }
                  currentTcpX = targetTcpX;
             } else {
                  Serial.printf("[WARN] Side %d Row %d: Y mismatch. Moving directly down/to target.\n", sideIndex, r);
                  moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+                 // <<< ADDED: Check for stop request >>>
+                 if (stopRequested) {
+                     Serial.println("STOP requested. Aborting paintSide.");
+                     isMoving = false; 
+                     webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                     return;
+                 }
                  currentTcpX = targetTcpX;
                  currentTcpY = targetTcpY;
             }
@@ -845,12 +945,26 @@ void paintSide(int sideIndex) {
                 float nextRowTcpY = (backStartY - (r + 1) * placeGapY_inch) + paintGunOffsetY_inch;
                 Serial.printf("Side %d Row %d: Moving Down to Y=%.2f (X=%.2f)\n", sideIndex, r, nextRowTcpY, currentTcpX);
                 moveToXYPositionInches_Paint(currentTcpX, nextRowTcpY, speed, accel);
+                // <<< ADDED: Check for stop request >>>
+                if (stopRequested) {
+                    Serial.println("STOP requested. Aborting paintSide.");
+                    isMoving = false; 
+                    webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                    return;
+                }
                 currentTcpY = nextRowTcpY;
             }
         }
     }
 
     Serial.println("Painting path complete.");
+    // <<< ADDED: Check for stop request before final Z move >>>
+    if (stopRequested) {
+        Serial.println("STOP requested before final Z move. Aborting paintSide.");
+        isMoving = false; 
+        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+        return;
+    }
 
     // 9. Move Z Axis Up (e.g., to safe height 0)
     Serial.println("Moving Z axis up to safe height (0)...");
@@ -868,7 +982,7 @@ void paintSide(int sideIndex) {
     Serial.println("Return to home complete.");
 
     // 11. Clear Busy State & Send Ready Message
-    isMoving = false;
+    isMoving = false; // <<< Ensure isMoving is false before sending final status
     char readyMsg[100];
     sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Painting Side %d complete. Returned to home.\"}", sideIndex);
     webSocket.broadcastTXT(readyMsg);
@@ -930,6 +1044,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                     if (inPickPlaceMode) exitPickPlaceMode(false); // Exit PnP without homing request
                     inCalibrationMode = false;
                     pendingHomingAfterPnP = false;
+                    stopRequested = true; // <<< ADDED: Set the stop flag
                     
                     // Send update
                     webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"STOPPED by user command.\"}");
