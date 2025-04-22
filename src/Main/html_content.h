@@ -82,7 +82,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="gridCols" step="1" value="4" onchange="setGridSpacing()">
         <label for="gridRows">Rows:</label>
         <input type="number" id="gridRows" step="1" value="5" onchange="setGridSpacing()">
-        <span id="gridDisplay">4 x 5</span>
         <br>
         <span id="spacingDisplay">Spacing: X=Auto, Y=Auto</span> <!-- Updated display text -->
         <!-- <button id="setGridSpacingButton" class="button setting-button" onclick="setGridSpacing()">Set Grid Columns/Rows</button> --> <!-- REMOVED -->
@@ -93,7 +92,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="trayWidth" step="0.1" value="24.0" onchange="setTraySize()">
         <label for="trayHeight">Height:</label>
         <input type="number" id="trayHeight" step="0.1" value="18.0" onchange="setTraySize()">
-        <span id="traySizeDisplay">W=24.00, H=18.00</span> <!-- Removed "Current: ", Default Display -->
         <!-- <button id="setTraySizeButton" class="button setting-button" onclick="setTraySize()">Set Tray Size</button> --> <!-- REMOVED -->
     </div>
   </div> <!-- ADDED -->
@@ -106,7 +104,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="offsetX" step="0.1" value="15.0" onchange="setOffset()">
         <label for="offsetY">Y:</label>
         <input type="number" id="offsetY" step="0.1" value="0.0" onchange="setOffset()">
-        <span id="offsetDisplay">X=15.00, Y=0.00</span> <!-- Removed "Current: " -->
         <!-- <button id="setOffsetButton" class="button setting-button" onclick="setOffset()">Set Offset</button> --> <!-- REMOVED -->
     </div>
 
@@ -116,7 +113,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="firstPlaceXAbs" step="0.1" value="20.0" onchange="setFirstPlaceAbs()">
         <label for="firstPlaceYAbs">Abs Y:</label>
         <input type="number" id="firstPlaceYAbs" step="0.1" value="20.0" onchange="setFirstPlaceAbs()">
-        <span id="firstPlaceAbsDisplay">X=20.00, Y=20.00</span> <!-- Removed "Current: ", ID and Default updated -->
         <!-- <button id="setFirstPlaceAbsButton" class="button setting-button" onclick="setFirstPlaceAbs()">Set Drop Off</button> --> <!-- REMOVED -->
     </div>
 
@@ -124,17 +120,13 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <h3>Speed/Accel (k steps/s)</h3>
         <label for="xSpeed">X Spd:</label>
         <input type="number" id="xSpeed" step="1" value="20" onchange="setSpeedAccel()">
-        <span id="xSpeedDisplay">20</span> <!-- Removed "Current: " -->
         <label for="xAccel">X Acc:</label>
         <input type="number" id="xAccel" step="1" value="20" onchange="setSpeedAccel()">
-        <span id="xAccelDisplay">20</span> <!-- Removed "Current: " -->
         <br>
         <label for="ySpeed">Y Spd:</label>
         <input type="number" id="ySpeed" step="1" value="20" onchange="setSpeedAccel()">
-        <span id="ySpeedDisplay">20</span> <!-- Removed "Current: " -->
         <label for="yAccel">Y Acc:</label>
         <input type="number" id="yAccel" step="1" value="20" onchange="setSpeedAccel()">
-        <span id="yAccelDisplay">20</span> <!-- Removed "Current: " -->
         <!-- <button id="setSpeedButton" class="button setting-button" onclick="setSpeedAccel()">Set Speed/Accel</button> --> <!-- REMOVED -->
     </div>
 
@@ -215,7 +207,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           <input type="number" id="paintGunOffsetX" step="0.1" value="0.0" onchange="setPaintOffsets()">
           <label for="paintGunOffsetY">Gun Y:</label>
           <input type="number" id="paintGunOffsetY" step="0.1" value="1.5" onchange="setPaintOffsets()">
-          <span id="paintGunOffsetDisplay">X=0.00, Y=1.50</span> <!-- Removed "Current: " -->
           <!-- <button id="setPaintOffsetsButton" class="button setting-button" onclick="setPaintOffsets()">Set Gun Offset</button> --> <!-- REMOVED -->
       </div>
 
@@ -233,12 +224,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintBackButton" class="button" onclick="sendCommand('PAINT_SIDE_0')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Back Side</button>
         <label for="paintZ_0">Z Height:</label>
         <input type="number" id="paintZ_0" step="0.1" value="1.0" onchange="setPaintSideSettings(0)">
-        <span id="paintZDisplay_0">1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_0">Pitch:</label>
         <input type="number" id="paintP_0" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(0)">
-        <span id="paintPDisplay_0">0&deg;</span>
         
         <label>Pattern:</label>
         <select id="paintR_0" onchange="setPaintSideSettings(0)">
@@ -912,12 +901,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         sendCommand(command);
 
         // Save to Preferences
-        preferences.begin("machineCfg", false); // Namespace
-        preferences.putFloat("patXSpd", xS_actual); // Save X Speed
-        preferences.putFloat("patXAcc", xA_actual); // Save X Accel
-        preferences.putFloat("patYSpd", yS_actual); // Save Y Speed
-        preferences.putFloat("patYAcc", yA_actual); // Save Y Accel
-        preferences.end();
+        saveSettings(xS_actual, xA_actual, yS_actual, yA_actual);
         Serial.printf("[DEBUG] Saved Speed/Accel to NVS: X(S:%.0f, A:%.0f), Y(S:%.0f, A:%.0f)\n", xS_actual, xA_actual, yS_actual, yA_actual);
     }
 

@@ -130,6 +130,8 @@ void calculateAndSetGridSpacing(int cols, int rows); // Added forward declaratio
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 void sendCurrentPositionUpdate(); // Forward declaration for position updates
 void sendAllSettingsUpdate(uint8_t specificClientNum, String message); // Helper to send all settings
+void saveSettings(); // New function to save all settings to NVS
+void loadSettings(); // New function to load all settings from NVS
 
 // Function to home a single axis (modified slightly for reuse)
 // Returns true if homing was successful, false otherwise (timeout or error)
@@ -938,10 +940,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                              pnpOffsetX_inch = newX;
                              pnpOffsetY_inch = newY;
                              // Save to Preferences
-                             preferences.begin("machineCfg", false);
-                             preferences.putFloat("pnpOffX", pnpOffsetX_inch);
-                             preferences.putFloat("pnpOffY", pnpOffsetY_inch);
-                             preferences.end();
+                             saveSettings();
                              Serial.printf("[DEBUG] Set PnP Offset to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch);
                              // Send confirmation with all current settings
                              char msgBuffer[400]; // Increased size
@@ -982,12 +981,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                              patternYAccel = receivedYA;
 
                              // Save Speed/Accel to Preferences
-                             preferences.begin("machineCfg", false); 
-                             preferences.putFloat("patXSpd", patternXSpeed); 
-                             preferences.putFloat("patXAcc", patternXAccel); 
-                             preferences.putFloat("patYSpd", patternYSpeed); 
-                             preferences.putFloat("patYAcc", patternYAccel); 
-                             preferences.end();
+                             saveSettings();
                              Serial.printf("[DEBUG] Saved Speed/Accel to NVS: X(S:%.0f, A:%.0f), Y(S:%.0f, A:%.0f)\n", patternXSpeed, patternXAccel, patternYSpeed, patternYAccel);
 
                              // Send confirmation with all current settings (using actual values)
@@ -1013,10 +1007,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         placeFirstXAbsolute_inch = newX;
                         placeFirstYAbsolute_inch = newY;
                              // Save to Preferences
-                             preferences.begin("machineCfg", false);
-                        preferences.putFloat("placeFirstXAbs", placeFirstXAbsolute_inch);
-                        preferences.putFloat("placeFirstYAbs", placeFirstYAbsolute_inch);
-                             preferences.end();
+                             saveSettings();
                         Serial.printf("[DEBUG] Set First Place Absolute to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch);
                              // Send confirmation with all current settings
                         char msgBuffer[400]; // Increased size
@@ -1060,10 +1051,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             pnpOffsetX_inch = (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY;
                             pnpOffsetY_inch = (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY;
                             
-                            preferences.begin("machineCfg", false);
-                            preferences.putFloat("pnpOffX", pnpOffsetX_inch);
-                            preferences.putFloat("pnpOffY", pnpOffsetY_inch);
-                            preferences.end();
+                            saveSettings();
                             
                             Serial.printf("[DEBUG] Set PnP Offset from current pos to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch);
                              char msgBuffer[400]; // Increased size
@@ -1086,10 +1074,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                              placeFirstXAbsolute_inch = (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY;
                              placeFirstYAbsolute_inch = (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY;
                             
-                             preferences.begin("machineCfg", false);
-                             preferences.putFloat("placeFirstXAbs", placeFirstXAbsolute_inch);
-                             preferences.putFloat("placeFirstYAbs", placeFirstYAbsolute_inch);
-                             preferences.end();
+                             saveSettings();
                             
                              Serial.printf("[DEBUG] Set First Place Absolute from current pos to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch);
                               char msgBuffer[400]; // Increased size
@@ -1233,10 +1218,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         trayHeight_inch = newH;
                         
                         // Open preferences, save values, and close immediately
-                        preferences.begin("machineCfg", false);
-                        preferences.putFloat("trayWidth", trayWidth_inch);
-                        preferences.putFloat("trayHeight", trayHeight_inch);
-                        preferences.end();
+                        saveSettings();
                         
                         Serial.printf("[DEBUG] Set Tray Size to W=%.2f, H=%.2f\n", trayWidth_inch, trayHeight_inch);
                         
@@ -1275,10 +1257,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             paintPatternOffsetX_inch = newX;
                             paintPatternOffsetY_inch = newY;
                             // Save to Preferences
-                            preferences.begin("machineCfg", false);
-                            preferences.putFloat("paintPatOffX", paintPatternOffsetX_inch);
-                            preferences.putFloat("paintPatOffY", paintPatternOffsetY_inch);
-                            preferences.end();
+                            saveSettings();
                             Serial.printf("[DEBUG] Set Paint Pattern Offset to X: %.2f, Y: %.2f\n", paintPatternOffsetX_inch, paintPatternOffsetY_inch);
                             // Send confirmation with all settings
                             sendAllSettingsUpdate(num, "Paint Pattern Offset updated.");
@@ -1297,10 +1276,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             paintGunOffsetX_inch = newX;
                             paintGunOffsetY_inch = newY;
                             // Save to Preferences
-                            preferences.begin("machineCfg", false);
-                            preferences.putFloat("paintGunOffX", paintGunOffsetX_inch);
-                            preferences.putFloat("paintGunOffY", paintGunOffsetY_inch);
-                            preferences.end();
+                            saveSettings();
                             Serial.printf("[DEBUG] Set Paint Gun Offset to X: %.2f, Y: %.2f\n", paintGunOffsetX_inch, paintGunOffsetY_inch);
                             // Send confirmation with all settings
                             sendAllSettingsUpdate(num, "Paint Gun Offset updated.");
@@ -1347,7 +1323,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             paintSpeed[sideIndex] = newSpeed;
 
                             // Save to Preferences
-                            preferences.begin("machineCfg", false);
+                            saveSettings();
                             String keyZ = "paintZ_" + String(sideIndex);
                             String keyP = "paintP_" + String(sideIndex);
                             String keyPat = "paintPat_" + String(sideIndex); // NVS key for Pattern
@@ -1498,10 +1474,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         trayHeight_inch = newH;
                         
                         // Open preferences, save values, and close immediately
-                        preferences.begin("machineCfg", false);
-                        preferences.putFloat("trayWidth", trayWidth_inch);
-                        preferences.putFloat("trayHeight", trayHeight_inch);
-                        preferences.end();
+                        saveSettings();
                         
                         Serial.printf("[DEBUG] Set Tray Size to W=%.2f, H=%.2f\n", trayWidth_inch, trayHeight_inch);
                         
@@ -1540,10 +1513,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             paintPatternOffsetX_inch = newX;
                             paintPatternOffsetY_inch = newY;
                             // Save to Preferences
-                            preferences.begin("machineCfg", false);
-                            preferences.putFloat("paintPatOffX", paintPatternOffsetX_inch);
-                            preferences.putFloat("paintPatOffY", paintPatternOffsetY_inch);
-                            preferences.end();
+                            saveSettings();
                             Serial.printf("[DEBUG] Set Paint Pattern Offset to X: %.2f, Y: %.2f\n", paintPatternOffsetX_inch, paintPatternOffsetY_inch);
                             // Send confirmation with all settings
                             sendAllSettingsUpdate(num, "Paint Pattern Offset updated.");
@@ -1562,10 +1532,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             paintGunOffsetX_inch = newX;
                             paintGunOffsetY_inch = newY;
                             // Save to Preferences
-                            preferences.begin("machineCfg", false);
-                            preferences.putFloat("paintGunOffX", paintGunOffsetX_inch);
-                            preferences.putFloat("paintGunOffY", paintGunOffsetY_inch);
-                            preferences.end();
+                            saveSettings();
                             Serial.printf("[DEBUG] Set Paint Gun Offset to X: %.2f, Y: %.2f\n", paintGunOffsetX_inch, paintGunOffsetY_inch);
                             // Send confirmation with all settings
                             sendAllSettingsUpdate(num, "Paint Gun Offset updated.");
@@ -1612,7 +1579,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             paintSpeed[sideIndex] = newSpeed;
 
                             // Save to Preferences
-                            preferences.begin("machineCfg", false);
+                            saveSettings();
                             String keyZ = "paintZ_" + String(sideIndex);
                             String keyP = "paintP_" + String(sideIndex);
                             String keyPat = "paintPat_" + String(sideIndex); // NVS key for Pattern
@@ -1955,98 +1922,12 @@ void setup() {
     Serial.println("Booting... Loading settings...");
 
     // --- Load Persistent Settings ---
-    Preferences prefs;
-    prefs.begin("machineCfg", false); // Open NVS Read/Write
-
-    // Load PnP Offsets (provide defaults if keys don't exist)
-    pnpOffsetX_inch = prefs.getFloat("pnpOffX", 15.0);
-    pnpOffsetY_inch = prefs.getFloat("pnpOffY", 0.0);
-
-    // Load Speed/Accel (provide defaults if keys don't exist)
-    patternXSpeed = prefs.getFloat("patXSpd", 20000.0); // Actual value
-    patternXAccel = prefs.getFloat("patXAcc", 20000.0); // Actual value
-    patternYSpeed = prefs.getFloat("patYSpd", 20000.0); // Actual value
-    patternYAccel = prefs.getFloat("patYAcc", 20000.0); // Actual value
-    // Note: Z and Rotation speeds/accels are not user-settable via UI currently,
-    // so we don't load/save them, they use the defaults defined earlier.
-
-    // Load First Place Absolute Position (provide defaults)
-    placeFirstXAbsolute_inch = prefs.getFloat("placeFirstXAbs", 20.0);
-    placeFirstYAbsolute_inch = prefs.getFloat("placeFirstYAbs", 20.0);
-
-    // Load Grid Dimensions (provide defaults)
-    placeGridCols = prefs.getInt("gridCols", 4);
-    placeGridRows = prefs.getInt("gridRows", 5);
-    
-    // Load existing gap values if they exist
-    placeGapX_inch = prefs.getFloat("gapX", 0.0f);
-    placeGapY_inch = prefs.getFloat("gapY", 0.0f);
-    
-    Serial.printf("[DEBUG] Loaded from NVS - Grid: %d x %d, Gap: X=%.3f, Y=%.3f\n", 
-                 placeGridCols, placeGridRows, placeGapX_inch, placeGapY_inch);
-    
-    // Load Tray Dimensions (provide defaults) (NEW)
-    trayWidth_inch = prefs.getFloat("trayWidth", 24.0f);
-    trayHeight_inch = prefs.getFloat("trayHeight", 18.0f);
-    
-    // Validate the loaded tray dimensions
-    if (trayWidth_inch <= 0 || trayHeight_inch <= 0) {
-        Serial.printf("[ERROR] Invalid tray dimensions loaded: width=%.2f, height=%.2f. Using defaults.\n", 
-                     trayWidth_inch, trayHeight_inch);
-        trayWidth_inch = 24.0f;
-        trayHeight_inch = 18.0f;
-        
-        // Immediately save the corrected values
-        prefs.putFloat("trayWidth", trayWidth_inch);
-        prefs.putFloat("trayHeight", trayHeight_inch);
-    }
-    
-    Serial.printf("[DEBUG] Loaded tray dimensions: width=%.2f, height=%.2f\n", 
-                 trayWidth_inch, trayHeight_inch);
+    loadSettings();
 
     // Calculate initial grid gap based on loaded dimensions
     calculateAndSetGridSpacing(placeGridCols, placeGridRows);
-    // Note: calculateAndSetGridSpacing also saves cols/rows/gaps back to NVS,
-    // which is slightly redundant here but harmless.
-
-    // Load Painting Offsets
-    paintPatternOffsetX_inch = prefs.getFloat("paintPatOffX", 0.0f);
-    paintPatternOffsetY_inch = prefs.getFloat("paintPatOffY", 0.0f);
-    paintGunOffsetX_inch = prefs.getFloat("paintGunOffX", -3.0f); // Default changed to -3.0
-    paintGunOffsetY_inch = prefs.getFloat("paintGunOffY", -6.0f); // Default changed to -6.0
-    // --- ADDED DEBUG --- 
-    Serial.printf("[DEBUG Setup] Loaded paintGunOffX: %.2f\n", paintGunOffsetX_inch);
-    Serial.printf("[DEBUG Setup] Loaded paintGunOffY: %.2f\n", paintGunOffsetY_inch);
-    // --- END ADDED DEBUG ---
-
-    // Load Painting Side Settings (using side index in key)
-    for (int i = 0; i < 4; i++) {
-        String keyPat = "paintPat_" + String(i); // NVS key for Pattern
-        String keyZ = "paintZ_" + String(i);
-        String keyP = "paintP_" + String(i);
-        String keyS = "paintS_" + String(i);
-        paintZHeight_inch[i] = prefs.getFloat(keyZ.c_str(), 1.0f);
-        paintPitchAngle[i] = prefs.getInt(keyP.c_str(), PITCH_SERVO_MAX); // Use MAX as default
-        
-        // More explicit loading of pattern type with debugging
-        int storedPattern = prefs.getInt(keyPat.c_str(), -999);
-        if (storedPattern == -999) {
-            // No value found, use default
-            paintPatternType[i] = (i == 0 || i == 2) ? 0 : 90;
-            Serial.printf("[DEBUG] No stored pattern found for side %d, using default: %d\n", 
-                         i, paintPatternType[i]);
-        } else {
-            paintPatternType[i] = storedPattern;
-            Serial.printf("[DEBUG] Loaded paintPatternType[%d]=%d from preferences\n", 
-                         i, paintPatternType[i]);
-        }
-        
-        paintSpeed[i] = prefs.getFloat(keyS.c_str(), 10000.0f);
-    }
-
-    prefs.end();
-
-    // Print loaded settings AFTER potentially correcting tray size
+    
+    // Print loaded settings
     Serial.printf("Loaded Settings: Offset(%.2f, %.2f), FirstPlaceAbs(%.2f, %.2f), X(S:%.0f, A:%.0f), Y(S:%.0f, A:%.0f), Grid(%d x %d), Spacing(%.2f, %.2f)\n",
                   pnpOffsetX_inch, pnpOffsetY_inch,
                   placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
@@ -2240,16 +2121,16 @@ void setup() {
     // Unfortunately, Preferences library does not provide a direct way to list all keys, so we will attempt to read known keys for paint settings
     for (int i = 0; i < 4; i++) {
         String keyZ = "paintZ_" + String(i);
-        float zVal = prefs.getFloat(keyZ.c_str(), -999.0f);
+        float zVal = preferences.getFloat(keyZ.c_str(), -999.0f);
         Serial.printf("  Key: %s, Value: %.3f\n", keyZ.c_str(), zVal);
         String keyP = "paintP_" + String(i);
-        int pVal = prefs.getInt(keyP.c_str(), -999);
+        int pVal = preferences.getInt(keyP.c_str(), -999);
         Serial.printf("  Key: %s, Value: %d\n", keyP.c_str(), pVal);
         String keyPat = "paintPat_" + String(i);
-        int patVal = prefs.getInt(keyPat.c_str(), -999);
+        int patVal = preferences.getInt(keyPat.c_str(), -999);
         Serial.printf("  Key: %s, Value: %d\n", keyPat.c_str(), patVal);
         String keyS = "paintS_" + String(i);
-        float sVal = prefs.getFloat(keyS.c_str(), -999.0f);
+        float sVal = preferences.getFloat(keyS.c_str(), -999.0f);
         Serial.printf("  Key: %s, Value: %.3f\n", keyS.c_str(), sVal);
     }
 }
@@ -2348,7 +2229,6 @@ void loop() {
 
 // NEW: Function to calculate and set grid spacing automatically
 void calculateAndSetGridSpacing(int cols, int rows) {
-    Preferences prefs;
     Serial.printf("[DEBUG] calculateAndSetGridSpacing with cols=%d, rows=%d, trayWidth=%.2f, trayHeight=%.2f\n", 
                  cols, rows, trayWidth_inch, trayHeight_inch);
                  
@@ -2422,17 +2302,7 @@ void calculateAndSetGridSpacing(int cols, int rows) {
     Serial.printf("[INFO] Final calculated gap values: X=%.3f, Y=%.3f\n", placeGapX_inch, placeGapY_inch);
 
     // Save Cols, Rows, Gap, and tray dimensions to Preferences
-    prefs.begin("machineCfg", false);
-    prefs.putInt("gridCols", placeGridCols);
-    prefs.putInt("gridRows", placeGridRows);
-    prefs.putFloat("gapX", placeGapX_inch);
-    prefs.putFloat("gapY", placeGapY_inch);
-    
-    // Also save tray dimensions to ensure consistency
-    prefs.putFloat("trayWidth", trayWidth_inch);
-    prefs.putFloat("trayHeight", trayHeight_inch);
-    prefs.end();
-    
+    saveSettings();
     Serial.printf("[DEBUG] Saved to preferences: gridCols=%d, gridRows=%d, gapX=%.3f, gapY=%.3f, trayWidth=%.2f, trayHeight=%.2f\n",
                  placeGridCols, placeGridRows, placeGapX_inch, placeGapY_inch, trayWidth_inch, trayHeight_inch);
 
@@ -2445,4 +2315,143 @@ void calculateAndSetGridSpacing(int cols, int rows) {
     Serial.printf("[DEBUG] Sending update to UI with message: %s\n", message.c_str());
     sendAllSettingsUpdate(255, message); // Send to all clients
 } 
+
+// New function to save all settings to NVS
+void saveSettings() {
+    // Open preferences in read/write mode
+    preferences.begin("machineCfg", false);
+    
+    // Clear all existing preferences to avoid corruption
+    // preferences.clear(); // Uncomment this line if you want to reset all preferences
+    
+    // Save Pattern Motion Settings
+    preferences.putFloat("patXSpd", patternXSpeed);
+    preferences.putFloat("patXAcc", patternXAccel);
+    preferences.putFloat("patYSpd", patternYSpeed);
+    preferences.putFloat("patYAcc", patternYAccel);
+    
+    // Save PnP Settings
+    preferences.putFloat("pnpOffX", pnpOffsetX_inch);
+    preferences.putFloat("pnpOffY", pnpOffsetY_inch);
+    preferences.putFloat("placeFirstXAbs", placeFirstXAbsolute_inch);
+    preferences.putFloat("placeFirstYAbs", placeFirstYAbsolute_inch);
+    
+    // Save Grid Settings
+    preferences.putInt("gridCols", placeGridCols);
+    preferences.putInt("gridRows", placeGridRows);
+    preferences.putFloat("gapX", placeGapX_inch);
+    preferences.putFloat("gapY", placeGapY_inch);
+    
+    // Save Tray Dimensions
+    preferences.putFloat("trayWidth", trayWidth_inch);
+    preferences.putFloat("trayHeight", trayHeight_inch);
+    
+    // Save Paint Settings
+    preferences.putFloat("paintPatOffX", paintPatternOffsetX_inch);
+    preferences.putFloat("paintPatOffY", paintPatternOffsetY_inch);
+    preferences.putFloat("paintGunOffX", paintGunOffsetX_inch);
+    preferences.putFloat("paintGunOffY", paintGunOffsetY_inch);
+    
+    // Save Paint Side Settings
+    for (int i = 0; i < 4; i++) {
+        String keyZ = "paintZ_" + String(i);
+        String keyP = "paintP_" + String(i);
+        String keyPat = "paintPat_" + String(i);
+        String keyS = "paintS_" + String(i);
+        
+        preferences.putFloat(keyZ.c_str(), paintZHeight_inch[i]);
+        preferences.putInt(keyP.c_str(), paintPitchAngle[i]);
+        preferences.putInt(keyPat.c_str(), paintPatternType[i]);
+        preferences.putFloat(keyS.c_str(), paintSpeed[i]);
+    }
+    
+    // Force a commit with an extra write
+    preferences.putUInt("lastSaveTime", millis());
+    
+    // Close preferences to save
+    preferences.end();
+    
+    Serial.println("[SAVE] All settings saved to NVS");
+}
+
+// New function to load all settings from NVS
+void loadSettings() {
+    // Open preferences
+    preferences.begin("machineCfg", false);
+    
+    // Load Pattern Motion Settings (with defaults)
+    patternXSpeed = preferences.getFloat("patXSpd", 20000.0);
+    patternXAccel = preferences.getFloat("patXAcc", 20000.0);
+    patternYSpeed = preferences.getFloat("patYSpd", 20000.0);
+    patternYAccel = preferences.getFloat("patYAcc", 20000.0);
+    
+    // Load PnP Settings
+    pnpOffsetX_inch = preferences.getFloat("pnpOffX", 15.0);
+    pnpOffsetY_inch = preferences.getFloat("pnpOffY", 0.0);
+    placeFirstXAbsolute_inch = preferences.getFloat("placeFirstXAbs", 20.0);
+    placeFirstYAbsolute_inch = preferences.getFloat("placeFirstYAbs", 20.0);
+    
+    // Load Grid Settings
+    placeGridCols = preferences.getInt("gridCols", 4);
+    placeGridRows = preferences.getInt("gridRows", 5);
+    placeGapX_inch = preferences.getFloat("gapX", 0.0f);
+    placeGapY_inch = preferences.getFloat("gapY", 0.0f);
+    
+    // Load Tray Dimensions
+    trayWidth_inch = preferences.getFloat("trayWidth", 24.0f);
+    trayHeight_inch = preferences.getFloat("trayHeight", 18.0f);
+    
+    // Validate the loaded tray dimensions
+    if (trayWidth_inch <= 0 || trayHeight_inch <= 0) {
+        Serial.printf("[ERROR] Invalid tray dimensions loaded: width=%.2f, height=%.2f. Using defaults.\n", 
+                     trayWidth_inch, trayHeight_inch);
+        trayWidth_inch = 24.0f;
+        trayHeight_inch = 18.0f;
+    }
+    
+    // Load Painting Offsets
+    paintPatternOffsetX_inch = preferences.getFloat("paintPatOffX", 0.0f);
+    paintPatternOffsetY_inch = preferences.getFloat("paintPatOffY", 0.0f);
+    paintGunOffsetX_inch = preferences.getFloat("paintGunOffX", -3.0f);
+    paintGunOffsetY_inch = preferences.getFloat("paintGunOffY", -6.0f);
+    
+    // Load Painting Side Settings
+    for (int i = 0; i < 4; i++) {
+        String keyZ = "paintZ_" + String(i);
+        String keyP = "paintP_" + String(i);
+        String keyPat = "paintPat_" + String(i);
+        String keyS = "paintS_" + String(i);
+        
+        paintZHeight_inch[i] = preferences.getFloat(keyZ.c_str(), 1.0f);
+        paintPitchAngle[i] = preferences.getInt(keyP.c_str(), PITCH_SERVO_MAX);
+        
+        // More explicit loading of pattern type with debugging
+        int storedPattern = preferences.getInt(keyPat.c_str(), -999);
+        if (storedPattern == -999) {
+            // No value found, use default
+            paintPatternType[i] = (i == 0 || i == 2) ? 0 : 90;
+            Serial.printf("[DEBUG] No stored pattern found for side %d, using default: %d\n", 
+                         i, paintPatternType[i]);
+        } else {
+            paintPatternType[i] = storedPattern;
+            Serial.printf("[DEBUG] Loaded paintPatternType[%d]=%d from preferences\n", 
+                         i, paintPatternType[i]);
+        }
+        
+        paintSpeed[i] = preferences.getFloat(keyS.c_str(), 10000.0f);
+    }
+    
+    // Get last save time (just for debug)
+    unsigned int lastSave = preferences.getUInt("lastSaveTime", 0);
+    if (lastSave > 0) {
+        Serial.printf("[DEBUG] Last settings save time: %u\n", lastSave);
+    } else {
+        Serial.println("[DEBUG] No previous settings save detected");
+    }
+    
+    // Close preferences
+    preferences.end();
+    
+    Serial.println("[LOAD] All settings loaded from NVS");
+}
 
