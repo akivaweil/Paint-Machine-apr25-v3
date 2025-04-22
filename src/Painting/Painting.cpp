@@ -22,15 +22,15 @@ extern volatile bool inPickPlaceMode;
 // Painting Offsets
 float paintPatternOffsetX_inch = 0.0f;
 float paintPatternOffsetY_inch = 0.0f;
-float paintGunOffsetX_inch = 0.0f;   // Offset of nozzle from TCP X
-float paintGunOffsetY_inch = 1.5f;   // Offset of nozzle from TCP Y (e.g., 1.5 inches forward)
+float paintGunOffsetX_inch = -3.0f;   // Offset of nozzle from TCP X (Default updated)
+float paintGunOffsetY_inch = -6.0f;   // Offset of nozzle from TCP Y (Default updated)
 
 // Painting Side Settings (Arrays for 4 sides: 0=Back, 1=Right, 2=Front, 3=Left)
-float paintZHeight_inch[4] = { 1.0f, 1.0f, 1.0f, 1.0f }; // Default Z height (NOTE: Needs conversion based on homing! This might be relative to TCP or absolute? Needs clarification. Using ABSOLUTE for now, needs validation)
+float paintZHeight_inch[4] = { 1.0f, 1.0f, 1.0f, 1.0f }; // Default Z height for painting each side
 int   paintPitchAngle[4]   = { PITCH_SERVO_MIN, PITCH_SERVO_MIN, PITCH_SERVO_MIN, PITCH_SERVO_MIN }; // Default Pitch angle
-int   paintRollAngle[4]    = { ROLL_VERTICAL, ROLL_VERTICAL, ROLL_VERTICAL, ROLL_VERTICAL }; // Default Roll angle
 float paintSpeed[4]        = { 10000.0f, 10000.0f, 10000.0f, 10000.0f }; // Default painting speed (steps/sec)
 
+// Rotation Positions (degrees relative to Back=0)
 
 // === Function Definitions ===
 

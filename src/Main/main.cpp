@@ -38,7 +38,7 @@ Bounce debouncer_pnp_cycle_button = Bounce(); // Added for physical button
 
 // Servos
 Servo servo_pitch;
-Servo servo_roll;
+// Servo servo_roll; <-- REMOVED
 
 // Web Server and WebSocket Server
 WebServer webServer(80);
@@ -655,7 +655,7 @@ void paintSide(int sideIndex) {
     // 3. Get Side Parameters (Use parameters for the *requested* sideIndex)
     float zHeight = paintZHeight_inch[sideIndex];
     int pitch = paintPitchAngle[sideIndex];
-    int roll = paintRollAngle[sideIndex]; // Use roll for the current side
+    // int roll = paintRollAngle[sideIndex]; // Use roll for the current side <-- REMOVED
     float speed = paintSpeed[sideIndex]; // Speed in steps/s
     float accel = patternXAccel; // Assuming X/Y use same accel for painting
 
@@ -664,9 +664,9 @@ void paintSide(int sideIndex) {
     // delay(100); // Small delay after rotation
 
     // 5. Set Servo Angles
-    Serial.printf("Setting servos for Side %d: Pitch=%d, Roll=%d\n", sideIndex, pitch, roll);
+    Serial.printf("Setting servos for Side %d: Pitch=%d\n", sideIndex, pitch); // Removed Roll
     servo_pitch.write(pitch);
-    servo_roll.write(roll);
+    // servo_roll.write(roll); <-- REMOVED
     delay(300); // Allow servos to settle
 
     // 6. Define Path Reference Points and Spacing
@@ -694,8 +694,8 @@ void paintSide(int sideIndex) {
     float startTcpX, startTcpY; // Where the painting pattern *actually* starts for this side
 
     if (sideIndex == 0) { // --- BACK SIDE PATTERN ---
-        bool isVertical = (roll == ROLL_VERTICAL); // Use Side 0 roll
-        Serial.printf("Back side painting: Orientation %s (roll=%d)\n", isVertical ? "VERTICAL" : "HORIZONTAL", roll);
+        // bool isVertical = (roll == ROLL_VERTICAL); // Use Side 0 roll <-- REMOVED
+        Serial.printf("Back side painting (Vertical default)\n"); // Removed orientation info
 
         // Start at the calculated Back Start reference point
         startTcpX = backStartX;
@@ -713,54 +713,14 @@ void paintSide(int sideIndex) {
         float currentTcpX = startTcpX;
         float currentTcpY = startTcpY;
 
-        if (isVertical) {
-            // VERTICAL ORIENTATION - Sweep horizontally, move down between rows
-            bool movingLeft = true; // Start by moving left (negative X)
-            for (int r = 0; r < placeGridRows; ++r) {
-                float targetTcpY = backStartY - (r * rowSpacing);
-                if (abs(currentTcpY - targetTcpY) > 0.001) {
-                    moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
-                    // <<< ADDED: Check for stop request >>>
-                    if (stopRequested) {
-                        Serial.println("STOP requested. Aborting paintSide.");
-                        isMoving = false; 
-                        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
-                        return;
-                    }
-                    currentTcpY = targetTcpY;
-                }
-                float targetTcpX = movingLeft ? (backStartX - trayWidth_inch) : backStartX;
-                Serial.printf("Back Row %d (%s): Target X=%.2f, Y=%.2f\n", r, movingLeft ? "Left" : "Right", targetTcpX, targetTcpY);
-                moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
-                // <<< ADDED: Check for stop request >>>
-                if (stopRequested) {
-                    Serial.println("STOP requested. Aborting paintSide.");
-                    isMoving = false; 
-                    webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
-                    return;
-                }
-                currentTcpX = targetTcpX;
-                movingLeft = !movingLeft;
-            }
-        } else {
-            // HORIZONTAL ORIENTATION - Sweep vertically, move right between columns
-            bool movingDown = true; // Start by moving down (negative Y)
-            for (int c = 0; c < placeGridCols; ++c) {
-                float targetTcpX = backStartX - (c * colSpacing);
-                if (abs(currentTcpX - targetTcpX) > 0.001) {
-                    moveToXYPositionInches_Paint(targetTcpX, currentTcpY, speed, accel);
-                    // <<< ADDED: Check for stop request >>>
-                    if (stopRequested) {
-                        Serial.println("STOP requested. Aborting paintSide.");
-                        isMoving = false; 
-                        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
-                        return;
-                    }
-                    currentTcpX = targetTcpX;
-                }
-                float targetTcpY = movingDown ? (backStartY - (placeGridRows - 1) * rowSpacing) : backStartY;
-                Serial.printf("Back Col %d (%s): Target X=%.2f, Y=%.2f\n", c, movingDown ? "Down" : "Up", targetTcpX, targetTcpY);
-                moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+        // REMOVED if (isVertical) condition and the else (HORIZONTAL) block.
+        // Kept only the VERTICAL ORIENTATION logic:
+        // VERTICAL ORIENTATION - Sweep horizontally, move down between rows
+        bool movingLeft = true; // Start by moving left (negative X)
+        for (int r = 0; r < placeGridRows; ++r) {
+            float targetTcpY = backStartY - (r * rowSpacing);
+            if (abs(currentTcpY - targetTcpY) > 0.001) {
+                moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
                 // <<< ADDED: Check for stop request >>>
                 if (stopRequested) {
                     Serial.println("STOP requested. Aborting paintSide.");
@@ -769,12 +729,25 @@ void paintSide(int sideIndex) {
                     return;
                 }
                 currentTcpY = targetTcpY;
-                movingDown = !movingDown;
             }
+            float targetTcpX = movingLeft ? (backStartX - trayWidth_inch) : backStartX;
+            Serial.printf("Back Row %d (%s): Target X=%.2f, Y=%.2f\n", r, movingLeft ? "Left" : "Right", targetTcpX, targetTcpY);
+            moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+            // <<< ADDED: Check for stop request >>>
+            if (stopRequested) {
+                Serial.println("STOP requested. Aborting paintSide.");
+                isMoving = false; 
+                webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                return;
+            }
+            currentTcpX = targetTcpX;
+            movingLeft = !movingLeft;
         }
+        // END of modifications for sideIndex == 0
+
     } else if (sideIndex == 2) { // --- FRONT SIDE PATTERN (Reversed Back) ---
-        bool isVertical = (roll == ROLL_VERTICAL); // Use Side 2 roll
-        Serial.printf("Front side painting: Orientation %s (roll=%d)\n", isVertical ? "VERTICAL" : "HORIZONTAL", roll);
+        // bool isVertical = (roll == ROLL_VERTICAL); // Use Side 2 roll <-- REMOVED
+        Serial.printf("Front side painting (Vertical default)\n"); // Removed orientation info
 
         // Calculate END point of the theoretical BACK pattern (based on VERTICAL back pattern)
         float backPatternEndX_V, backPatternEndY_V;
@@ -782,18 +755,18 @@ void paintSide(int sideIndex) {
         backPatternEndX_V = (placeGridRows % 2 != 0) ? (backStartX - trayWidth_inch) : backStartX; // Odd rows end left
 
         // Calculate END point of the theoretical BACK pattern (based on HORIZONTAL back pattern)
-        float backPatternEndX_H, backPatternEndY_H;
-        backPatternEndX_H = backStartX - (placeGridCols - 1) * colSpacing; // Always ends left
-        backPatternEndY_H = (placeGridCols % 2 != 0) ? (backStartY - (placeGridRows - 1) * rowSpacing) : backStartY; // Odd cols end down
+        // float backPatternEndX_H, backPatternEndY_H; <-- REMOVED Horizontal calculation
+        // backPatternEndX_H = backStartX - (placeGridCols - 1) * colSpacing; // Always ends left <-- REMOVED
+        // backPatternEndY_H = (placeGridCols % 2 != 0) ? (backStartY - (placeGridRows - 1) * rowSpacing) : backStartY; // Odd cols end down <-- REMOVED
 
         // Determine the *actual* start point for the FRONT pattern based on the FRONT's orientation
-        if (isVertical) { // If FRONT is vertical, it starts where a VERTICAL back pattern would end
+        // if (isVertical) { // If FRONT is vertical, it starts where a VERTICAL back pattern would end <-- REMOVED Condition
             startTcpX = backPatternEndX_V;
             startTcpY = backPatternEndY_V;
-        } else { // If FRONT is horizontal, it starts where a HORIZONTAL back pattern would end
-            startTcpX = backPatternEndX_H;
-            startTcpY = backPatternEndY_H;
-        }
+        // } else { // If FRONT is horizontal, it starts where a HORIZONTAL back pattern would end <-- REMOVED Else block
+        //     startTcpX = backPatternEndX_H;
+        //     startTcpY = backPatternEndY_H;
+        // }
 
         Serial.printf("Moving TCP to start of Front sweep (End of theoretical Back): (%.2f, %.2f)\n", startTcpX, startTcpY);
         moveToXYPositionInches_Paint(startTcpX, startTcpY, speed, accel);
@@ -808,69 +781,19 @@ void paintSide(int sideIndex) {
         float currentTcpX = startTcpX;
         float currentTcpY = startTcpY;
 
-        if (isVertical) {
-            // VERTICAL ORIENTATION - Sweep horizontally, move UP between rows
-            // Start moving in the opposite direction of the last back sweep
-            bool movingRight = (placeGridRows % 2 != 0); // Back ended Left -> Front starts Right
+        // REMOVED if (isVertical) condition and the else (HORIZONTAL) block.
+        // Kept only the VERTICAL ORIENTATION logic:
+        // VERTICAL ORIENTATION - Sweep horizontally, move UP between rows
+        // Start moving in the opposite direction of the last back sweep
+        bool movingRight = (placeGridRows % 2 != 0); // Back ended Left -> Front starts Right
 
-            for (int r = placeGridRows - 1; r >= 0; --r) { // Loop backwards through rows
-                float targetTcpY = backStartY - (r * rowSpacing); // Calculate Y for this row level
+        for (int r = placeGridRows - 1; r >= 0; --r) { // Loop backwards through rows
+            float targetTcpY = backStartY - (r * rowSpacing); // Calculate Y for this row level
 
-                // Move vertically UP to the target Y level if needed
-                if (abs(currentTcpY - targetTcpY) > 0.001) {
-                    Serial.printf("Front Row %d: Moving UP to Y=%.2f\n", r, targetTcpY);
-                    moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
-                    // <<< ADDED: Check for stop request >>>
-                    if (stopRequested) {
-                        Serial.println("STOP requested. Aborting paintSide.");
-                        isMoving = false; 
-                        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
-                        return;
-                    }
-                    currentTcpY = targetTcpY;
-                }
-
-                // Calculate target X based on reversed horizontal direction
-                float targetTcpX = movingRight ? backStartX : (backStartX - trayWidth_inch);
-                Serial.printf("Front Row %d (%s): Target X=%.2f, Y=%.2f\n", r, movingRight ? "Right" : "Left", targetTcpX, targetTcpY);
-                moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
-                // <<< ADDED: Check for stop request >>>
-                if (stopRequested) {
-                    Serial.println("STOP requested. Aborting paintSide.");
-                    isMoving = false; 
-                    webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
-                    return;
-                }
-                currentTcpX = targetTcpX;
-
-                movingRight = !movingRight; // Flip direction
-            }
-        } else {
-            // HORIZONTAL ORIENTATION - Sweep vertically, move LEFT between columns
-            // Start moving in the opposite direction of the last back sweep
-            bool movingUp = (placeGridCols % 2 != 0); // Back ended Down -> Front starts Up
-
-            for (int c = placeGridCols - 1; c >= 0; --c) { // Loop backwards through columns
-                float targetTcpX = backStartX - (c * colSpacing); // Calculate X for this column level
-
-                // Move horizontally LEFT to the target X level if needed
-                if (abs(currentTcpX - targetTcpX) > 0.001) {
-                     Serial.printf("Front Col %d: Moving LEFT to X=%.2f\n", c, targetTcpX);
-                     moveToXYPositionInches_Paint(targetTcpX, currentTcpY, speed, accel);
-                     // <<< ADDED: Check for stop request >>>
-                     if (stopRequested) {
-                         Serial.println("STOP requested. Aborting paintSide.");
-                         isMoving = false; 
-                         webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
-                         return;
-                     }
-                     currentTcpX = targetTcpX;
-                 }
-
-                // Calculate target Y based on reversed vertical direction
-                float targetTcpY = movingUp ? backStartY : (backStartY - (placeGridRows - 1) * rowSpacing);
-                Serial.printf("Front Col %d (%s): Target X=%.2f, Y=%.2f\n", c, movingUp ? "Up" : "Down", targetTcpX, targetTcpY);
-                moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+            // Move vertically UP to the target Y level if needed
+            if (abs(currentTcpY - targetTcpY) > 0.001) {
+                Serial.printf("Front Row %d: Moving UP to Y=%.2f\n", r, targetTcpY);
+                moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
                 // <<< ADDED: Check for stop request >>>
                 if (stopRequested) {
                     Serial.println("STOP requested. Aborting paintSide.");
@@ -879,10 +802,24 @@ void paintSide(int sideIndex) {
                     return;
                 }
                 currentTcpY = targetTcpY;
-
-                movingUp = !movingUp; // Flip direction
             }
+
+            // Calculate target X based on reversed horizontal direction
+            float targetTcpX = movingRight ? backStartX : (backStartX - trayWidth_inch);
+            Serial.printf("Front Row %d (%s): Target X=%.2f, Y=%.2f\n", r, movingRight ? "Right" : "Left", targetTcpX, targetTcpY);
+            moveToXYPositionInches_Paint(targetTcpX, targetTcpY, speed, accel);
+            // <<< ADDED: Check for stop request >>>
+            if (stopRequested) {
+                Serial.println("STOP requested. Aborting paintSide.");
+                isMoving = false; 
+                webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
+                return;
+            }
+            currentTcpX = targetTcpX;
+
+            movingRight = !movingRight; // Flip direction
         }
+        // END of modifications for sideIndex == 2
 
     } else { // --- SIDE 1 (Right) and 3 (Left) - Original Simple Pattern ---
         Serial.printf("Side %d painting: Using original simple pattern\n", sideIndex);
@@ -1492,57 +1429,57 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                     } else {
                         int sideIndex;
                         float newZ, newSpeed;
-                        int newPitch, newRoll;
-                        // Format: SET_PAINT_SIDE_SETTINGS sideIndex zHeight pitch roll speed
-                        int parsed = sscanf(command.c_str() + strlen("SET_PAINT_SIDE_SETTINGS "), "%d %f %d %d %f",
-                                           &sideIndex, &newZ, &newPitch, &newRoll, &newSpeed);
+                        int newPitch; // Removed newRoll
+                        // Format: SET_PAINT_SIDE_SETTINGS sideIndex zHeight pitch speed <-- Removed roll
+                        int parsed = sscanf(command.c_str() + strlen("SET_PAINT_SIDE_SETTINGS "), "%d %f %d %f",
+                                           &sideIndex, &newZ, &newPitch, &newSpeed); // Removed newRoll
 
-                        if (parsed == 5 && sideIndex >= 0 && sideIndex < 4) {
+                        if (parsed == 4 && sideIndex >= 0 && sideIndex < 4) { // Changed parsed count to 4
                             // Validate UI pitch value first (0-90)
                             if (newPitch < 0 || newPitch > 90) {
                                 Serial.printf("[ERROR] Invalid pitch value %d from UI (must be 0-90)\n", newPitch);
                                 webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Pitch Angle for side " + String(sideIndex) + " must be between 0 and 90.\"}");
                                 return;
                             }
-                            
+
                             // Map the UI pitch value (0-90) to servo value (PITCH_SERVO_MIN to PITCH_SERVO_MAX)
                             // For example: 0 -> PITCH_SERVO_MIN, 90 -> PITCH_SERVO_MAX
                             newPitch = map(newPitch, 0, 90, PITCH_SERVO_MIN, PITCH_SERVO_MAX);
                             Serial.printf("[DEBUG] Mapped UI pitch %d to servo pitch %d\n", newPitch, newPitch);
-                            
-                            // Map the UI values (0=Vertical, 90=Horizontal) to the actual servo values
-                            if (newRoll == 0) {
-                                newRoll = ROLL_VERTICAL;  // Map 0 from UI to the actual vertical servo position
-                            } else if (newRoll == 90) {
-                                newRoll = ROLL_HORIZONTAL; // Map 90 from UI to the actual horizontal servo position
-                        } else {
-                                // For any unexpected values, default to vertical for safety
-                                Serial.printf("[WARN] Invalid Roll value %d from UI, defaulting to VERTICAL\n", newRoll);
-                                newRoll = ROLL_VERTICAL;
-                            }
-                            
+
+                            // REMOVED Mapping of newRoll
+                            // if (newRoll == 0) {
+                            //     newRoll = ROLL_VERTICAL;  // Map 0 from UI to the actual vertical servo position
+                            // } else if (newRoll == 90) {
+                            //     newRoll = ROLL_HORIZONTAL; // Map 90 from UI to the actual horizontal servo position
+                            // } else {
+                            //     // For any unexpected values, default to vertical for safety
+                            //     Serial.printf("[WARN] Invalid Roll value %d from UI, defaulting to VERTICAL\n", newRoll);
+                            //     newRoll = ROLL_VERTICAL;
+                            // }
+
                             newSpeed = constrain(newSpeed, 5000.0f, 20000.0f);
 
                             paintZHeight_inch[sideIndex] = newZ;
                             paintPitchAngle[sideIndex] = newPitch;
-                            paintRollAngle[sideIndex] = newRoll;
+                            // paintRollAngle[sideIndex] = newRoll; <-- REMOVED
                             paintSpeed[sideIndex] = newSpeed;
 
                             // Save to Preferences
                             preferences.begin("machineCfg", false);
                             String keyZ = "paintZ_" + String(sideIndex);
                             String keyP = "paintP_" + String(sideIndex);
-                            String keyR = "paintR_" + String(sideIndex);
+                            // String keyR = "paintR_" + String(sideIndex); <-- REMOVED
                             String keyS = "paintS_" + String(sideIndex);
                             preferences.putFloat(keyZ.c_str(), paintZHeight_inch[sideIndex]);
                             preferences.putInt(keyP.c_str(), paintPitchAngle[sideIndex]);
-                            preferences.putInt(keyR.c_str(), paintRollAngle[sideIndex]);
+                            // preferences.putInt(keyR.c_str(), paintRollAngle[sideIndex]); <-- REMOVED
                             preferences.putFloat(keyS.c_str(), paintSpeed[sideIndex]);
                             preferences.end();
 
-                            Serial.printf("[DEBUG] Set Side %d Settings: Z=%.2f, P=%d, R=%d, S=%.0f\n",
+                            Serial.printf("[DEBUG] Set Side %d Settings: Z=%.2f, P=%d, S=%.0f\n", // Removed Roll
                                           sideIndex, paintZHeight_inch[sideIndex], paintPitchAngle[sideIndex],
-                                          paintRollAngle[sideIndex], paintSpeed[sideIndex]);
+                                          /* paintRollAngle[sideIndex],*/ paintSpeed[sideIndex]); // Removed Roll
 
                             // Send confirmation with all settings
                             sendAllSettingsUpdate(num, "Side " + String(sideIndex) + " settings updated.");
@@ -1761,57 +1698,57 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                     } else {
                         int sideIndex;
                         float newZ, newSpeed;
-                        int newPitch, newRoll;
-                        // Format: SET_PAINT_SIDE_SETTINGS sideIndex zHeight pitch roll speed
-                        int parsed = sscanf(command.c_str() + strlen("SET_PAINT_SIDE_SETTINGS "), "%d %f %d %d %f",
-                                           &sideIndex, &newZ, &newPitch, &newRoll, &newSpeed);
+                        int newPitch; // Removed newRoll
+                        // Format: SET_PAINT_SIDE_SETTINGS sideIndex zHeight pitch speed <-- Removed roll
+                        int parsed = sscanf(command.c_str() + strlen("SET_PAINT_SIDE_SETTINGS "), "%d %f %d %f",
+                                           &sideIndex, &newZ, &newPitch, &newSpeed); // Removed newRoll
 
-                        if (parsed == 5 && sideIndex >= 0 && sideIndex < 4) {
+                        if (parsed == 4 && sideIndex >= 0 && sideIndex < 4) { // Changed parsed count to 4
                             // Validate UI pitch value first (0-90)
                             if (newPitch < 0 || newPitch > 90) {
                                 Serial.printf("[ERROR] Invalid pitch value %d from UI (must be 0-90)\n", newPitch);
                                 webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Pitch Angle for side " + String(sideIndex) + " must be between 0 and 90.\"}");
                                 return;
                             }
-                            
+
                             // Map the UI pitch value (0-90) to servo value (PITCH_SERVO_MIN to PITCH_SERVO_MAX)
                             // For example: 0 -> PITCH_SERVO_MIN, 90 -> PITCH_SERVO_MAX
                             newPitch = map(newPitch, 0, 90, PITCH_SERVO_MIN, PITCH_SERVO_MAX);
                             Serial.printf("[DEBUG] Mapped UI pitch %d to servo pitch %d\n", newPitch, newPitch);
-                            
-                            // Map the UI values (0=Vertical, 90=Horizontal) to the actual servo values
-                            if (newRoll == 0) {
-                                newRoll = ROLL_VERTICAL;  // Map 0 from UI to the actual vertical servo position
-                            } else if (newRoll == 90) {
-                                newRoll = ROLL_HORIZONTAL; // Map 90 from UI to the actual horizontal servo position
-                        } else {
-                                // For any unexpected values, default to vertical for safety
-                                Serial.printf("[WARN] Invalid Roll value %d from UI, defaulting to VERTICAL\n", newRoll);
-                                newRoll = ROLL_VERTICAL;
-                            }
-                            
+
+                            // REMOVED Mapping of newRoll
+                            // if (newRoll == 0) {
+                            //     newRoll = ROLL_VERTICAL;  // Map 0 from UI to the actual vertical servo position
+                            // } else if (newRoll == 90) {
+                            //     newRoll = ROLL_HORIZONTAL; // Map 90 from UI to the actual horizontal servo position
+                            // } else {
+                            //     // For any unexpected values, default to vertical for safety
+                            //     Serial.printf("[WARN] Invalid Roll value %d from UI, defaulting to VERTICAL\n", newRoll);
+                            //     newRoll = ROLL_VERTICAL;
+                            // }
+
                             newSpeed = constrain(newSpeed, 5000.0f, 20000.0f);
 
                             paintZHeight_inch[sideIndex] = newZ;
                             paintPitchAngle[sideIndex] = newPitch;
-                            paintRollAngle[sideIndex] = newRoll;
+                            // paintRollAngle[sideIndex] = newRoll; <-- REMOVED
                             paintSpeed[sideIndex] = newSpeed;
 
                             // Save to Preferences
                             preferences.begin("machineCfg", false);
                             String keyZ = "paintZ_" + String(sideIndex);
                             String keyP = "paintP_" + String(sideIndex);
-                            String keyR = "paintR_" + String(sideIndex);
+                            // String keyR = "paintR_" + String(sideIndex); <-- REMOVED
                             String keyS = "paintS_" + String(sideIndex);
                             preferences.putFloat(keyZ.c_str(), paintZHeight_inch[sideIndex]);
                             preferences.putInt(keyP.c_str(), paintPitchAngle[sideIndex]);
-                            preferences.putInt(keyR.c_str(), paintRollAngle[sideIndex]);
+                            // preferences.putInt(keyR.c_str(), paintRollAngle[sideIndex]); <-- REMOVED
                             preferences.putFloat(keyS.c_str(), paintSpeed[sideIndex]);
                             preferences.end();
 
-                            Serial.printf("[DEBUG] Set Side %d Settings: Z=%.2f, P=%d, R=%d, S=%.0f\n",
+                            Serial.printf("[DEBUG] Set Side %d Settings: Z=%.2f, P=%d, S=%.0f\n", // Removed Roll
                                           sideIndex, paintZHeight_inch[sideIndex], paintPitchAngle[sideIndex],
-                                          paintRollAngle[sideIndex], paintSpeed[sideIndex]);
+                                          /* paintRollAngle[sideIndex],*/ paintSpeed[sideIndex]); // Removed Roll
 
                             // Send confirmation with all settings
                             sendAllSettingsUpdate(num, "Side " + String(sideIndex) + " settings updated.");
@@ -2097,26 +2034,12 @@ void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
     for (int i = 0; i < 4; ++i) {
         String keyZ = "paintZ_" + String(i);
         String keyP = "paintP_" + String(i);
-        String keyR = "paintR_" + String(i);
         String keyS = "paintS_" + String(i);
         doc[keyZ] = paintZHeight_inch[i];
         
         // Map the actual servo pitch values back to UI values (0-90)
         int uiPitchValue = map(paintPitchAngle[i], PITCH_SERVO_MIN, PITCH_SERVO_MAX, 0, 90);
         doc[keyP] = uiPitchValue;
-        
-        // Map the actual servo position values back to UI values
-        // UI expects 0 for vertical, 90 for horizontal
-        if (paintRollAngle[i] == ROLL_VERTICAL) {
-            doc[keyR] = 0; // Vertical in UI
-        } else if (paintRollAngle[i] == ROLL_HORIZONTAL) {
-            doc[keyR] = 90; // Horizontal in UI
-    } else {
-            // If the value is neither expected value, default to vertical in UI
-            Serial.printf("[WARN] Unexpected Roll value %d for side %d, mapping to VERTICAL (0) for UI\n", 
-                         paintRollAngle[i], i);
-            doc[keyR] = 0;
-        }
         
         doc[keyS] = paintSpeed[i]; // Send the raw speed value (e.g., 5000-20000)
     }
@@ -2219,11 +2142,9 @@ void setup() {
     for (int i = 0; i < 4; i++) {
         String keyZ = "paintZ_" + String(i);
         String keyP = "paintP_" + String(i);
-        String keyR = "paintR_" + String(i);
         String keyS = "paintS_" + String(i);
         paintZHeight_inch[i] = preferences.getFloat(keyZ.c_str(), 1.0f);
         paintPitchAngle[i] = preferences.getInt(keyP.c_str(), PITCH_SERVO_MIN); // Default to min
-        paintRollAngle[i] = preferences.getInt(keyR.c_str(), ROLL_VERTICAL);   // Default to vertical
         paintSpeed[i] = preferences.getFloat(keyS.c_str(), 10000.0f);       // Default to 10k steps/sec
 
         // Clamp loaded servo values to their limits just in case
@@ -2249,8 +2170,8 @@ void setup() {
                   paintPatternOffsetX_inch, paintPatternOffsetY_inch,
                   paintGunOffsetX_inch, paintGunOffsetY_inch);
     for (int i = 0; i < 4; i++) {
-        Serial.printf("  Side %d: Z=%.2f, Pitch=%d, Roll=%d, Speed=%.0f\n",
-                      i, paintZHeight_inch[i], paintPitchAngle[i], paintRollAngle[i], paintSpeed[i]);
+        Serial.printf("  Side %d: Z=%.2f, Pitch=%d, Speed=%.0f\n",
+                      i, paintZHeight_inch[i], paintPitchAngle[i], paintSpeed[i]);
     }
     // ---
 
@@ -2264,17 +2185,17 @@ void setup() {
 	ESP32PWM::allocateTimer(2);
 	ESP32PWM::allocateTimer(3);
 	servo_pitch.setPeriodHertz(50);    // Standard 50Hz servo frequency
-    servo_roll.setPeriodHertz(50);
+    // servo_roll.setPeriodHertz(50);
 
     // Attach servos to pins using default min/max pulse widths (500, 2400 us)
     servo_pitch.attach(PITCH_SERVO_PIN);
-    servo_roll.attach(ROLL_SERVO_PIN);
+    // servo_roll.attach(ROLL_SERVO_PIN);
 
     // Move servos to initial max positions
     // Serial.printf("Setting Pitch Servo to %d\\n", PITCH_SERVO_MAX);
     servo_pitch.write(PITCH_SERVO_MAX); // Use defined max value
     // Serial.printf("Setting Roll Servo to %d\\n", ROLL_HORIZONTAL);
-    servo_roll.write(ROLL_HORIZONTAL); // Use defined horizontal value as 'max'
+    // servo_roll.write(ROLL_HORIZONTAL); // Use defined horizontal value as 'max'
 
     delay(500); // Give servos time to reach position
     // Serial.println("Servos Initialized.");

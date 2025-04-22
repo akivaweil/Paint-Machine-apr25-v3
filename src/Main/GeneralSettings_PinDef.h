@@ -37,10 +37,7 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 // =====================
 #define PITCH_SERVO_MIN 150         // Minimum safe pitch angle (degrees) - adjusted after servo swap
 #define PITCH_SERVO_MAX 180         // Maximum safe pitch angle (degrees) - matches ROLL_HORIZONTAL
-#define ROLL_VERTICAL 45            // Roll angle for vertical spray (degrees)
-#define ROLL_HORIZONTAL 140         // Roll angle for horizontal spray (degrees)
 #define SERVO_INIT_POS_PITCH PITCH_SERVO_MAX // Initial pitch position on boot
-#define SERVO_INIT_POS_ROLL ROLL_VERTICAL    // Initial roll position on boot
 
 // =====================
 // Miscellaneous Settings
@@ -95,7 +92,6 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 
 // Servos
 #define PITCH_SERVO_PIN 47        // Updated as requested
-#define ROLL_SERVO_PIN 48         // Updated as requested
 
 // Actuators (Relays)
 #define PICK_CYLINDER_PIN 10      // Relay for pick cylinder (Changed back from 12)
@@ -167,7 +163,6 @@ extern WebSocketsServer webSocket;
 
 // Servos
 extern Servo servo_pitch;
-extern Servo servo_roll;
 
 // State Variables
 extern bool allHomed;
