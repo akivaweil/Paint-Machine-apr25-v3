@@ -56,8 +56,8 @@ volatile bool inCalibrationMode = false; // Tracks if calibration mode is active
 volatile bool stopRequested = false; // <<< ADDED: Flag to signal stop request
 
 // NEW: Tray Dimension Variables
-float trayWidth_inch = 24.0; // Default tray width
-float trayHeight_inch = 18.0; // Default tray height
+float trayWidth_inch = 18.0; // Default tray width - UPDATED
+float trayHeight_inch = 26.0; // Default tray height - UPDATED
 
 // Pattern/General Speed/Accel Variables (declared extern in GeneralSettings_PinDef.h)
 float patternXSpeed = 20000.0; // Actual value
