@@ -497,10 +497,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
               // --- Add JS Debugging ---
               console.log(`JS Debug: Received status='${data.status}'`);
-              console.log(`JS Debug: Before enableButtons: isMoving=${isMoving}, isHoming=${isHoming}`);
+              console.log(`JS Debug: Before state update: isMoving=${isMoving}, isHoming=${isHoming}`);
               // --- End JS Debugging ---
 
-              // Update JavaScript state variables
+              // Update JavaScript state variables FIRST
               isMoving = (data.status === "Busy" || data.status === "Moving" || data.status === "Homing");
               isHoming = (data.status === "Homing");
               
@@ -510,6 +510,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   allHomed = data.homed; // Use explicit homed status from server
               }
 
+              // --- Update UI Elements based on data ---
               // Update offset display and inputs if offset info is present
               if (data.hasOwnProperty('pnpOffsetX') && data.hasOwnProperty('pnpOffsetY')) {
                   let currentX = parseFloat(data.pnpOffsetX).toFixed(1); // Changed to 1 decimal place
@@ -622,16 +623,15 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   currentPosDisplaySpan.innerHTML = `X: ${parseFloat(data.posX).toFixed(3)}, Y: ${parseFloat(data.posY).toFixed(3)}, Z: ${parseFloat(data.posZ).toFixed(3)}`;
               }
 
+              // --- Update UI Mode (Buttons, Controls visibility) based on status ---
               if (data.status === "Ready" || data.status === "Error") {
                   console.log("JS Debug: Executing 'Ready' or 'Error' block"); // JS Debug
                   statusDiv.style.color = (data.status === "Ready") ? 'green' : 'red';
                   if (data.status === "Ready") allHomed = true; // Set homed on Ready but don't unset on Error
                   
-                  // Reset the Pick & Place mode flag
-                  isMoving = false;
-                  console.log("JS Debug: Reset isMoving to false");
+                  // Reset the Pick & Place mode flag (isMoving was already reset based on status)
+                  console.log("JS Debug: Resetting PnP/Calib UI elements");
                   
-                  enableButtons(true, false);
                   pnpButton.innerHTML = "Enter Pick/Place"; // Reset button text
                   pnpButton.className = "button"; // Reset to default button style
                   pnpButton.onclick = function() { sendCommand('ENTER_PICKPLACE'); }; // Reset function
@@ -642,33 +642,21 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   statusDiv.style.color = 'blue'; // Indicate special mode
                   allHomed = true; // ADDED: Assume homed if ready for PnP
                   
-                  // Set the Pick & Place mode flag
-                  isMoving = true;
-                  console.log("JS Debug: Set isMoving to true");
-                  
-                  enableButtons(true, true); // PnP ready state (enable=true, enablePnP=true)
-                  // Change PnP button to Exit button with red color
                   pnpButton.innerHTML = "Exit Pick and Place Mode";
                   pnpButton.className = "button exit-button"; // Add red styling
-                  pnpButton.disabled = false;  
+                  pnpButton.disabled = false; // Ensure enabled here, enableButtons will handle final state 
                   pnpButton.onclick = function() { sendCommand('EXIT_PICKPLACE'); }; // Change function to exit
                   enterCalibrationButton.style.display = 'none'; // Hide Enter Cal button
                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
-                  enableButtons(); // Ensure buttons are enabled correctly
               } else if (data.status === "Busy" || data.status === "Moving" || data.status === "Homing") {
                   console.log("JS Debug: Executing 'Busy/Moving/Homing' block"); // JS Debug
                   statusDiv.style.color = 'orange';
-                  enableButtons(false, false); // Busy state (applies to normal, PnP, and Cal)
-                  // Keep PnP step button visible if already in PnP mode, even if moving
                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls on Homing
                   enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button on Homing
               } else if (data.status === "CalibrationActive") {
                   console.log("JS Debug: Executing 'CalibrationActive' block"); // JS Debug
                   statusDiv.style.color = 'purple'; // Indicate calibration mode
                   allHomed = true; // Assume homed when entering calibration
-                  isMoving = false; // Assume not moving initially
-                  isHoming = false;
-                  enableButtons(); // Update buttons for calibration mode
                   enterCalibrationButton.style.display = 'none'; // Hide Enter Cal button
                   calibrationControlsDiv.style.display = 'block'; // Show Cal controls
                   pnpButton.innerHTML = "Enter Pick/Place"; // Ensure PnP button is reset
@@ -677,21 +665,23 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               } else if (data.status === "PickPlaceComplete") {
                   console.log("JS Debug: Executing 'PickPlaceComplete' block"); // JS Debug
                   statusDiv.style.color = 'green';
-                  allHomed = true; // Still homed
-                  isMoving = false;
-                  isHoming = false;
-                  enableButtons(); // Update buttons post-PnP
                   pnpButton.innerHTML = "Sequence Complete"; // Update PnP button text
                   pnpButton.disabled = true; // Disable PnP button as sequence is done
                   enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button
                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
-              } else if (command == "START_PAINTING") {
-                      Serial.println("WebSocket: Received START_PAINTING command.");
-                      // startPaintingSequence(); // Call the (placeholder) function // COMMENTED OUT FOR NOW
+              } else if (command == "START_PAINTING") { // This check likely belongs on ESP side
+                      Serial.println("WebSocket: Received START_PAINTING command."); // ESP log, not JS
                    }
+
+              // --- Final step: Update all button states based on the latest JS state variables ---
+              console.log(`JS Debug: Before final enableButtons: isMoving=${isMoving}, isHoming=${isHoming}`); // JS Debug
+              enableButtons(); // ADDED single call here
+
           } catch (e) {
+              console.error("Error processing WebSocket message:", e); // Added error logging
               statusDiv.innerHTML = `Received raw: ${event.data}`; // Show raw data if JSON parse fails
               statusDiv.style.color = 'blue';
+              enableButtons(); // Also update buttons on error, might be disconnected state
           }
       }
 
@@ -700,9 +690,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           statusDiv.innerHTML = 'WebSocket Error';
           statusDiv.style.color = 'red';
           connectionIndicatorSpan.innerHTML = ' (Error)'; // Show indicator on error
-          enableButtons(false, false);
           enterCalibrationButton.style.display = 'inline-block'; // Ensure Enter Cal button is visible on error/disconnect
           calibrationControlsDiv.style.display = 'none'; // Ensure Cal controls are hidden on error/disconnect
+          enableButtons(); // Update buttons on error
        }
 
       function sendCommand(command) {
