@@ -808,6 +808,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
         case WStype_CONNECTED: {
             IPAddress ip = webSocket.remoteIP(num);
             Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+            
+            // ADDED: Log values before sending update
+            Serial.println("[DEBUG] Values before sendAllSettingsUpdate on connect:");
+            for (int i = 0; i < 4; ++i) {
+                 Serial.printf("  Side %d: Z=%.2f, P=%d, Pat=%d, S=%.0f\n", 
+                      i, paintZHeight_inch[i], paintPitchAngle[i], paintPatternType[i], paintSpeed[i]);
+            }
+            
             // Send initial status and all settings using the helper function
             String welcomeMsg = "Welcome! Connected to Paint + PnP Machine.";
             sendAllSettingsUpdate(num, welcomeMsg);
@@ -1336,8 +1344,9 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             preferences.putInt(keyPat.c_str(), paintPatternType[sideIndex]); // Save pattern
                             preferences.putFloat(keyS.c_str(), paintSpeed[sideIndex]);
                             preferences.end();
+                            Serial.printf("[DEBUG] Preferences ended for side %d save.\n", sideIndex); // ADDED: Confirm save ended
 
-                            Serial.printf("[DEBUG] Set Side %d Settings: Z=%.2f, P=%d, Pat=%d, S=%.0f\n", // Added Pat
+                            Serial.printf("[DEBUG] Set Side %d Settings: Z=%.2f, P=%d, Pat=%d, S=%.0f and saved to NVS\n", // Updated log
                                           sideIndex, paintZHeight_inch[sideIndex], paintPitchAngle[sideIndex],
                                           paintPatternType[sideIndex], paintSpeed[sideIndex]); // Added pattern
                             
@@ -1601,8 +1610,9 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             preferences.putInt(keyPat.c_str(), paintPatternType[sideIndex]); // Save pattern
                             preferences.putFloat(keyS.c_str(), paintSpeed[sideIndex]);
                             preferences.end();
+                            Serial.printf("[DEBUG] Preferences ended for side %d save.\n", sideIndex); // ADDED: Confirm save ended
 
-                            Serial.printf("[DEBUG] Set Side %d Settings: Z=%.2f, P=%d, Pat=%d, S=%.0f\n", // Added Pat
+                            Serial.printf("[DEBUG] Set Side %d Settings: Z=%.2f, P=%d, Pat=%d, S=%.0f and saved to NVS\n", // Updated log
                                           sideIndex, paintZHeight_inch[sideIndex], paintPitchAngle[sideIndex],
                                           paintPatternType[sideIndex], paintSpeed[sideIndex]); // Added pattern
                             
@@ -1891,14 +1901,15 @@ void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
     for (int i = 0; i < 4; ++i) {
         String keyZ = "paintZ_" + String(i);
         String keyP = "paintP_" + String(i);
+        String keyPat = "paintPat_" + String(i); // NVS key for Pattern - Ensure this is here
         String keyS = "paintS_" + String(i);
-        doc[keyZ] = paintZHeight_inch[i];
-        
-        // Map the actual servo pitch values back to UI values (0-90)
-        int uiPitchValue = map(paintPitchAngle[i], PITCH_SERVO_MIN, PITCH_SERVO_MAX, 0, 90);
-        doc[keyP] = uiPitchValue;
-        
-        doc[keyS] = paintSpeed[i]; // Send the raw speed value (e.g., 5000-20000)
+        paintZHeight_inch[i] = preferences.getFloat(keyZ.c_str(), 1.0f);
+        paintPitchAngle[i] = preferences.getInt(keyP.c_str(), PITCH_SERVO_MAX); // Use MAX as default
+        paintPatternType[i] = preferences.getInt(keyPat.c_str(), (i == 0 || i == 2) ? 0 : 90); // Load pattern, default based on side
+        paintSpeed[i] = preferences.getFloat(keyS.c_str(), 10000.0f);
+        // Commented out debug log:
+        // Serial.printf("  [LoadSettings] Side %d: Z=%.2f, P=%d, Pat=%d, S=%.0f\n", 
+        //               i, paintZHeight_inch[i], paintPitchAngle[i], paintPatternType[i], paintSpeed[i]);
     }
 
     // Serialize JSON to string
@@ -1997,23 +2008,18 @@ void setup() {
 
     // Load Painting Side Settings (using side index in key)
     for (int i = 0; i < 4; i++) {
+        String keyPat = "paintPat_" + String(i); // NVS key for Pattern
         String keyZ = "paintZ_" + String(i);
         String keyP = "paintP_" + String(i);
+        String keyPat = "paintPat_" + String(i); // NVS key for Pattern - ADDED DECLARATION
         String keyS = "paintS_" + String(i);
         paintZHeight_inch[i] = preferences.getFloat(keyZ.c_str(), 1.0f);
-        paintPitchAngle[i] = preferences.getInt(keyP.c_str(), PITCH_SERVO_MIN); // Default to min
-        paintSpeed[i] = preferences.getFloat(keyS.c_str(), 10000.0f);       // Default to 10k steps/sec
-
-        // Clamp loaded servo values to their limits just in case
-        paintPitchAngle[i] = constrain(paintPitchAngle[i], PITCH_SERVO_MIN, PITCH_SERVO_MAX);
-        
-        // Note: We don't constrain paintRollAngle here since it will be mapped in the sendAllSettingsUpdate function
-        // This ensures the correct values are sent to the UI
-         
-         paintSpeed[i] = constrain(paintSpeed[i], 5000.0f, 20000.0f); // Clamp speed 5k-20k
+        paintPitchAngle[i] = preferences.getInt(keyP.c_str(), PITCH_SERVO_MAX); // Use MAX as default
+        paintPatternType[i] = preferences.getInt(keyPat.c_str(), (i == 0 || i == 2) ? 0 : 90); // Load pattern, default based on side
+        paintSpeed[i] = preferences.getFloat(keyS.c_str(), 10000.0f);
     }
 
-    // preferences.end(); // Close NVS <-- MOVED TO END OF SETTINGS LOGGING
+    preferences.end();
 
     // Print loaded settings AFTER potentially correcting tray size
     Serial.printf("Loaded Settings: Offset(%.2f, %.2f), FirstPlaceAbs(%.2f, %.2f), X(S:%.0f, A:%.0f), Y(S:%.0f, A:%.0f), Grid(%d x %d), Spacing(%.2f, %.2f)\n",
