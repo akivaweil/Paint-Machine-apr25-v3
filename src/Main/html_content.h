@@ -249,12 +249,11 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintFrontButton" class="button" onclick="sendCommand('PAINT_SIDE_2')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Front Side</button>
         <label for="paintZ_2">Z Height:</label>
         <input type="number" id="paintZ_2" step="0.1" value="1.0" onchange="setPaintSideSettings(2)">
-        <span id="paintZDisplay_2">1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_2">Pitch:</label>
         <input type="number" id="paintP_2" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(2)">
-        <span id="paintPDisplay_2">0&deg;</span>
+        <!-- <span id="paintPDisplay_2">0&deg;</span> -->
         
         <label>Pattern:</label>
         <select id="paintR_2" onchange="setPaintSideSettings(2)">
@@ -276,12 +275,11 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintLeftButton" class="button" onclick="sendCommand('PAINT_SIDE_3')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Left Side</button>
         <label for="paintZ_3">Z Height:</label>
         <input type="number" id="paintZ_3" step="0.1" value="1.0" onchange="setPaintSideSettings(3)">
-        <span id="paintZDisplay_3">1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_3">Pitch:</label>
         <input type="number" id="paintP_3" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(3)">
-        <span id="paintPDisplay_3">0&deg;</span>
+        <!-- <span id="paintPDisplay_3">0&deg;</span> -->
         
         <label>Pattern:</label>
         <select id="paintR_3" onchange="setPaintSideSettings(3)">
@@ -303,12 +301,11 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="paintRightButton" class="button" onclick="sendCommand('PAINT_SIDE_1')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Right Side</button>
         <label for="paintZ_1">Z Height:</label>
         <input type="number" id="paintZ_1" step="0.1" value="1.0" onchange="setPaintSideSettings(1)">
-        <span id="paintZDisplay_1">1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_1">Pitch:</label>
         <input type="number" id="paintP_1" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(1)">
-        <span id="paintPDisplay_1">0&deg;</span>
+        <!-- <span id="paintPDisplay_1">0&deg;</span> -->
         
         <label>Pattern:</label>
         <select id="paintR_1" onchange="setPaintSideSettings(1)">
@@ -349,32 +346,32 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       var pnpStepButton = document.getElementById('pnpStepButton');
       var offsetXInput = document.getElementById('offsetX');
       var offsetYInput = document.getElementById('offsetY');
-      var offsetDisplaySpan = document.getElementById('offsetDisplay');
+      // var offsetDisplaySpan = document.getElementById('offsetDisplay');
 
       // Track machine state
       var firstPlaceXAbsInput = document.getElementById('firstPlaceXAbs'); // Updated ID
       var firstPlaceYAbsInput = document.getElementById('firstPlaceYAbs'); // Updated ID
-      var firstPlaceAbsDisplaySpan = document.getElementById('firstPlaceAbsDisplay'); // Updated ID
+      // var firstPlaceAbsDisplaySpan = document.getElementById('firstPlaceAbsDisplay'); // Updated ID
 
       // Grid/Spacing Elements
       var gridColsInput = document.getElementById('gridCols');
       var gridRowsInput = document.getElementById('gridRows');
-      var gridDisplaySpan = document.getElementById('gridDisplay');
+      // var gridDisplaySpan = document.getElementById('gridDisplay');
       var spacingDisplaySpan = document.getElementById('spacingDisplay');
 
       // Tray Size Elements (NEW)
       var trayWidthInput = document.getElementById('trayWidth');
       var trayHeightInput = document.getElementById('trayHeight');
-      var traySizeDisplaySpan = document.getElementById('traySizeDisplay');
+      // var traySizeDisplaySpan = document.getElementById('traySizeDisplay');
 
       var xSpeedInput = document.getElementById('xSpeed');
       var xAccelInput = document.getElementById('xAccel');
       var ySpeedInput = document.getElementById('ySpeed');
       var yAccelInput = document.getElementById('yAccel');
-      var xSpeedDisplaySpan = document.getElementById('xSpeedDisplay');
-      var xAccelDisplaySpan = document.getElementById('xAccelDisplay');
-      var ySpeedDisplaySpan = document.getElementById('ySpeedDisplay');
-      var yAccelDisplaySpan = document.getElementById('yAccelDisplay');
+      // var xSpeedDisplaySpan = document.getElementById('xSpeedDisplay');
+      // var xAccelDisplaySpan = document.getElementById('xAccelDisplay');
+      // var ySpeedDisplaySpan = document.getElementById('ySpeedDisplay');
+      // var yAccelDisplaySpan = document.getElementById('yAccelDisplay');
 
       // Calibration Elements
       var enterCalibrationButton = document.getElementById('enterCalibrationButton');
@@ -385,16 +382,16 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       // Paint Offset Elements
       var paintGunOffsetXInput = document.getElementById('paintGunOffsetX');
       var paintGunOffsetYInput = document.getElementById('paintGunOffsetY');
-      var paintGunOffsetDisplaySpan = document.getElementById('paintGunOffsetDisplay');
+      // var paintGunOffsetDisplaySpan = document.getElementById('paintGunOffsetDisplay');
 
       // Paint Side Settings Elements (Arrays)
       var paintZInputs = [];
       var paintPInputs = [];
       var paintRInputs = [];
       var paintSInputs = [];
-      var paintZDisplays = [];
-      var paintPDisplays = [];
-      var paintRDisplays = [];
+      var paintZDisplays = []; // Keep Z for side 0 if needed, but mostly removed
+      var paintPDisplays = []; // Keep P for side 0 if needed, but mostly removed
+      // var paintRDisplays = []; // R displays were removed entirely
       var paintSDisplays = [];
       var setPaintSideButtons = [];
       for (let i = 0; i < 4; i++) {
@@ -402,20 +399,21 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           paintPInputs[i] = document.getElementById(`paintP_${i}`);
           paintRInputs[i] = document.getElementById(`paintR_${i}`);
           paintSInputs[i] = document.getElementById(`paintS_${i}`);
-          paintZDisplays[i] = document.getElementById(`paintZDisplay_${i}`);
+          // Only get Z/P displays if they exist (e.g., for side 0 or if added back)
+          paintZDisplays[i] = document.getElementById(`paintZDisplay_${i}`); 
           paintPDisplays[i] = document.getElementById(`paintPDisplay_${i}`);
-          paintRDisplays[i] = document.getElementById(`paintRDisplay_${i}`);
-          paintSDisplays[i] = document.getElementById(`paintSDisplay_${i}`);
+          // R displays are gone
+          paintSDisplays[i] = document.getElementById(`paintSDisplay_${i}`); // S displays exist for sliders
           // Assuming button IDs follow a pattern like setPaintSideButton_0 (adjust if needed)
           // setPaintSideButtons[i] = document.getElementById(`setPaintSideButton_${i}`);
           // Simpler: get button references from within the setPaintSideSettings function based on index
       }
 
       // Paint Control Elements
-      var startPaintingButton = document.getElementById('startPaintingButton');
+      // var startPaintingButton = document.getElementById('startPaintingButton');
       var paintBackButton = document.getElementById('paintBackButton');
       var stopButton = document.getElementById('stopButton');
-      var calibrateButton = document.getElementById('calibrateButton');
+      // var calibrateButton = document.getElementById('calibrateButton');
 
       // Rotation Control Elements (NEW)
       var rotateMinus90Button = document.getElementById('rotateMinus90Button');
@@ -493,7 +491,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               if (data.hasOwnProperty('pnpOffsetX') && data.hasOwnProperty('pnpOffsetY')) {
                   let currentX = parseFloat(data.pnpOffsetX).toFixed(1); // Changed to 1 decimal place
                   let currentY = parseFloat(data.pnpOffsetY).toFixed(1); // Changed to 1 decimal place
-                  offsetDisplaySpan.innerHTML = `X=${currentX}, Y=${currentY}`;
+                  // offsetDisplaySpan.innerHTML = `X=${currentX}, Y=${currentY}`;
                   offsetXInput.value = currentX;
                   offsetYInput.value = currentY;
               }
@@ -502,7 +500,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               if (data.hasOwnProperty('placeFirstXAbs') && data.hasOwnProperty('placeFirstYAbs')) { // Updated keys
                   let currentX = parseFloat(data.placeFirstXAbs).toFixed(1); // Changed to 1 decimal place
                   let currentY = parseFloat(data.placeFirstYAbs).toFixed(1); // Changed to 1 decimal place
-                  firstPlaceAbsDisplaySpan.innerHTML = `X=${currentX}, Y=${currentY}`; // Updated span ID
+                  // firstPlaceAbsDisplaySpan.innerHTML = `X=${currentX}, Y=${currentY}`; // Updated span ID
                   firstPlaceXAbsInput.value = currentX; // Updated input ID
                   firstPlaceYAbsInput.value = currentY; // Updated input ID
               }
@@ -515,10 +513,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   let xA_display = parseInt(data.patXAccel) / 1000;
                   let yS_display = parseInt(data.patYSpeed) / 1000;
                   let yA_display = parseInt(data.patYAccel) / 1000;
-                  xSpeedDisplaySpan.innerHTML = `${xS_display}`;
-                  xAccelDisplaySpan.innerHTML = `${xA_display}`;
-                  ySpeedDisplaySpan.innerHTML = `${yS_display}`;
-                  yAccelDisplaySpan.innerHTML = `${yA_display}`;
+                  // xSpeedDisplaySpan.innerHTML = `${xS_display}`;
+                  // xAccelDisplaySpan.innerHTML = `${xA_display}`;
+                  // ySpeedDisplaySpan.innerHTML = `${yS_display}`;
+                  // yAccelDisplaySpan.innerHTML = `${yA_display}`;
                   xSpeedInput.value = xS_display;
                   xAccelInput.value = xA_display;
                   ySpeedInput.value = yS_display;
@@ -535,7 +533,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   
                   console.log(`[DEBUG] Processing grid settings from server: cols=${currentCols}, rows=${currentRows}, gapX=${currentGapX}, gapY=${currentGapY}`);
                   
-                  gridDisplaySpan.innerHTML = `${currentCols} x ${currentRows}`;
+                  // gridDisplaySpan.innerHTML = `${currentCols} x ${currentRows}`;
                   // Update display text to show Gap with more information
                   spacingDisplaySpan.innerHTML = `Gap: X=${currentGapX}, Y=${currentGapY}`;
                   
@@ -552,7 +550,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   
                   console.log(`[DEBUG] Processing tray dimensions from server: width=${currentW}, height=${currentH}`);
                   
-                  traySizeDisplaySpan.innerHTML = `W=${currentW}, H=${currentH}`;
+                  // traySizeDisplaySpan.innerHTML = `W=${currentW}, H=${currentH}`;
                   trayWidthInput.value = currentW;
                   trayHeightInput.value = currentH;
               }
@@ -561,7 +559,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               if (data.hasOwnProperty('paintGunOffX') && data.hasOwnProperty('paintGunOffY')) {
                   let currentX = parseFloat(data.paintGunOffX).toFixed(2);
                   let currentY = parseFloat(data.paintGunOffY).toFixed(2);
-                  paintGunOffsetDisplaySpan.innerHTML = `X=${currentX}, Y=${currentY}`;
+                  // paintGunOffsetDisplaySpan.innerHTML = `X=${currentX}, Y=${currentY}`;
                   paintGunOffsetXInput.value = currentX;
                   paintGunOffsetYInput.value = currentY;
               }
@@ -572,27 +570,28 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   let keyP = `paintP_${i}`;
                   let keyPat = `paintPat_${i}`; // USE THIS KEY (matches C++)
                   let keyS = `paintS_${i}`;
-                  if (data.hasOwnProperty(keyZ) && paintZInputs[i] && paintZDisplays[i]) {
+                  if (data.hasOwnProperty(keyZ) && paintZInputs[i]) { // Check only for input
                       let currentZ = parseFloat(data[keyZ]).toFixed(2);
                       paintZInputs[i].value = currentZ;
-                      paintZDisplays[i].innerHTML = `${currentZ}`;
+                      // Update display span only if it exists
+                      if (paintZDisplays[i]) paintZDisplays[i].innerHTML = `${currentZ}`;
                   }
-                  if (data.hasOwnProperty(keyP) && paintPInputs[i] && paintPDisplays[i]) {
+                  if (data.hasOwnProperty(keyP) && paintPInputs[i]) { // Check only for input
                       let currentP = parseInt(data[keyP]);
                       paintPInputs[i].value = currentP;
-                      paintPDisplays[i].innerHTML = `${currentP}&deg;`;
+                      // Update display span only if it exists
+                      if (paintPDisplays[i]) paintPDisplays[i].innerHTML = `${currentP}&deg;`;
                   }
-                  if (data.hasOwnProperty(keyPat) && paintRInputs[i]) { // Check pattern key, Removed check for paintRDisplays
-                      let currentR = parseInt(data[keyPat]);
-                      paintRInputs[i].value = currentR;
-                      // paintRDisplays[i].innerHTML = currentR == 0 ? "Up-Down Pattern" : "Left-Right Pattern"; // REMOVED Update for deleted span
+                  if (data.hasOwnProperty(keyPat) && paintRInputs[i]) { 
+                      let currentPattern = parseInt(data[keyPat]);
+                      paintRInputs[i].value = currentPattern; 
                   }
                   if (data.hasOwnProperty(keyS) && paintSInputs[i] && paintSDisplays[i]) {
                       // Receive raw speed (e.g., 15000), divide by 1000 for UI display
                       let rawSpeed = parseFloat(data[keyS]); 
                       let displaySpeed = Math.round(rawSpeed / 1000); // Divide here
                       paintSInputs[i].value = displaySpeed; // Update slider value (5-25)
-                      paintSDisplays[i].innerHTML = `${displaySpeed}`; // Update display span
+                      paintSDisplays[i].innerHTML = `${displaySpeed}`; // Update display span - this one exists
                   }
               }
 
@@ -717,8 +716,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
         // --- Painting Buttons ---
         // Disable painting if not connected, not homed, moving, homing, in PnP, or calibrating
-        startPaintingButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode; // Requires homing
-        paintBackButton.disabled = startPaintingButton.disabled; // Same logic as start
+        // startPaintingButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode; // Requires homing
+        paintBackButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode; // Requires homing
 
         // Rotation Buttons
         // MODIFIED: Only disable if not connected or actively moving/homing

@@ -3,6 +3,7 @@
 #include <Bounce2.h>
 #include <WiFi.h>        // Added for WiFi
 #include <ArduinoOTA.h>  // Added for OTA
+#include <Preferences.h> // Added for NVS settings
 #include "GeneralSettings_PinDef.h" // Updated include
 #include "../PickPlace/PickPlace.h" // Include the new PnP header
 #include "../Painting/Painting.h" // Include the new Painting header
@@ -20,6 +21,9 @@ float paintSpeed[4] = {10000.0, 10000.0, 10000.0, 10000.0};
 const char* ssid = "Everwood";
 const char* password = "Everwood-Staff";
 const char* hostname = "paint-machine"; // ADDED Definition
+
+// Preferences object for NVS
+Preferences preferences;
 
 // Stepper Engine
 FastAccelStepperEngine engine = FastAccelStepperEngine();
@@ -99,10 +103,12 @@ void executePickPlaceCycle(); // Might be obsolete
 void executeNextPickPlaceStep();
 void enterPickPlaceMode();
 void exitPickPlaceMode();
-void calculateAndSetGridSpacing(int cols, int rows); // Added forward declaration here
+void calculateAndSetGridSpacing(int cols, int rows); // Defined later in this file
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 void sendCurrentPositionUpdate(); // Forward declaration for position updates
 void sendAllSettingsUpdate(uint8_t specificClientNum, String message); // Helper to send all settings
+void saveSettings(); // Defined above
+void loadSettings(); // Defined above
 
 // Function to home a single axis (modified slightly for reuse)
 // Returns true if homing was successful, false otherwise (timeout or error)
@@ -771,9 +777,13 @@ void paintSide(int sideIndex) {
 // --- Arduino Setup ---
 void setup() {
     Serial.begin(115200);
-    Serial.println("Booting... Loading settings...");
+    Serial.println("Booting... Loading settings from NVS...");
 
-    // Calculate initial grid gap based on loaded dimensions
+    // Load settings from NVS
+    loadSettings();
+
+    // Calculate initial grid gap based on potentially loaded dimensions
+    Serial.printf("[DEBUG] setup: pnpOffsetX after loadSettings() = %.2f\n", pnpOffsetX_inch);
     calculateAndSetGridSpacing(placeGridCols, placeGridRows);
     
     // Print loaded settings
@@ -964,24 +974,6 @@ void setup() {
     digitalWrite(PICK_CYLINDER_PIN, LOW); // Start retracted
     digitalWrite(SUCTION_PIN, LOW);       // Start suction off
     Serial.println("Actuator pins initialized.");
-
-    // // Add debug code to list all NVS keys
-    // Serial.println("[DEBUG] Listing all NVS keys in 'machineCfg':");
-    // // Unfortunately, Preferences library does not provide a direct way to list all keys, so we will attempt to read known keys for paint settings
-    // for (int i = 0; i < 4; i++) {
-    //     String keyZ = "paintZ_" + String(i);
-    //     float zVal = preferences.getFloat(keyZ.c_str(), -999.0f);
-    //     Serial.printf("  Key: %s, Value: %.3f\n", keyZ.c_str(), zVal);
-    //     String keyP = "paintP_" + String(i);
-    //     int pVal = preferences.getInt(keyP.c_str(), -999);
-    //     Serial.printf("  Key: %s, Value: %d\n", keyP.c_str(), pVal);
-    //     String keyPat = "paintPat_" + String(i);
-    //     int patVal = preferences.getInt(keyPat.c_str(), -999);
-    //     Serial.printf("  Key: %s, Value: %d\n", keyPat.c_str(), patVal);
-    //     String keyS = "paintS_" + String(i);
-    //     float sVal = preferences.getFloat(keyS.c_str(), -999.0f);
-    //     Serial.printf("  Key: %s, Value: %.3f\n", keyS.c_str(), sVal);
-    // }
 }
 
 // --- Arduino Loop ---
@@ -1159,4 +1151,96 @@ void calculateAndSetGridSpacing(int cols, int rows) {
     Serial.printf("[DEBUG] Sending update to UI with message: %s\n", message.c_str());
     sendAllSettingsUpdate(255, message); // Send to all clients
 } 
+
+// Function to save all configurable settings to NVS
+void saveSettings() {
+    Serial.println("[DEBUG] saveSettings() started.");
+    preferences.begin("machineCfg", false); // Open namespace in read/write mode
+
+    // PnP Settings
+    preferences.putFloat("pnpOffsetX", pnpOffsetX_inch);
+    preferences.putFloat("pnpOffsetY", pnpOffsetY_inch);
+    preferences.putFloat("placeFirstX", placeFirstXAbsolute_inch);
+    preferences.putFloat("placeFirstY", placeFirstYAbsolute_inch);
+    preferences.putInt("gridCols", placeGridCols);
+    preferences.putInt("gridRows", placeGridRows);
+    preferences.putFloat("trayWidth", trayWidth_inch);
+    preferences.putFloat("trayHeight", trayHeight_inch);
+    // Note: Gap is calculated, not saved directly
+
+    // Speed/Accel Settings
+    preferences.putFloat("patXSpeed", patternXSpeed);
+    preferences.putFloat("patXAccel", patternXAccel);
+    preferences.putFloat("patYSpeed", patternYSpeed);
+    preferences.putFloat("patYAccel", patternYAccel);
+    // Z/Rot Speed/Accel are not currently set via UI, so not saving
+
+    // Painting Offsets
+    preferences.putFloat("paintPatOffX", paintPatternOffsetX_inch);
+    preferences.putFloat("paintPatOffY", paintPatternOffsetY_inch);
+    preferences.putFloat("paintGunOffX", paintGunOffsetX_inch);
+    preferences.putFloat("paintGunOffY", paintGunOffsetY_inch);
+
+    // Paint Side Settings
+    for (int i = 0; i < 4; ++i) {
+        String keyZ = "paintZ_" + String(i);
+        String keyP = "paintP_" + String(i); // Stores mapped servo value
+        String keyPat = "paintPat_" + String(i);
+        String keyS = "paintS_" + String(i);
+        preferences.putFloat(keyZ.c_str(), paintZHeight_inch[i]);
+        preferences.putInt(keyP.c_str(), paintPitchAngle[i]);
+        preferences.putInt(keyPat.c_str(), paintPatternType[i]);
+        preferences.putFloat(keyS.c_str(), paintSpeed[i]);
+    }
+
+    preferences.end();
+    Serial.println("[INFO] Settings saved to NVS.");
+    Serial.println("[DEBUG] saveSettings() finished.");
+}
+
+// Function to load all configurable settings from NVS
+void loadSettings() {
+    Serial.println("[DEBUG] loadSettings() started.");
+    preferences.begin("machineCfg", true); // Open namespace in read-only mode
+
+    // PnP Settings
+    pnpOffsetX_inch = preferences.getFloat("pnpOffsetX", 15.0f);
+    pnpOffsetY_inch = preferences.getFloat("pnpOffsetY", 0.0f);
+    placeFirstXAbsolute_inch = preferences.getFloat("placeFirstX", 20.0f);
+    placeFirstYAbsolute_inch = preferences.getFloat("placeFirstY", 20.0f);
+    placeGridCols = preferences.getInt("gridCols", 4);
+    placeGridRows = preferences.getInt("gridRows", 5);
+    trayWidth_inch = preferences.getFloat("trayWidth", 24.0f);
+    trayHeight_inch = preferences.getFloat("trayHeight", 18.0f);
+
+    // Speed/Accel Settings
+    patternXSpeed = preferences.getFloat("patXSpeed", 20000.0f);
+    patternXAccel = preferences.getFloat("patXAccel", 20000.0f);
+    patternYSpeed = preferences.getFloat("patYSpeed", 20000.0f);
+    patternYAccel = preferences.getFloat("patYAccel", 20000.0f);
+
+    // Painting Offsets
+    paintPatternOffsetX_inch = preferences.getFloat("paintPatOffX", 0.0f);
+    paintPatternOffsetY_inch = preferences.getFloat("paintPatOffY", 0.0f);
+    paintGunOffsetX_inch = preferences.getFloat("paintGunOffX", 0.0f);
+    paintGunOffsetY_inch = preferences.getFloat("paintGunOffY", 1.5f);
+
+    // Paint Side Settings
+    for (int i = 0; i < 4; ++i) {
+        String keyZ = "paintZ_" + String(i);
+        String keyP = "paintP_" + String(i);
+        String keyPat = "paintPat_" + String(i);
+        String keyS = "paintS_" + String(i);
+        paintZHeight_inch[i] = preferences.getFloat(keyZ.c_str(), 1.0f);
+        paintPitchAngle[i] = preferences.getInt(keyP.c_str(), PITCH_SERVO_MAX); // Load mapped servo value
+        paintPatternType[i] = preferences.getInt(keyPat.c_str(), (i == 0 || i == 2) ? 0 : 90); // Default pattern based on side
+        paintSpeed[i] = preferences.getFloat(keyS.c_str(), 10000.0f);
+    }
+
+    preferences.end();
+    Serial.println("[INFO] Settings loaded from NVS.");
+    // Log a sample value
+    Serial.printf("[DEBUG] loadSettings: Loaded pnpOffsetX = %.2f\n", pnpOffsetX_inch);
+    Serial.println("[DEBUG] loadSettings() finished.");
+}
 

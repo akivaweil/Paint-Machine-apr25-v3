@@ -43,6 +43,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                       i, paintZHeight_inch[i], paintPitchAngle[i], paintPatternType[i], paintSpeed[i]);
             }
             
+            // Log sample value before sending settings
+            Serial.printf("[DEBUG] CONNECTED: pnpOffsetX before sendAllSettings = %.2f\n", pnpOffsetX_inch);
             // Send initial status and all settings using the helper function
             String welcomeMsg = "Welcome! Connected to Paint + PnP Machine.";
             sendAllSettingsUpdate(num, welcomeMsg);
@@ -162,6 +164,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                          if (parsed == 2) {
                              pnpOffsetX_inch = newX;
                              pnpOffsetY_inch = newY;
+                             saveSettings(); // Save updated settings
                              Serial.printf("[DEBUG] Set PnP Offset to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch);
                              // Send confirmation with all current settings
                              char msgBuffer[400]; // Increased size
@@ -194,6 +197,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                              patternYSpeed = receivedYS;
                              patternYAccel = receivedYA;
 
+                             saveSettings(); // Save updated settings
                              Serial.printf("[DEBUG] Saved Speed/Accel to NVS: X(S:%.0f, A:%.0f), Y(S:%.0f, A:%.0f)\n", patternXSpeed, patternXAccel, patternYSpeed, patternYAccel);
 
                              // Send confirmation with all current settings (using actual values)
@@ -218,6 +222,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                          if (parsed == 2) {
                         placeFirstXAbsolute_inch = newX;
                         placeFirstYAbsolute_inch = newY;
+                        saveSettings(); // Save updated settings
                         Serial.printf("[DEBUG] Set First Place Absolute to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch);
                               // Send confirmation with all current settings
                         char msgBuffer[400]; // Increased size
@@ -404,8 +409,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                     // Expecting "SET_GRID_SPACING C R"
                     int parsed = sscanf(command.c_str() + strlen("SET_GRID_SPACING "), "%d %d", &newCols, &newRows);
                     if (parsed == 2 && newCols > 0 && newRows > 0) {
-                        // Call the new calculation function
-                        calculateAndSetGridSpacing(newCols, newRows);
+                        saveSettings(); // Save new grid dims
                     } else {
                         Serial.printf("[DEBUG] Failed to parse SET_GRID_SPACING command: %s\n", command.c_str());
                         webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid SET_GRID_SPACING format. Use C R (integers > 0)\"}");
@@ -423,13 +427,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         trayWidth_inch = newW;
                         trayHeight_inch = newH;
                         
-                          
+                        // Save settings AFTER recalculating grid/gap
                         Serial.printf("[DEBUG] Set Tray Size to W=%.2f, H=%.2f\n", trayWidth_inch, trayHeight_inch);
                         
                         // Recalculate grid spacing with current grid dimensions to reflect new tray size
                         float oldGapX = placeGapX_inch;
                         float oldGapY = placeGapY_inch;
                         calculateAndSetGridSpacing(placeGridCols, placeGridRows);
+                        saveSettings(); // Save new tray dims and potentially updated grid cols/rows
                         
                         Serial.printf("[DEBUG] Gap values changed: X: %.3f → %.3f, Y: %.3f → %.3f\n", 
                                     oldGapX, placeGapX_inch, oldGapY, placeGapY_inch);
@@ -460,7 +465,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         if (parsed == 2) {
                             paintPatternOffsetX_inch = newX;
                             paintPatternOffsetY_inch = newY;
-                              Serial.printf("[DEBUG] Set Paint Pattern Offset to X: %.2f, Y: %.2f\n", paintPatternOffsetX_inch, paintPatternOffsetY_inch);
+                            saveSettings(); // Save updated settings
+                            Serial.printf("[DEBUG] Set Paint Pattern Offset to X: %.2f, Y: %.2f\n", paintPatternOffsetX_inch, paintPatternOffsetY_inch);
                             // Send confirmation with all settings
                             sendAllSettingsUpdate(num, "Paint Pattern Offset updated.");
                         } else {
@@ -477,7 +483,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         if (parsed == 2) {
                             paintGunOffsetX_inch = newX;
                             paintGunOffsetY_inch = newY;
-                              Serial.printf("[DEBUG] Set Paint Gun Offset to X: %.2f, Y: %.2f\n", paintGunOffsetX_inch, paintGunOffsetY_inch);
+                            saveSettings(); // Save updated settings
+                            Serial.printf("[DEBUG] Set Paint Gun Offset to X: %.2f, Y: %.2f\n", paintGunOffsetX_inch, paintGunOffsetY_inch);
                             // Send confirmation with all settings
                             sendAllSettingsUpdate(num, "Paint Gun Offset updated.");
                         } else {
