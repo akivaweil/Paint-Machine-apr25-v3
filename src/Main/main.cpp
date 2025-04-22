@@ -1770,8 +1770,9 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         Serial.println("DEBUG: Cannot rotate - Machine busy or not in correct mode");
                         webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot rotate: Machine busy or not in correct mode.\"}");
                     } else if (!stepper_rot) {
-                        Serial.println("DEBUG: Rotation stepper not available");
-                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Rotation stepper not available.\"}");
+                        // ADDED: Check if stepper_rot is NULL and report error
+                        Serial.println("DEBUG: Rotation command received, but stepper_rot is NULL (likely due to pin conflict)");
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Rotation control unavailable (pin conflict?)\"}");
                     } else {
                         float degrees;
                         int parsed = sscanf(command.c_str() + strlen("ROTATE "), "%f", &degrees);
@@ -1814,12 +1815,13 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                         Serial.println("DEBUG: Cannot jog rotation - Machine busy or not in correct mode");
                         webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot jog rotation: Machine busy or not in correct mode.\"}");
                      } else if (!stepper_rot) {
-                        Serial.println("DEBUG: Rotation stepper not available");
-                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Rotation stepper not available.\"}");
+                         // ADDED: Check if stepper_rot is NULL and report error
+                         Serial.println("DEBUG: Rotation jog received, but stepper_rot is NULL (likely due to pin conflict)");
+                         webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Rotation control unavailable (pin conflict?)\"}");
                      } else {
-                        float degrees;
-                        int parsed = sscanf(command.c_str() + strlen("JOG ROT "), "%f", &degrees);
-                        if (parsed == 1) {
+                         float degrees;
+                         int parsed = sscanf(command.c_str() + strlen("JOG ROT "), "%f", &degrees);
+                         if (parsed == 1) {
                             // Get current angle before we start
                             float currentAngle = (float)stepper_rot->getCurrentPosition() / STEPS_PER_DEGREE;
                             // Calculate target angle
@@ -2254,20 +2256,23 @@ void setup() {
     Serial.println("DEBUG: Initializing Rotation Stepper...");
     Serial.printf("DEBUG: Using ROTATION_STEP_PIN: %d, ROTATION_DIR_PIN: %d\n", ROTATION_STEP_PIN, ROTATION_DIR_PIN);
     
-    stepper_rot = engine.stepperConnectToPin(ROTATION_STEP_PIN);
-    if (stepper_rot) {
-        Serial.println("DEBUG: Rotation stepper created successfully");
-        stepper_rot->setDirectionPin(ROTATION_DIR_PIN);
-        stepper_rot->setEnablePin(-1); // Assuming no enable pin used or needed
-        stepper_rot->setAutoEnable(false);
-        stepper_rot->setCurrentPosition(0); // Assume starts at 0 steps (Back side)
-        // Test rotation stepper
-        Serial.println("DEBUG: Testing rotation stepper with 90 degree movement");
-        stepper_rot->setSpeedInHz(patternRotSpeed/2); // Lower speed for test
-        stepper_rot->setAcceleration(patternRotAccel/2); // Lower accel for test
-        // stepper_rot->move((long)(90 * STEPS_PER_DEGREE)); // Move 90 degrees // <<< COMMENTED OUT
+    // Check for pin conflict with Z Step Pin
+    if (ROTATION_STEP_PIN == Z_STEP_PIN) {
+        Serial.println("[WARN] Rotation Step Pin conflicts with Z Step Pin! Disabling rotation stepper.");
+        stepper_rot = NULL; // Keep stepper_rot as NULL to disable it
     } else {
-        Serial.println("DEBUG: ERROR - Failed to initialize rotation stepper!");
+        // Initialize stepper_rot only if pins do NOT conflict
+        stepper_rot = engine.stepperConnectToPin(ROTATION_STEP_PIN);
+        if (stepper_rot) {
+            Serial.println("DEBUG: Rotation stepper created successfully");
+            stepper_rot->setDirectionPin(ROTATION_DIR_PIN);
+            stepper_rot->setEnablePin(-1);
+            stepper_rot->setAutoEnable(false);
+            stepper_rot->setCurrentPosition(0);
+        } else {
+            Serial.println("DEBUG: ERROR - Failed to initialize rotation stepper (non-conflict scenario)!");
+            stepper_rot = NULL;
+        }
     }
 
     // --- Initial Homing on Boot ---
