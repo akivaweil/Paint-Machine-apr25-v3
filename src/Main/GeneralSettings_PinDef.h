@@ -65,9 +65,9 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 #define Y_RIGHT_HOME_SWITCH 18    // Updated as requested
 
 // Z Axis
-#define Z_STEP_PIN 40
-#define Z_DIR_PIN 41
-#define Z_HOME_SWITCH 18 // Assuming Z homes at the top
+#define Z_STEP_PIN 38             // Changed from 40 to avoid conflict with Rotation Step
+#define Z_DIR_PIN 37              // Changed from 41 to avoid conflict with Y Left Dir
+#define Z_HOME_SWITCH 15          // Changed from 18 to avoid conflict with Y Right Home
 #define STEPS_PER_INCH_Z 20320 // Example: (200 steps/rev * 16 microsteps) / (0.15748 inches/rev lead screw)
 
 #define Z_HOME_POS_INCH 0.0f       // Position value when Z is at the home switch (top)
