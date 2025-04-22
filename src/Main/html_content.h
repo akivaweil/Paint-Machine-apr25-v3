@@ -364,36 +364,28 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       var pnpStepButton = document.getElementById('pnpStepButton');
       var offsetXInput = document.getElementById('offsetX');
       var offsetYInput = document.getElementById('offsetY');
-      var setOffsetButton = document.getElementById('setOffsetButton');
       var offsetDisplaySpan = document.getElementById('offsetDisplay');
 
       // Track machine state
-      var isMoving = false;
-      var isHoming = false;
-
       var firstPlaceXAbsInput = document.getElementById('firstPlaceXAbs'); // Updated ID
       var firstPlaceYAbsInput = document.getElementById('firstPlaceYAbs'); // Updated ID
-      var setFirstPlaceAbsButton = document.getElementById('setFirstPlaceAbsButton'); // Updated ID
       var firstPlaceAbsDisplaySpan = document.getElementById('firstPlaceAbsDisplay'); // Updated ID
 
       // Grid/Spacing Elements
       var gridColsInput = document.getElementById('gridCols');
       var gridRowsInput = document.getElementById('gridRows');
-      var setGridSpacingButton = document.getElementById('setGridSpacingButton');
       var gridDisplaySpan = document.getElementById('gridDisplay');
       var spacingDisplaySpan = document.getElementById('spacingDisplay');
 
       // Tray Size Elements (NEW)
       var trayWidthInput = document.getElementById('trayWidth');
       var trayHeightInput = document.getElementById('trayHeight');
-      var setTraySizeButton = document.getElementById('setTraySizeButton');
       var traySizeDisplaySpan = document.getElementById('traySizeDisplay');
 
       var xSpeedInput = document.getElementById('xSpeed');
       var xAccelInput = document.getElementById('xAccel');
       var ySpeedInput = document.getElementById('ySpeed');
       var yAccelInput = document.getElementById('yAccel');
-      var setSpeedButton = document.getElementById('setSpeedButton');
       var xSpeedDisplaySpan = document.getElementById('xSpeedDisplay');
       var xAccelDisplaySpan = document.getElementById('xAccelDisplay');
       var ySpeedDisplaySpan = document.getElementById('ySpeedDisplay');
@@ -404,13 +396,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       var calibrationControlsDiv = document.getElementById('calibrationControls');
       var jogStepInput = document.getElementById('jogStep');
       var currentPosDisplaySpan = document.getElementById('currentPosDisplay');
-      var setOffsetCurrentButton = document.getElementById('setOffsetCurrentButton');
-      var setFirstPlaceAbsCurrentButton = document.getElementById('setFirstPlaceAbsCurrentButton'); // Updated ID
 
       // Paint Offset Elements
       var paintGunOffsetXInput = document.getElementById('paintGunOffsetX');
       var paintGunOffsetYInput = document.getElementById('paintGunOffsetY');
-      var setPaintOffsetsButton = document.getElementById('setPaintOffsetsButton');
       var paintGunOffsetDisplaySpan = document.getElementById('paintGunOffsetDisplay');
 
       // Paint Side Settings Elements (Arrays)
@@ -761,32 +750,34 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         let generalDisableCondition = !connected || isMoving || isHoming || inCalibMode;
 
         // *** Keep Grid and Tray Size buttons enabled if connected ***
-        setGridSpacingButton.disabled = !connected;
-        setTraySizeButton.disabled = !connected;
+        // setGridSpacingButton.disabled = !connected; // REMOVED
+        // setTraySizeButton.disabled = !connected; // REMOVED
         // *** End Special Exception ***
 
-        setOffsetButton.disabled = generalDisableCondition || !allHomed; // Requires homing
-        setFirstPlaceAbsButton.disabled = generalDisableCondition || !allHomed; // Requires homing
-        setSpeedButton.disabled = generalDisableCondition || !allHomed; // Requires homing
-        setPaintOffsetsButton.disabled = generalDisableCondition || !allHomed; // Requires homing
+        // setOffsetButton.disabled = generalDisableCondition || !allHomed; // REMOVED
+        // setFirstPlaceAbsButton.disabled = generalDisableCondition || !allHomed; // REMOVED
+        // setSpeedButton.disabled = generalDisableCondition || !allHomed; // REMOVED
+        // setPaintOffsetsButton.disabled = generalDisableCondition || !allHomed; // REMOVED
 
-        // Disable input fields based on the same general condition + homing requirement for most
-        offsetXInput.disabled = setOffsetButton.disabled;
-        offsetYInput.disabled = setOffsetButton.disabled;
-        firstPlaceXAbsInput.disabled = setFirstPlaceAbsButton.disabled;
-        firstPlaceYAbsInput.disabled = setFirstPlaceAbsButton.disabled;
-        xSpeedInput.disabled = setSpeedButton.disabled;
-        xAccelInput.disabled = setSpeedButton.disabled;
-        ySpeedInput.disabled = setSpeedButton.disabled;
-        yAccelInput.disabled = setSpeedButton.disabled;
-        paintGunOffsetXInput.disabled = setPaintOffsetsButton.disabled;
-        paintGunOffsetYInput.disabled = setPaintOffsetsButton.disabled;
+        // Determine input field disable state based on conditions, not removed buttons
+        let settingsInputsDisableCondition = generalDisableCondition || !allHomed; // Most settings need homing
+
+        offsetXInput.disabled = settingsInputsDisableCondition;
+        offsetYInput.disabled = settingsInputsDisableCondition;
+        firstPlaceXAbsInput.disabled = settingsInputsDisableCondition;
+        firstPlaceYAbsInput.disabled = settingsInputsDisableCondition;
+        xSpeedInput.disabled = settingsInputsDisableCondition;
+        xAccelInput.disabled = settingsInputsDisableCondition;
+        ySpeedInput.disabled = settingsInputsDisableCondition;
+        yAccelInput.disabled = settingsInputsDisableCondition;
+        paintGunOffsetXInput.disabled = settingsInputsDisableCondition;
+        paintGunOffsetYInput.disabled = settingsInputsDisableCondition;
 
         // Grid/Tray inputs are linked to their buttons (only disabled if disconnected)
-        gridColsInput.disabled = setGridSpacingButton.disabled;
-        gridRowsInput.disabled = setGridSpacingButton.disabled;
-        trayWidthInput.disabled = setTraySizeButton.disabled;
-        trayHeightInput.disabled = setTraySizeButton.disabled;
+        gridColsInput.disabled = !connected;
+        gridRowsInput.disabled = !connected;
+        trayWidthInput.disabled = !connected;
+        trayHeightInput.disabled = !connected;
 
         // Calibration Controls (only enabled when in calibration mode and not moving/homing)
         let calibControlsDisable = !connected || !inCalibMode || isMoving || isHoming;
