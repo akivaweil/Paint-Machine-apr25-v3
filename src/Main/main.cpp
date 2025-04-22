@@ -64,8 +64,8 @@ float patternXSpeed = 20000.0; // Actual value
 float patternXAccel = 20000.0; // Actual value
 float patternYSpeed = 20000.0; // Actual value
 float patternYAccel = 20000.0; // Actual value
-float patternZSpeed = 500.0;
-float patternZAccel = 1300.0;
+float patternZSpeed = 5000.0; // Changed from 500.0
+float patternZAccel = 13000.0; // Changed from 1300.0 (scaled 10x)
 float patternRotSpeed = 2000.0; // Reduced from 3000 for more reliable movement
 float patternRotAccel = 1000.0; // Reduced from 2000 for more reliable movement
 

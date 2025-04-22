@@ -65,10 +65,10 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 #define Y_RIGHT_HOME_SWITCH 18    // Updated as requested
 
 // Z Axis
-#define Z_STEP_PIN 40             // Reverted from 38
-#define Z_DIR_PIN 41              // Reverted from 37 (Conflict with Y Left Dir)
-#define Z_HOME_SWITCH 18          // Reverted from 15 (Conflict with Y Right Home)
-#define STEPS_PER_INCH_Z 20320 // Example: (200 steps/rev * 16 microsteps) / (0.15748 inches/rev lead screw)
+#define Z_STEP_PIN 38             // Reverted from 38
+#define Z_DIR_PIN 37             // Reverted from 37 (Conflict with Y Left Dir)
+#define Z_HOME_SWITCH 4          // Reverted from 15 (Conflict with Y Right Home)
+#define STEPS_PER_INCH_Z 254
 
 #define Z_HOME_POS_INCH 0.0f       // Position value when Z is at the home switch (top)
 #define Z_MAX_TRAVEL_NEG_INCH 0.0f // Minimum Z position (usually home or slightly negative)
@@ -131,8 +131,8 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 
 // === General Constants ===
 #define DEBOUNCE_INTERVAL 5      // milliseconds (Restored original value)
-#define HOMING_SPEED 2000          // steps/s (Restored original value)
-#define HOMING_ACCEL 5000          // steps/s^2 (Restored original value)
+#define HOMING_SPEED 5000          // steps/s (Changed from 2000)
+#define HOMING_ACCEL 12500         // steps/s^2 (Changed from 5000, scaled 2.5x)
 #define HOMING_TIMEOUT 15000   // milliseconds
 
 // Stepper Conversion Factors
