@@ -622,6 +622,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               } else if (data.status === "PickPlaceReady") {
                   console.log("JS Debug: Executing 'PickPlaceReady' block"); // JS Debug
                   statusDiv.style.color = 'blue'; // Indicate special mode
+                  allHomed = true; // ADDED: Assume homed if ready for PnP
                   enableButtons(true, true); // PnP ready state (enable=true, enablePnP=true)
                   // Change PnP button to Exit button with red color
                   pnpButton.innerHTML = "Exit Pick and Place Mode";
