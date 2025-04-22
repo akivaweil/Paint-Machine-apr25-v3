@@ -540,12 +540,8 @@ void moveToXYPositionInches(float targetX_inch, float targetY_inch) {
 
 // Moves only the Z axis to the target position in inches, waits for completion
 void moveZToPositionInches(float targetZ_inch, float speedHz, float accel) {
-    // Check if machine is busy or in a conflicting mode
-    if (isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
-        Serial.printf("[ERROR] moveZToPositionInches denied: Machine state conflict (isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d)\n", isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
-        webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Cannot move Z, machine busy or in special mode.\"}");
-        return;
-    }
+    // REMOVED Check: if (isMoving || isHoming || inPickPlaceMode || inCalibrationMode)
+    // The calling function (e.g., paintSide) is responsible for managing the overall machine state.
 
     if (!stepper_z) {
          webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Z Stepper not initialized.\"}");
@@ -554,13 +550,14 @@ void moveZToPositionInches(float targetZ_inch, float speedHz, float accel) {
 
     long targetZ_steps = (long)(targetZ_inch * STEPS_PER_INCH_Z);
     
-    // === Z Limit Check (only for Pick & Place mode) ===
-    if (inPickPlaceMode) {
-        // Only apply limits in Pick & Place mode
-        long min_z_steps = (long)(Z_MAX_TRAVEL_NEG_INCH * STEPS_PER_INCH_Z);
-        long max_z_steps = (long)(Z_HOME_POS_INCH * STEPS_PER_INCH_Z); // Should be 0
-        targetZ_steps = max(min_z_steps, targetZ_steps); // Ensure not below min travel
-        targetZ_steps = min(max_z_steps, targetZ_steps); // Ensure not above home position (0)
+    // === Z Limit Check (only for Pick & Place mode - though this func is mainly for painting now) ===
+    // This check might be less relevant if this function is only called during painting (where inPickPlaceMode is false)
+    // Kept for potential other uses, but review if Z limits are needed outside PnP.
+    if (inPickPlaceMode) { 
+        long min_z_steps = (long)(Z_MAX_TRAVEL_NEG_INCH * STEPS_PER_INCH_Z); // Should be 0
+        long max_z_steps = (long)(Z_MAX_TRAVEL_POS_INCH * STEPS_PER_INCH_Z);
+        targetZ_steps = max(min_z_steps, targetZ_steps); // Ensure not below min travel (which is 0)
+        targetZ_steps = min(max_z_steps, targetZ_steps); // Ensure not above max travel (e.g., 2.75)
     }
     // === End Z Limit Check ===
 
@@ -571,8 +568,7 @@ void moveZToPositionInches(float targetZ_inch, float speedHz, float accel) {
         return; // Already there
     }
 
-    // Temporarily set moving flag for this blocking move
-    isMoving = true;
+    // REMOVED internal isMoving = true;
     // Serial.printf("Moving Z from %.2f to %.2f inches (Steps: %ld to %ld, Speed: %.0f, Accel: %.0f)\n",
     //               (float)currentZ_steps / STEPS_PER_INCH_Z, targetZ_inch, currentZ_steps, targetZ_steps, speedHz, accel);
 
@@ -586,7 +582,7 @@ void moveZToPositionInches(float targetZ_inch, float speedHz, float accel) {
         yield();
     }
     // Serial.println("Z move complete.");
-    isMoving = false; // Clear flag after blocking move completes
+    // REMOVED internal isMoving = false;
 }
 
 // Moves X and Y axes to the target position using specified speed/accel for painting, waits for completion
