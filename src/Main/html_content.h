@@ -116,18 +116,14 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <!-- <button id="setFirstPlaceAbsButton" class="button setting-button" onclick="setFirstPlaceAbs()">Set Drop Off</button> --> <!-- REMOVED -->
     </div>
 
-    <div class="input-group">
-        <h3>Speed/Accel (k steps/s)</h3>
-        <label for="xSpeed">X Spd:</label>
-        <input type="number" id="xSpeed" step="1" value="20" onchange="setSpeedAccel()">
-        <label for="xAccel">X Acc:</label>
-        <input type="number" id="xAccel" step="1" value="20" onchange="setSpeedAccel()">
+    <div class="setting-box">
+        <h4>Speed/Accel (k steps/s)</h4>
+        <label for="patternXSpeed">X Spd:</label>
+        <input type="number" id="patternXSpeed" value="20"> <!-- Default k steps/s -->
         <br>
-        <label for="ySpeed">Y Spd:</label>
-        <input type="number" id="ySpeed" step="1" value="20" onchange="setSpeedAccel()">
-        <label for="yAccel">Y Acc:</label>
-        <input type="number" id="yAccel" step="1" value="20" onchange="setSpeedAccel()">
-        <!-- <button id="setSpeedButton" class="button setting-button" onclick="setSpeedAccel()">Set Speed/Accel</button> --> <!-- REMOVED -->
+        <label for="patternYSpeed">Y Spd:</label>
+        <input type="number" id="patternYSpeed" value="20"> <!-- Default k steps/s -->
+        <button onclick="sendSpeedSettings()">Set Speeds</button> <!-- Renamed -->
     </div>
 
     <button id="pnpButton" class="button" onclick="sendCommand('ENTER_PICKPLACE')">Pick and Place Mode</button>
@@ -354,10 +350,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       var trayHeightInput = document.getElementById('trayHeight');
       // var traySizeDisplaySpan = document.getElementById('traySizeDisplay');
 
-      var xSpeedInput = document.getElementById('xSpeed');
-      var xAccelInput = document.getElementById('xAccel');
-      var ySpeedInput = document.getElementById('ySpeed');
-      var yAccelInput = document.getElementById('yAccel');
+      var xSpeedInput = document.getElementById('patternXSpeed');
+      var ySpeedInput = document.getElementById('patternYSpeed');
       // var xSpeedDisplaySpan = document.getElementById('xSpeedDisplay');
       // var xAccelDisplaySpan = document.getElementById('xAccelDisplay');
       // var ySpeedDisplaySpan = document.getElementById('ySpeedDisplay');
@@ -496,21 +490,14 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               }
 
               // Update speed/accel display and inputs if info is present
-              if (data.hasOwnProperty('patXSpeed') && data.hasOwnProperty('patXAccel') &&
-                  data.hasOwnProperty('patYSpeed') && data.hasOwnProperty('patYAccel')) {
+              if (data.hasOwnProperty('patXSpeed') && data.hasOwnProperty('patYSpeed')) {
                   // Divide received actual values (e.g., 20000) by 1000 for display (e.g., 20)
                   let xS_display = parseInt(data.patXSpeed) / 1000;
-                  let xA_display = parseInt(data.patXAccel) / 1000;
                   let yS_display = parseInt(data.patYSpeed) / 1000;
-                  let yA_display = parseInt(data.patYAccel) / 1000;
                   // xSpeedDisplaySpan.innerHTML = `${xS_display}`;
-                  // xAccelDisplaySpan.innerHTML = `${xA_display}`;
                   // ySpeedDisplaySpan.innerHTML = `${yS_display}`;
-                  // yAccelDisplaySpan.innerHTML = `${yA_display}`;
                   xSpeedInput.value = xS_display;
-                  xAccelInput.value = xA_display;
                   ySpeedInput.value = yS_display;
-                  yAccelInput.value = yA_display;
               }
 
               // Update Grid/Spacing display and inputs if info is present
@@ -741,9 +728,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         firstPlaceXAbsInput.disabled = settingsInputsDisableCondition;
         firstPlaceYAbsInput.disabled = settingsInputsDisableCondition;
         xSpeedInput.disabled = settingsInputsDisableCondition;
-        xAccelInput.disabled = settingsInputsDisableCondition;
         ySpeedInput.disabled = settingsInputsDisableCondition;
-        yAccelInput.disabled = settingsInputsDisableCondition;
         paintGunOffsetXInput.disabled = settingsInputsDisableCondition;
         paintGunOffsetYInput.disabled = settingsInputsDisableCondition;
 
@@ -864,30 +849,18 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         sendCommand(command);
     }
 
-    function setSpeedAccel() {
-        // Read displayed values (e.g., 20)
-        const xS_display = xSpeedInput.value;
-        const xA_display = xAccelInput.value;
-        const yS_display = ySpeedInput.value;
-        const yA_display = yAccelInput.value;
-        // Basic validation
-        if (isNaN(parseFloat(xS_display)) || isNaN(parseFloat(xA_display)) || isNaN(parseFloat(yS_display)) || isNaN(parseFloat(yA_display))) {
-            alert("Invalid speed/accel values. Please enter numbers.");
-            return;
+    function sendSpeedSettings() { // Renamed
+        const xs_k = document.getElementById('patternXSpeed').value;
+        const ys_k = document.getElementById('patternYSpeed').value;
+        // Convert from k steps/s to steps/s
+        const xs = parseFloat(xs_k) * 1000;
+        const ys = parseFloat(ys_k) * 1000;
+        if (!isNaN(xs) && !isNaN(ys) && xs > 0 && ys > 0) {
+            // Send actual steps/s values (only speeds)
+            sendCommand(`SET_PNP_SPEEDS ${xs} ${ys}`); // Use a new command name
+        } else {
+            alert("Invalid speed values. Must be positive numbers.");
         }
-        // Convert displayed values (e.g., 20) back to actual values (e.g., 20000) for the command
-        const xS_actual = parseFloat(xS_display) * 1000;
-        const xA_actual = parseFloat(xA_display) * 1000;
-        const yS_actual = parseFloat(yS_display) * 1000;
-        const yA_actual = parseFloat(yA_display) * 1000;
-
-        if (xS_actual <= 0 || xA_actual <= 0 || yS_actual <= 0 || yA_actual <= 0) {
-            alert("Speed/accel values must be positive.");
-            return;
-        }
-        // Send command with the actual values
-        const command = `SET_SPEED_ACCEL ${xS_actual} ${xA_actual} ${yS_actual} ${yA_actual}`;
-        sendCommand(command);
     }
 
     function jogAxis(axis, direction, fixedStep) {
@@ -1005,9 +978,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
             },
             patternSpeed: {
                 xSpeed: parseFloat(xSpeedInput.value) || 0,
-                xAccel: parseFloat(xAccelInput.value) || 0,
-                ySpeed: parseFloat(ySpeedInput.value) || 0,
-                yAccel: parseFloat(yAccelInput.value) || 0
+                ySpeed: parseFloat(ySpeedInput.value) || 0
             },
             grid: {
                 cols: parseInt(gridColsInput.value) || 0,
@@ -1086,9 +1057,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                 
                 if (settings.patternSpeed) {
                     xSpeedInput.value = settings.patternSpeed.xSpeed;
-                    xAccelInput.value = settings.patternSpeed.xAccel;
                     ySpeedInput.value = settings.patternSpeed.ySpeed;
-                    yAccelInput.value = settings.patternSpeed.yAccel;
                 }
                 
                 if (settings.grid) {

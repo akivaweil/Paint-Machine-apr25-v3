@@ -180,41 +180,41 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                              webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format for SET_PNP_OFFSET. Use: SET_PNP_OFFSET X Y\"}");
                          }
                      }
-                 } else if (command.startsWith("SET_SPEED_ACCEL ")) {
-                     Serial.println("WebSocket: Received SET_SPEED_ACCEL command.");
+                 } else if (command.startsWith("SET_PNP_SPEEDS ")) { // Renamed command
+                     Serial.println("WebSocket: Received SET_PNP_SPEEDS command.");
                      if (isMoving || isHoming) { // Allow setting even in PnP mode if idle? Maybe not best idea. Only allow when not moving/homing.
                          Serial.println("[DEBUG] SET_SPEED_ACCEL denied: Machine busy.");
                          webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set speed/accel while machine is busy.\"}");
                      } else {
-                         float receivedXS, receivedXA, receivedYS, receivedYA;
+                         float receivedXS, receivedYS;
                          // Use C-style string for sscanf - receive actual values (e.g., 20000)
-                         int parsed = sscanf(command.c_str() + strlen("SET_SPEED_ACCEL "), "%f %f %f %f", &receivedXS, &receivedXA, &receivedYS, &receivedYA);
+                         int parsed = sscanf(command.c_str() + strlen("SET_PNP_SPEEDS "), "%f %f", &receivedXS, &receivedYS);
                          // Check if parsing was successful AND values are positive
-                         if (parsed == 4 && receivedXS > 0 && receivedXA > 0 && receivedYS > 0 && receivedYA > 0) {
-                             // Update variables directly with received actual values
+                         if (parsed == 2 && receivedXS > 0 && receivedYS > 0) {
+                             // Update speed variables directly with received actual values
                              patternXSpeed = receivedXS;
-                             patternXAccel = receivedXA;
                              patternYSpeed = receivedYS;
-                             patternYAccel = receivedYA;
-
-                             saveSettings(); // Save updated settings
-                             Serial.printf("[DEBUG] Saved Speed/Accel to NVS: X(S:%.0f, A:%.0f), Y(S:%.0f, A:%.0f)\n", patternXSpeed, patternXAccel, patternYSpeed, patternYAccel);
-
-                             // Send confirmation with all current settings (using actual values)
-                             char msgBuffer[400]; // Increased size
-                             sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"Speed/Accel updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patXAccel\":%.0f,\"patYSpeed\":%.0f,\"patYAccel\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"gapX\":%.3f,\"gapY\":%.3f}",
-                                     pnpOffsetX_inch, pnpOffsetY_inch,
-                                     placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
-                                     patternXSpeed, patternXAccel, patternYSpeed, patternYAccel,
-                                     placeGridCols, placeGridRows,
-                                     placeGapX_inch, placeGapY_inch);
-                             webSocket.broadcastTXT(msgBuffer);
-                         } else {
-                             Serial.println("[ERROR] Failed to parse SET_SPEED_ACCEL values or values invalid.");
-                             webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format/values for SET_SPEED_ACCEL. Use: SET_SPEED_ACCEL XS XA YS YA (all positive)\"}");
-                         }
-                     }
-                 } else if (command.startsWith("SET_FIRST_PLACE_ABS ")) { // UPDATED
+                             // Acceleration variables remain unchanged
+ 
+                              saveSettings(); // Save updated settings
+                             Serial.printf("[DEBUG] Saved Speeds to NVS: X(S:%.0f), Y(S:%.0f)\n", patternXSpeed, patternYSpeed);
+ 
+                              // Send confirmation with all current settings (using actual values)
+                              char msgBuffer[400]; // Increased size
+                              // Removed acceleration values from response JSON
+                              sprintf(msgBuffer, "{\"status\":\"Ready\",\"message\":\"Speeds updated.\",\"pnpOffsetX\":%.2f,\"pnpOffsetY\":%.2f,\"placeFirstXAbs\":%.2f,\"placeFirstYAbs\":%.2f,\"patXSpeed\":%.0f,\"patYSpeed\":%.0f,\"gridCols\":%d,\"gridRows\":%d,\"gapX\":%.3f,\"gapY\":%.3f}",
+                                      pnpOffsetX_inch, pnpOffsetY_inch,
+                                      placeFirstXAbsolute_inch, placeFirstYAbsolute_inch,
+                                      patternXSpeed, patternYSpeed,
+                                      placeGridCols, placeGridRows,
+                                      placeGapX_inch, placeGapY_inch);
+                              webSocket.broadcastTXT(msgBuffer);
+                          } else {
+                              Serial.println("[ERROR] Failed to parse SET_PNP_SPEEDS values or values invalid.");
+                              webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format/values for SET_PNP_SPEEDS. Use: SET_PNP_SPEEDS XS YS (all positive)\"}");
+                          }
+                      }
+                  } else if (command.startsWith("SET_FIRST_PLACE_ABS ")) { // UPDATED
                          Serial.println("[DEBUG] webSocketEvent: Handling SET_FIRST_PLACE_ABS command."); // DEBUG
                          float newX, newY;
                     // Expecting "SET_FIRST_PLACE_ABS X_val Y_val"
@@ -580,9 +580,7 @@ void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
 
     // Speed/Accel Settings (showing displayed values)
     doc["patXSpeed"] = patternXSpeed; // Send actual value
-    doc["patXAccel"] = patternXAccel; // Send actual value
     doc["patYSpeed"] = patternYSpeed; // Send actual value
-    doc["patYAccel"] = patternYAccel; // Send actual value
 
     // Pick and Place Settings
     doc["pnpOffsetX"] = pnpOffsetX_inch;
