@@ -227,14 +227,14 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       <!-- Side Settings Panels -->
       <div style="clear:both;"></div>
       
-      <!-- Back Side Settings -->
+      <!-- Back Side Settings (Side 0) - Stays First -->
       <div class="input-group">
         <h3>Back Side Settings</h3>
         <button id="paintBackButton" class="button" onclick="sendCommand('PAINT_SIDE_0')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Back Side</button>
         <label for="paintZ_0">Z Height:</label>
-        <input type="number" id="paintZ_0" step="0.1" value="1.0" min="0" max="2.5">
+        <input type="number" id="paintZ_0" step="0.1" value="1.0"> <!-- Removed min/max -->
         <span id="paintZDisplay_0">Current: 1.0</span>
-        <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small>
+        <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_0">Pitch:</label>
         <input type="number" id="paintP_0" step="1" value="0" min="0" max="90">
@@ -242,10 +242,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Orientation:</label>
         <select id="paintR_0">
-          <option value="0" selected>Horizontal</option>
-          <option value="90">Vertical</option>
+          <option value="0" selected>Vertical</option>
+          <option value="90">Horizontal</option>
         </select>
-        <span id="paintRDisplay_0">Horizontal</span>
+        <span id="paintRDisplay_0">Vertical</span>
         
         <label for="paintS_0">Speed:</label>
         <input type="range" id="paintS_0" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_0')">
@@ -254,41 +254,14 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="setPaintSideButton_0" class="button setting-button" onclick="setPaintSideSettings(0)">Save Settings</button>
       </div>
       
-      <!-- Right Side Settings -->
-      <div class="input-group">
-        <h3>Right Side Settings</h3>
-        <button id="paintRightButton" class="button" onclick="sendCommand('PAINT_SIDE_1')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Right Side</button>
-        <label for="paintZ_1">Z Height:</label>
-        <input type="number" id="paintZ_1" step="0.1" value="1.0" min="0" max="2.5">
-        <span id="paintZDisplay_1">Current: 1.0</span>
-        <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small>
-        
-        <label for="paintP_1">Pitch:</label>
-        <input type="number" id="paintP_1" step="1" value="0" min="0" max="90">
-        <span id="paintPDisplay_1">0&deg;</span>
-        
-        <label>Orientation:</label>
-        <select id="paintR_1">
-          <option value="0" selected>Horizontal</option>
-          <option value="90">Vertical</option>
-        </select>
-        <span id="paintRDisplay_1">Horizontal</span>
-        
-        <label for="paintS_1">Speed:</label>
-        <input type="range" id="paintS_1" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_1')">
-        <span id="paintSDisplay_1">20</span>
-        
-        <button id="setPaintSideButton_1" class="button setting-button" onclick="setPaintSideSettings(1)">Save Settings</button>
-      </div>
-      
-      <!-- Front Side Settings -->
+      <!-- Front Side Settings (Side 2) - Moves to Second -->
       <div class="input-group">
         <h3>Front Side Settings</h3>
         <button id="paintFrontButton" class="button" onclick="sendCommand('PAINT_SIDE_2')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Front Side</button>
         <label for="paintZ_2">Z Height:</label>
-        <input type="number" id="paintZ_2" step="0.1" value="1.0" min="0" max="2.5">
+        <input type="number" id="paintZ_2" step="0.1" value="1.0"> <!-- Removed min/max -->
         <span id="paintZDisplay_2">Current: 1.0</span>
-        <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small>
+        <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_2">Pitch:</label>
         <input type="number" id="paintP_2" step="1" value="0" min="0" max="90">
@@ -296,10 +269,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Orientation:</label>
         <select id="paintR_2">
-          <option value="0" selected>Horizontal</option>
-          <option value="90">Vertical</option>
+          <option value="0" selected>Vertical</option>
+          <option value="90">Horizontal</option>
         </select>
-        <span id="paintRDisplay_2">Horizontal</span>
+        <span id="paintRDisplay_2">Vertical</span>
         
         <label for="paintS_2">Speed:</label>
         <input type="range" id="paintS_2" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_2')">
@@ -307,15 +280,15 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <button id="setPaintSideButton_2" class="button setting-button" onclick="setPaintSideSettings(2)">Save Settings</button>
       </div>
-      
-      <!-- Left Side Settings -->
+
+      <!-- Left Side Settings (Side 3) - Moves to Third -->
       <div class="input-group">
         <h3>Left Side Settings</h3>
         <button id="paintLeftButton" class="button" onclick="sendCommand('PAINT_SIDE_3')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Left Side</button>
         <label for="paintZ_3">Z Height:</label>
-        <input type="number" id="paintZ_3" step="0.1" value="1.0" min="0" max="2.5">
+        <input type="number" id="paintZ_3" step="0.1" value="1.0"> <!-- Removed min/max -->
         <span id="paintZDisplay_3">Current: 1.0</span>
-        <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small>
+        <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_3">Pitch:</label>
         <input type="number" id="paintP_3" step="1" value="0" min="0" max="90">
@@ -323,16 +296,43 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Orientation:</label>
         <select id="paintR_3">
-          <option value="0" selected>Horizontal</option>
-          <option value="90">Vertical</option>
+          <option value="0" selected>Vertical</option>
+          <option value="90">Horizontal</option>
         </select>
-        <span id="paintRDisplay_3">Horizontal</span>
+        <span id="paintRDisplay_3">Vertical</span>
         
         <label for="paintS_3">Speed:</label>
         <input type="range" id="paintS_3" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_3')">
         <span id="paintSDisplay_3">20</span>
         
         <button id="setPaintSideButton_3" class="button setting-button" onclick="setPaintSideSettings(3)">Save Settings</button>
+      </div>
+
+      <!-- Right Side Settings (Side 1) - Moves to Fourth/Last -->
+      <div class="input-group">
+        <h3>Right Side Settings</h3>
+        <button id="paintRightButton" class="button" onclick="sendCommand('PAINT_SIDE_1')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Right Side</button>
+        <label for="paintZ_1">Z Height:</label>
+        <input type="number" id="paintZ_1" step="0.1" value="1.0"> <!-- Removed min/max -->
+        <span id="paintZDisplay_1">Current: 1.0</span>
+        <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
+        
+        <label for="paintP_1">Pitch:</label>
+        <input type="number" id="paintP_1" step="1" value="0" min="0" max="90">
+        <span id="paintPDisplay_1">0&deg;</span>
+        
+        <label>Orientation:</label>
+        <select id="paintR_1">
+          <option value="0" selected>Vertical</option>
+          <option value="90">Horizontal</option>
+        </select>
+        <span id="paintRDisplay_1">Vertical</span>
+        
+        <label for="paintS_1">Speed:</label>
+        <input type="range" id="paintS_1" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_1')">
+        <span id="paintSDisplay_1">20</span>
+        
+        <button id="setPaintSideButton_1" class="button setting-button" onclick="setPaintSideSettings(1)">Save Settings</button>
       </div>
     </div>
   </div> <!-- ADDED -->

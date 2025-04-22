@@ -65,15 +65,29 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 #define Y_RIGHT_HOME_SWITCH 18    // Updated as requested
 
 // Z Axis
-#define Z_STEP_PIN 38
-#define Z_DIR_PIN 37
-#define Z_HOME_SWITCH 4
+#define Z_STEP_PIN 40
+#define Z_DIR_PIN 41
+#define Z_HOME_SWITCH 18 // Assuming Z homes at the top
+#define STEPS_PER_INCH_Z 20320 // Example: (200 steps/rev * 16 microsteps) / (0.15748 inches/rev lead screw)
 
-// PnP Z Heights (Absolute positions in inches, relative to Z_HOME_POS_INCH = 0)
-// Ensure these are within [Z_MAX_TRAVEL_NEG_INCH, 0]
-#define PNP_Z_TRAVEL_INCH -0.5f // Safe height for XY travel between pick and place
-#define PNP_Z_PICK_INCH   -2.5f // Height to extend cylinder for picking
-#define PNP_Z_PLACE_INCH  -2.0f // Height to extend cylinder for placing
+#define Z_HOME_POS_INCH 0.0f       // Position value when Z is at the home switch (top)
+#define Z_MAX_TRAVEL_NEG_INCH 0.0f // Minimum Z position (usually home or slightly negative)
+#define Z_MAX_TRAVEL_POS_INCH 2.75f  // Maximum downward position in inches (bottom limit)
+
+// Define safe Z height for travel during PnP (relative to home/0)
+// Ensure this is within the 0 to 2.75 range.
+// A smaller value means higher up (closer to 0).
+#define PNP_Z_CLEARANCE_INCH 0.1f // Example: Lift 0.1 inch from home before XY travel
+
+// Define Z height for picking up items (relative to home/0)
+// This needs calibration based on pickup surface and item height.
+// Ensure this is within the 0 to 2.75 range.
+#define PNP_Z_PICK_HEIGHT_INCH 2.5f // Example: Move down to 2.5 inches for pickup
+
+// Define Z height for placing items (relative to home/0)
+// This needs calibration based on placement surface.
+// Ensure this is within the 0 to 2.75 range.
+#define PNP_Z_PLACE_HEIGHT_INCH 2.0f // Example: Move down to 2.0 inches for placing
 
 // Rotation
 #define ROTATION_STEP_PIN 40
@@ -123,14 +137,12 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 
 // Stepper Conversion Factors
 #define STEPS_PER_INCH_XY 254      // Steps per inch for X/Y (400 steps/rev / (20 teeth * 2mm pitch) * 25.4 mm/in) (Restored original value)
-#define STEPS_PER_INCH_Z 2580.64   // Steps per inch for Z (Restored original value)
 #define STEPS_PER_DEGREE 11.11111f // Adjusted for better precision (4000.0f / 360.0f = 11.11111f) (Restored original value)
 
 // Travel Limits (Inches, relative to homed position 0)
 #define X_MAX_TRAVEL_POS_INCH 30.0
 #define Y_MAX_TRAVEL_POS_INCH 30.0
-#define Z_HOME_POS_INCH 0.0f        // Added f suffix for consistency
-#define Z_MAX_TRAVEL_NEG_INCH -2.75f // Maximum Z travel downwards (Restored original value)
+#define Z_MAX_TRAVEL_POS_INCH 2.75f // Maximum Z travel downwards (Restored original value)
 
 // PnP Item Dimensions (NEW - Moved from main.cpp)
 const float pnpItemWidth_inch = 3.0f;
