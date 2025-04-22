@@ -466,7 +466,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         statusDiv.innerHTML = 'Connected';
         statusDiv.style.color = 'green';
         connectionIndicatorSpan.innerHTML = ''; // Clear indicator on connect
-        enableButtons(true, false); // Enable buttons on connect, not in PnP mode
+        sendCommand('GET_STATUS'); // Request current status from ESP32
+        enableButtons(); // Enable/disable buttons based on initial state (will be updated by GET_STATUS response)
       }
 
       function onClose(event) {
@@ -474,11 +475,17 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         statusDiv.innerHTML = 'Disconnected - Retrying...';
         statusDiv.style.color = 'red';
         connectionIndicatorSpan.innerHTML = ' (Offline)'; // Show indicator on close
-         enableButtons(false, false); // Disable buttons on disconnect, not in PnP mode
-         pnpButton.innerHTML = "Enter Pick/Place"; // Updated text
-         pnpStepButton.style.display = 'none'; // Hide PnP step button
-         enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button
-         calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
+        
+        // Reset mode flags on disconnect
+        isMoving = false;
+        isHoming = false;
+        allHomed = false;
+        
+        enableButtons(); // Fixed: Removed parameters that don't match function signature
+        pnpButton.innerHTML = "Enter Pick/Place"; // Updated text
+        pnpStepButton.style.display = 'none'; // Hide PnP step button
+        enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button
+        calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
         setTimeout(initWebSocket, 2000); // Try to reconnect every 2 seconds
       }
 
@@ -496,6 +503,12 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               // Update JavaScript state variables
               isMoving = (data.status === "Busy" || data.status === "Moving" || data.status === "Homing");
               isHoming = (data.status === "Homing");
+              
+              // Check for explicit homed status if available
+              if (data.hasOwnProperty('homed')) {
+                  console.log(`JS Debug: Received explicit homed status=${data.homed}`);
+                  allHomed = data.homed; // Use explicit homed status from server
+              }
 
               // Update offset display and inputs if offset info is present
               if (data.hasOwnProperty('pnpOffsetX') && data.hasOwnProperty('pnpOffsetY')) {
@@ -613,6 +626,11 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   console.log("JS Debug: Executing 'Ready' or 'Error' block"); // JS Debug
                   statusDiv.style.color = (data.status === "Ready") ? 'green' : 'red';
                   if (data.status === "Ready") allHomed = true; // Set homed on Ready but don't unset on Error
+                  
+                  // Reset the Pick & Place mode flag
+                  isMoving = false;
+                  console.log("JS Debug: Reset isMoving to false");
+                  
                   enableButtons(true, false);
                   pnpButton.innerHTML = "Enter Pick/Place"; // Reset button text
                   pnpButton.className = "button"; // Reset to default button style
@@ -623,6 +641,11 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   console.log("JS Debug: Executing 'PickPlaceReady' block"); // JS Debug
                   statusDiv.style.color = 'blue'; // Indicate special mode
                   allHomed = true; // ADDED: Assume homed if ready for PnP
+                  
+                  // Set the Pick & Place mode flag
+                  isMoving = true;
+                  console.log("JS Debug: Set isMoving to true");
+                  
                   enableButtons(true, true); // PnP ready state (enable=true, enablePnP=true)
                   // Change PnP button to Exit button with red color
                   pnpButton.innerHTML = "Exit Pick and Place Mode";
@@ -692,512 +715,521 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       }
 
       function enableButtons() {
-          console.log(`enableButtons called: connected=${websocket && websocket.readyState === WebSocket.OPEN}, allHomed=${allHomed}, isMoving=${isMoving}, isHoming=${isHoming}, inPnPMode=${pnpButton.innerHTML.includes('Mode') || pnpButton.innerHTML.includes('Complete')}, inCalibMode=${calibrationControlsDiv.style.display === 'block'}`);
+        let connected = websocket && websocket.readyState === WebSocket.OPEN;
+        console.log("enableButtons() - Debug State: Connected="+connected+", AllHomed="+allHomed+", IsMoving="+isMoving+", IsHoming="+isHoming+", InPickAndPlaceMode="+inPickAndPlaceMode+", InManualMode="+inManualMode+", InCalibrationMode="+inCalibrationMode);
+        
+        let inCalibMode = calibrationControlsDiv.style.display === 'block';
+        let canStop = connected && (isMoving || isHoming || inCalibMode); // Can stop if doing anything interruptible
 
-          let connected = websocket && websocket.readyState === WebSocket.OPEN;
-          let inPnPMode = pnpButton.innerHTML.includes('Mode') || pnpButton.innerHTML.includes('Complete');
-          let inCalibMode = calibrationControlsDiv.style.display === 'block';
-          let canStop = connected && (isMoving || isHoming || inPnPMode || inCalibMode); // Can stop if doing anything interruptible
+        homeButton.disabled = !connected; // Home All button is always enabled if connected
+        stopButton.disabled = !canStop;
 
-          homeButton.disabled = !connected; // Home All button is always enabled if connected
-          stopButton.disabled = !canStop;
+        // PnP Button Logic - UPDATED
+        // Disable if not connected, not homed, moving, homing, in calibration, or sequence complete
+        pnpButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || pnpButton.innerHTML.includes('Complete');
+        
+        // Add detailed debugging for PnP button
+        if (pnpButton.disabled) {
+            console.log(`PnP button disabled because: connected=${connected}, homed=${allHomed}, moving=${isMoving}, homing=${isHoming}, inCalibMode=${inCalibMode}, complete=${pnpButton.innerHTML.includes('Complete')}`);
+        }
 
-          // PnP Button Logic - UPDATED
-          // Disable if not connected, not homed, moving, homing, in calibration, or sequence complete
-          pnpButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || pnpButton.innerHTML.includes('Complete');
+        // PnP Step Button Logic (Only enabled in PnPReady state)
+        pnpStepButton.disabled = !(connected && isMoving && !isHoming);
+        pnpSkipButton.disabled = pnpStepButton.disabled; // Skip/Back follow Step button logic
+        pnpBackButton.disabled = pnpStepButton.disabled; // Skip/Back follow Step button logic
 
-          // PnP Step Button Logic (Only enabled in PnPReady state)
-          pnpStepButton.disabled = !(connected && pnpButton.innerHTML.includes('Mode') && !isMoving && !isHoming);
-          pnpSkipButton.disabled = pnpStepButton.disabled; // Skip/Back follow Step button logic
-          pnpBackButton.disabled = pnpStepButton.disabled; // Skip/Back follow Step button logic
+        // Calibration Button Logic
+        enterCalibrationButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode;
 
-          // Calibration Button Logic
-          enterCalibrationButton.disabled = !connected || !allHomed || isMoving || isHoming || inPnPMode || inCalibMode;
+        // Simple, safe debugging for Manual Mode button state
+        if (enterCalibrationButton.disabled) {
+            console.log(`Manual Mode button disabled: connected=${connected}, homed=${allHomed}, moving=${isMoving}, homing=${isHoming}, inCalib=${inCalibMode}`);
+        }
 
-          // --- Painting Buttons ---
-          // Disable painting if not connected, not homed, moving, homing, in PnP, or calibrating
-          startPaintingButton.disabled = !connected || !allHomed || isMoving || isHoming || inPnPMode || inCalibMode; // Requires homing
-          paintBackButton.disabled = startPaintingButton.disabled; // Same logic as start
+        // --- Painting Buttons ---
+        // Disable painting if not connected, not homed, moving, homing, in PnP, or calibrating
+        startPaintingButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode; // Requires homing
+        paintBackButton.disabled = startPaintingButton.disabled; // Same logic as start
 
-          // Rotation Buttons
-          // MODIFIED: Only disable if not connected or actively moving/homing
-          // Now matching the Grid and Tray Size buttons behavior
-          rotateMinus90Button.disabled = !connected || isMoving || isHoming;
-          rotatePlus90Button.disabled = rotateMinus90Button.disabled;
-          rotateMinus5Button.disabled = rotateMinus90Button.disabled;
-          rotatePlus5Button.disabled = rotateMinus90Button.disabled;
-          setRotationZeroButton.disabled = rotateMinus90Button.disabled;
+        // Rotation Buttons
+        // MODIFIED: Only disable if not connected or actively moving/homing
+        // Now matching the Grid and Tray Size buttons behavior
+        rotateMinus90Button.disabled = !connected || isMoving || isHoming;
+        rotatePlus90Button.disabled = rotateMinus90Button.disabled;
+        rotateMinus5Button.disabled = rotateMinus90Button.disabled;
+        rotatePlus5Button.disabled = rotateMinus90Button.disabled;
+        setRotationZeroButton.disabled = rotateMinus90Button.disabled;
 
-          // --- Settings Buttons/Inputs ---
-          // Generally disable settings inputs/buttons if disconnected, moving, homing, in PnP, or calibrating
-          // Special exceptions for Grid/Tray buttons
-          let generalDisableCondition = !connected || isMoving || isHoming || inPnPMode || inCalibMode;
+        // --- Settings Buttons/Inputs ---
+        // Generally disable settings inputs/buttons if disconnected, moving, homing, in PnP, or calibrating
+        // Special exceptions for Grid/Tray buttons
+        let generalDisableCondition = !connected || isMoving || isHoming || inCalibMode;
 
-          // *** Keep Grid and Tray Size buttons enabled if connected ***
-          setGridSpacingButton.disabled = !connected;
-          setTraySizeButton.disabled = !connected;
-          // *** End Special Exception ***
+        // *** Keep Grid and Tray Size buttons enabled if connected ***
+        setGridSpacingButton.disabled = !connected;
+        setTraySizeButton.disabled = !connected;
+        // *** End Special Exception ***
 
-          setOffsetButton.disabled = generalDisableCondition || !allHomed; // Requires homing
-          setFirstPlaceAbsButton.disabled = generalDisableCondition || !allHomed; // Requires homing
-          setSpeedButton.disabled = generalDisableCondition || !allHomed; // Requires homing
-          setPaintOffsetsButton.disabled = generalDisableCondition || !allHomed; // Requires homing
+        setOffsetButton.disabled = generalDisableCondition || !allHomed; // Requires homing
+        setFirstPlaceAbsButton.disabled = generalDisableCondition || !allHomed; // Requires homing
+        setSpeedButton.disabled = generalDisableCondition || !allHomed; // Requires homing
+        setPaintOffsetsButton.disabled = generalDisableCondition || !allHomed; // Requires homing
 
-          // Disable input fields based on the same general condition + homing requirement for most
-          offsetXInput.disabled = setOffsetButton.disabled;
-          offsetYInput.disabled = setOffsetButton.disabled;
-          firstPlaceXAbsInput.disabled = setFirstPlaceAbsButton.disabled;
-          firstPlaceYAbsInput.disabled = setFirstPlaceAbsButton.disabled;
-          xSpeedInput.disabled = setSpeedButton.disabled;
-          xAccelInput.disabled = setSpeedButton.disabled;
-          ySpeedInput.disabled = setSpeedButton.disabled;
-          yAccelInput.disabled = setSpeedButton.disabled;
-          paintGunOffsetXInput.disabled = setPaintOffsetsButton.disabled;
-          paintGunOffsetYInput.disabled = setPaintOffsetsButton.disabled;
+        // Disable input fields based on the same general condition + homing requirement for most
+        offsetXInput.disabled = setOffsetButton.disabled;
+        offsetYInput.disabled = setOffsetButton.disabled;
+        firstPlaceXAbsInput.disabled = setFirstPlaceAbsButton.disabled;
+        firstPlaceYAbsInput.disabled = setFirstPlaceAbsButton.disabled;
+        xSpeedInput.disabled = setSpeedButton.disabled;
+        xAccelInput.disabled = setSpeedButton.disabled;
+        ySpeedInput.disabled = setSpeedButton.disabled;
+        yAccelInput.disabled = setSpeedButton.disabled;
+        paintGunOffsetXInput.disabled = setPaintOffsetsButton.disabled;
+        paintGunOffsetYInput.disabled = setPaintOffsetsButton.disabled;
 
-          // Grid/Tray inputs are linked to their buttons (only disabled if disconnected)
-          gridColsInput.disabled = setGridSpacingButton.disabled;
-          gridRowsInput.disabled = setGridSpacingButton.disabled;
-          trayWidthInput.disabled = setTraySizeButton.disabled;
-          trayHeightInput.disabled = setTraySizeButton.disabled;
+        // Grid/Tray inputs are linked to their buttons (only disabled if disconnected)
+        gridColsInput.disabled = setGridSpacingButton.disabled;
+        gridRowsInput.disabled = setGridSpacingButton.disabled;
+        trayWidthInput.disabled = setTraySizeButton.disabled;
+        trayHeightInput.disabled = setTraySizeButton.disabled;
 
-          // Calibration Controls (only enabled when in calibration mode and not moving/homing)
-          let calibControlsDisable = !connected || !inCalibMode || isMoving || isHoming;
-          let calibInputs = calibrationControlsDiv.querySelectorAll('input, button');
-          calibInputs.forEach(el => {
-              el.disabled = calibControlsDisable;
-          });
+        // Calibration Controls (only enabled when in calibration mode and not moving/homing)
+        let calibControlsDisable = !connected || !inCalibMode || isMoving || isHoming;
+        let calibInputs = calibrationControlsDiv.querySelectorAll('input, button');
+        calibInputs.forEach(el => {
+            el.disabled = calibControlsDisable;
+        });
 
-          // Download/Upload Buttons (only need connection)
-          document.getElementById('downloadSettingsButton').disabled = !connected;
-          document.getElementById('uploadSettingsButton').disabled = !connected;
+        // Download/Upload Buttons (only need connection)
+        document.getElementById('downloadSettingsButton').disabled = !connected;
+        document.getElementById('uploadSettingsButton').disabled = !connected;
 
-          // Specific overrides based on state machine logic elsewhere (e.g., PnPComplete disabling pnpButton)
-          if (pnpButton.innerHTML.includes('Complete')) {
-               pnpButton.disabled = true;
-          }
-      }
+        // Specific overrides based on state machine logic elsewhere (e.g., PnPComplete disabling pnpButton)
+        if (pnpButton.innerHTML.includes('Complete')) {
+             pnpButton.disabled = true;
+        }
+    }
 
-      window.addEventListener('load', initWebSocket);
-      // Add keyboard listener
-      document.addEventListener('keydown', function(event) {
-          // Ignore keyboard input if focus is on an input field
-          if (document.activeElement.tagName === 'INPUT') return;
+    window.addEventListener('load', initWebSocket);
+    // Add keyboard listener
+    document.addEventListener('keydown', function(event) {
+        // Ignore keyboard input if focus is on an input field
+        if (document.activeElement.tagName === 'INPUT') return;
 
-          if (event.key === 'n' || event.key === 'N') {
-              // Check if the PnP Cycle button is visible and enabled before sending
-              if (pnpStepButton.style.display !== 'none' && !pnpStepButton.disabled) {
-                  sendCommand('PNP_NEXT_STEP');
-              }
-          } else if (event.key === 'h' || event.key === 'H') {
-              // Check if the Home button is enabled before sending
-              if (!homeButton.disabled) {
-                  sendCommand('HOME');
-              }
-          } else if (event.key === '1') {
-              // Check if the Go to (5,5,0) button is enabled
-              if (!gotoButton.disabled) {
-                  sendCommand('GOTO_5_5_0');
-              }
-          } else if (event.key === '2') {
-              // Check if the Go to (20,20,0) button is enabled
-              if (!gotoButton2020.disabled) {
-                  sendCommand('GOTO_20_20_0');
-              }
-          } else if (calibrationControlsDiv.style.display === 'block') {
-              // Arrow key controls for calibration mode - fixed 0.2" increments
-              const fixedJogStep = 0.2; // Always move in 0.2" increments with arrow keys
-              
-              switch (event.key) {
-                  case 'ArrowLeft':
-                      // Jog X-
-                      if (!isMoving && !isHoming) jogAxis('X', -1, fixedJogStep);
-                      event.preventDefault(); // Prevent page scrolling
-                      break;
-                  case 'ArrowRight':
-                      // Jog X+
-                      if (!isMoving && !isHoming) jogAxis('X', 1, fixedJogStep);
-                      event.preventDefault();
-                      break;
-                  case 'ArrowUp':
-                      // Jog Y+
-                      if (!isMoving && !isHoming) jogAxis('Y', 1, fixedJogStep);
-                      event.preventDefault();
-                      break;
-                  case 'ArrowDown':
-                      // Jog Y-
-                      if (!isMoving && !isHoming) jogAxis('Y', -1, fixedJogStep);
-                      event.preventDefault();
-                      break;
-              }
-          }
-      });
+        if (event.key === 'n' || event.key === 'N') {
+            // Check if the PnP Cycle button is visible and enabled before sending
+            if (pnpStepButton.style.display !== 'none' && !pnpStepButton.disabled) {
+                sendCommand('PNP_NEXT_STEP');
+            }
+        } else if (event.key === 'h' || event.key === 'H') {
+            // Check if the Home button is enabled before sending
+            if (!homeButton.disabled) {
+                sendCommand('HOME');
+            }
+        } else if (event.key === '1') {
+            // Check if the Go to (5,5,0) button is enabled
+            if (!gotoButton.disabled) {
+                sendCommand('GOTO_5_5_0');
+            }
+        } else if (event.key === '2') {
+            // Check if the Go to (20,20,0) button is enabled
+            if (!gotoButton2020.disabled) {
+                sendCommand('GOTO_20_20_0');
+            }
+        } else if (calibrationControlsDiv.style.display === 'block') {
+            // Arrow key controls for calibration mode - fixed 0.2" increments
+            const fixedJogStep = 0.2; // Always move in 0.2" increments with arrow keys
+            
+            switch (event.key) {
+                case 'ArrowLeft':
+                    // Jog X-
+                    if (!isMoving && !isHoming) jogAxis('X', -1, fixedJogStep);
+                    event.preventDefault(); // Prevent page scrolling
+                    break;
+                case 'ArrowRight':
+                    // Jog X+
+                    if (!isMoving && !isHoming) jogAxis('X', 1, fixedJogStep);
+                    event.preventDefault();
+                    break;
+                case 'ArrowUp':
+                    // Jog Y+
+                    if (!isMoving && !isHoming) jogAxis('Y', 1, fixedJogStep);
+                    event.preventDefault();
+                    break;
+                case 'ArrowDown':
+                    // Jog Y-
+                    if (!isMoving && !isHoming) jogAxis('Y', -1, fixedJogStep);
+                    event.preventDefault();
+                    break;
+            }
+        }
+    });
 
-      function setOffset() {
-          const xVal = offsetXInput.value;
-          const yVal = offsetYInput.value;
-          // Basic validation (ensure they are numbers)
-          if (isNaN(parseFloat(xVal)) || isNaN(parseFloat(yVal))) {
-              alert("Invalid offset values. Please enter numbers.");
-              return;
-          }
-          const command = `SET_PNP_OFFSET ${xVal} ${yVal}`;
-          sendCommand(command);
-      }
+    function setOffset() {
+        const xVal = offsetXInput.value;
+        const yVal = offsetYInput.value;
+        // Basic validation (ensure they are numbers)
+        if (isNaN(parseFloat(xVal)) || isNaN(parseFloat(yVal))) {
+            alert("Invalid offset values. Please enter numbers.");
+            return;
+        }
+        const command = `SET_PNP_OFFSET ${xVal} ${yVal}`;
+        sendCommand(command);
+    }
 
-      function setFirstPlaceAbs() { // Renamed function
-          console.log("JS: setFirstPlaceAbs() called"); // DEBUG
-          const xVal = firstPlaceXAbsInput.value; // Updated ID
-          const yVal = firstPlaceYAbsInput.value; // Updated ID
-          if (isNaN(parseFloat(xVal)) || isNaN(parseFloat(yVal))) {
-              alert("Invalid first place values. Please enter numbers.");
-              return;
-          }
-          const command = `SET_FIRST_PLACE_ABS ${xVal} ${yVal}`;
-          sendCommand(command);
-      }
+    function setFirstPlaceAbs() { // Renamed function
+        console.log("JS: setFirstPlaceAbs() called"); // DEBUG
+        const xVal = firstPlaceXAbsInput.value; // Updated ID
+        const yVal = firstPlaceYAbsInput.value; // Updated ID
+        if (isNaN(parseFloat(xVal)) || isNaN(parseFloat(yVal))) {
+            alert("Invalid first place values. Please enter numbers.");
+            return;
+        }
+        const command = `SET_FIRST_PLACE_ABS ${xVal} ${yVal}`;
+        sendCommand(command);
+    }
 
-      function setGridSpacing() {
-          const colsVal = gridColsInput.value;
-          const rowsVal = gridRowsInput.value;
-          // Removed sxVal, syVal
-          // Basic validation for cols/rows only
-          if (isNaN(parseInt(colsVal)) || parseInt(colsVal) <= 0 ||
-              isNaN(parseInt(rowsVal)) || parseInt(rowsVal) <= 0) {
-              alert("Invalid grid columns/rows. Must be positive integers.");
-              return;
-          }
-          // Send only cols and rows
-          const command = `SET_GRID_SPACING ${colsVal} ${rowsVal}`;
-          sendCommand(command);
-      }
+    function setGridSpacing() {
+        const colsVal = gridColsInput.value;
+        const rowsVal = gridRowsInput.value;
+        // Removed sxVal, syVal
+        // Basic validation for cols/rows only
+        if (isNaN(parseInt(colsVal)) || parseInt(colsVal) <= 0 ||
+            isNaN(parseInt(rowsVal)) || parseInt(rowsVal) <= 0) {
+            alert("Invalid grid columns/rows. Must be positive integers.");
+            return;
+        }
+        // Send only cols and rows
+        const command = `SET_GRID_SPACING ${colsVal} ${rowsVal}`;
+        sendCommand(command);
+    }
 
-      function setSpeedAccel() {
-          // Read displayed values (e.g., 20)
-          const xS_display = xSpeedInput.value;
-          const xA_display = xAccelInput.value;
-          const yS_display = ySpeedInput.value;
-          const yA_display = yAccelInput.value;
-          // Basic validation
-          if (isNaN(parseFloat(xS_display)) || isNaN(parseFloat(xA_display)) || isNaN(parseFloat(yS_display)) || isNaN(parseFloat(yA_display))) {
-              alert("Invalid speed/accel values. Please enter numbers.");
-              return;
-          }
-          // Convert displayed values (e.g., 20) back to actual values (e.g., 20000) for the command
-          const xS_actual = parseFloat(xS_display) * 1000;
-          const xA_actual = parseFloat(xA_display) * 1000;
-          const yS_actual = parseFloat(yS_display) * 1000;
-          const yA_actual = parseFloat(yA_display) * 1000;
+    function setSpeedAccel() {
+        // Read displayed values (e.g., 20)
+        const xS_display = xSpeedInput.value;
+        const xA_display = xAccelInput.value;
+        const yS_display = ySpeedInput.value;
+        const yA_display = yAccelInput.value;
+        // Basic validation
+        if (isNaN(parseFloat(xS_display)) || isNaN(parseFloat(xA_display)) || isNaN(parseFloat(yS_display)) || isNaN(parseFloat(yA_display))) {
+            alert("Invalid speed/accel values. Please enter numbers.");
+            return;
+        }
+        // Convert displayed values (e.g., 20) back to actual values (e.g., 20000) for the command
+        const xS_actual = parseFloat(xS_display) * 1000;
+        const xA_actual = parseFloat(xA_display) * 1000;
+        const yS_actual = parseFloat(yS_display) * 1000;
+        const yA_actual = parseFloat(yA_display) * 1000;
 
-          if (xS_actual <= 0 || xA_actual <= 0 || yS_actual <= 0 || yA_actual <= 0) {
-              alert("Speed/accel values must be positive.");
-              return;
-          }
-          // Send command with the actual values
-          const command = `SET_SPEED_ACCEL ${xS_actual} ${xA_actual} ${yS_actual} ${yA_actual}`;
-          sendCommand(command);
+        if (xS_actual <= 0 || xA_actual <= 0 || yS_actual <= 0 || yA_actual <= 0) {
+            alert("Speed/accel values must be positive.");
+            return;
+        }
+        // Send command with the actual values
+        const command = `SET_SPEED_ACCEL ${xS_actual} ${xA_actual} ${yS_actual} ${yA_actual}`;
+        sendCommand(command);
 
-          // Save to Preferences
-          preferences.begin("machineCfg", false); // Namespace
-          preferences.putFloat("patXSpd", xS_actual); // Save X Speed
-          preferences.putFloat("patXAcc", xA_actual); // Save X Accel
-          preferences.putFloat("patYSpd", yS_actual); // Save Y Speed
-          preferences.putFloat("patYAcc", yA_actual); // Save Y Accel
-          preferences.end();
-          Serial.printf("[DEBUG] Saved Speed/Accel to NVS: X(S:%.0f, A:%.0f), Y(S:%.0f, A:%.0f)\n", xS_actual, xA_actual, yS_actual, yA_actual);
-      }
+        // Save to Preferences
+        preferences.begin("machineCfg", false); // Namespace
+        preferences.putFloat("patXSpd", xS_actual); // Save X Speed
+        preferences.putFloat("patXAcc", xA_actual); // Save X Accel
+        preferences.putFloat("patYSpd", yS_actual); // Save Y Speed
+        preferences.putFloat("patYAcc", yA_actual); // Save Y Accel
+        preferences.end();
+        Serial.printf("[DEBUG] Saved Speed/Accel to NVS: X(S:%.0f, A:%.0f), Y(S:%.0f, A:%.0f)\n", xS_actual, xA_actual, yS_actual, yA_actual);
+    }
 
-      function jogAxis(axis, direction, fixedStep) {
-          // If fixedStep is provided, use it (for arrow keys), otherwise use the jogStep input
-          const stepVal = fixedStep || parseFloat(jogStepInput.value);
-          if (isNaN(stepVal) || stepVal <= 0) {
-              alert("Invalid jog step value. Must be a positive number.");
-              return;
-          }
+    function jogAxis(axis, direction, fixedStep) {
+        // If fixedStep is provided, use it (for arrow keys), otherwise use the jogStep input
+        const stepVal = fixedStep || parseFloat(jogStepInput.value);
+        if (isNaN(stepVal) || stepVal <= 0) {
+            alert("Invalid jog step value. Must be a positive number.");
+            return;
+        }
 
-          // Update UI state for responsiveness
-          isMoving = true;
+        // Update UI state for responsiveness
+        isMoving = true;
 
-          const distance = stepVal * direction;
-          const command = `JOG ${axis} ${distance.toFixed(3)}`; // Use 3 decimal places for precision
-          sendCommand(command);
-      }
+        const distance = stepVal * direction;
+        const command = `JOG ${axis} ${distance.toFixed(3)}`; // Use 3 decimal places for precision
+        sendCommand(command);
+    }
 
-      function moveToCoords() {
-          const xVal = document.getElementById('gotoX').value;
-          const yVal = document.getElementById('gotoY').value;
-          
-          // Basic validation
-          if (isNaN(parseFloat(xVal)) || isNaN(parseFloat(yVal))) {
-              alert("Invalid coordinates. Please enter numbers.");
-              return;
-          }
-          
-          if (parseFloat(xVal) < 0 || parseFloat(yVal) < 0) {
-              alert("Coordinates must be non-negative.");
-              return;
-          }
+    function moveToCoords() {
+        const xVal = document.getElementById('gotoX').value;
+        const yVal = document.getElementById('gotoY').value;
+        
+        // Basic validation
+        if (isNaN(parseFloat(xVal)) || isNaN(parseFloat(yVal))) {
+            alert("Invalid coordinates. Please enter numbers.");
+            return;
+        }
+        
+        if (parseFloat(xVal) < 0 || parseFloat(yVal) < 0) {
+            alert("Coordinates must be non-negative.");
+            return;
+        }
 
-          // Update UI state for responsiveness
-          isMoving = true;
-          
-          const command = `MOVE_TO_COORDS ${xVal} ${yVal}`;
-          sendCommand(command);
-      }
+        // Update UI state for responsiveness
+        isMoving = true;
+        
+        const command = `MOVE_TO_COORDS ${xVal} ${yVal}`;
+        sendCommand(command);
+    }
 
-      function setPaintOffsets() {
-          const gunX = paintGunOffsetXInput.value;
-          const gunY = paintGunOffsetYInput.value;
-          // Basic validation
-          if (isNaN(parseFloat(gunX)) || isNaN(parseFloat(gunY))) {
-              alert("Invalid paint gun offset values. Please enter numbers.");
-              return;
-          }
-          // Send command to set gun offset
-          sendCommand(`SET_PAINT_GUN_OFFSET ${gunX} ${gunY}`);
-      }
+    function setPaintOffsets() {
+        const gunX = paintGunOffsetXInput.value;
+        const gunY = paintGunOffsetYInput.value;
+        // Basic validation
+        if (isNaN(parseFloat(gunX)) || isNaN(parseFloat(gunY))) {
+            alert("Invalid paint gun offset values. Please enter numbers.");
+            return;
+        }
+        // Send command to set gun offset
+        sendCommand(`SET_PAINT_GUN_OFFSET ${gunX} ${gunY}`);
+    }
 
-      function setPaintSideSettings(sideIndex) {
-          if (sideIndex < 0 || sideIndex > 3) return; // Invalid index
+    function setPaintSideSettings(sideIndex) {
+        if (sideIndex < 0 || sideIndex > 3) return; // Invalid index
 
-          const zVal = paintZInputs[sideIndex].value;
-          const pVal = paintPInputs[sideIndex].value;
-          const rVal = paintRInputs[sideIndex].value;
-          const sVal = paintSInputs[sideIndex].value;
+        const zVal = paintZInputs[sideIndex].value;
+        const pVal = paintPInputs[sideIndex].value;
+        const rVal = paintRInputs[sideIndex].value;
+        const sVal = paintSInputs[sideIndex].value;
 
-          // Basic validation
-          if (isNaN(parseFloat(zVal)) || isNaN(parseInt(pVal)) || isNaN(parseInt(rVal)) || isNaN(parseFloat(sVal))) {
-               alert(`Invalid settings for side ${sideIndex}. Please enter numbers.`);
-              return;
-          }
+        // Basic validation
+        if (isNaN(parseFloat(zVal)) || isNaN(parseInt(pVal)) || isNaN(parseInt(rVal)) || isNaN(parseFloat(sVal))) {
+             alert(`Invalid settings for side ${sideIndex}. Please enter numbers.`);
+            return;
+        }
 
-          // Further validation (already constrained on ESP side, but good practice here too)
-          // Pitch:
-          const minP = parseInt(paintPInputs[sideIndex].min);
-          const maxP = parseInt(paintPInputs[sideIndex].max);
-          if (parseInt(pVal) < minP || parseInt(pVal) > maxP) {
-              alert(`Pitch Angle for side ${sideIndex} must be between ${minP} and ${maxP}.`);
-              return;
-          }
-          // Roll:
-          const minR = parseInt(paintRInputs[sideIndex].min);
-          const maxR = parseInt(paintRInputs[sideIndex].max);
-           if (parseInt(rVal) < minR || parseInt(rVal) > maxR) {
-              alert(`Roll Angle for side ${sideIndex} must be between ${minR} and ${maxR}.`);
-              return;
-          }
-           // Speed:
-          const minS = parseInt(paintSInputs[sideIndex].min);
-          const maxS = parseInt(paintSInputs[sideIndex].max);
-          if (parseInt(sVal) < minS || parseInt(sVal) > maxS) {
-              alert(`Paint Speed for side ${sideIndex} must be between ${minS} and ${maxS}.`);
-              return;
-          }
+        // Further validation (already constrained on ESP side, but good practice here too)
+        // Pitch:
+        const minP = parseInt(paintPInputs[sideIndex].min);
+        const maxP = parseInt(paintPInputs[sideIndex].max);
+        if (parseInt(pVal) < minP || parseInt(pVal) > maxP) {
+            alert(`Pitch Angle for side ${sideIndex} must be between ${minP} and ${maxP}.`);
+            return;
+        }
+        // Roll:
+        const minR = parseInt(paintRInputs[sideIndex].min);
+        const maxR = parseInt(paintRInputs[sideIndex].max);
+         if (parseInt(rVal) < minR || parseInt(rVal) > maxR) {
+            alert(`Roll Angle for side ${sideIndex} must be between ${minR} and ${maxR}.`);
+            return;
+        }
+         // Speed:
+        const minS = parseInt(paintSInputs[sideIndex].min);
+        const maxS = parseInt(paintSInputs[sideIndex].max);
+        if (parseInt(sVal) < minS || parseInt(sVal) > maxS) {
+            alert(`Paint Speed for side ${sideIndex} must be between ${minS} and ${maxS}.`);
+            return;
+        }
 
-          // Convert the displayed speed (e.g., 10) to actual speed value (e.g., 10000)
-          const actualSpeed = parseInt(sVal) * 1000;
-          
-          const command = `SET_PAINT_SIDE_SETTINGS ${sideIndex} ${zVal} ${pVal} ${rVal} ${actualSpeed}`;
-          sendCommand(command);
-      }
+        // Convert the displayed speed (e.g., 10) to actual speed value (e.g., 10000)
+        const actualSpeed = parseInt(sVal) * 1000;
+        
+        const command = `SET_PAINT_SIDE_SETTINGS ${sideIndex} ${zVal} ${pVal} ${rVal} ${actualSpeed}`;
+        sendCommand(command);
+    }
 
-      // Helper to update slider value display
-      function updateSliderDisplay(sliderId) {
-          const slider = document.getElementById(sliderId);
-          // Reverted regex to original simple version for speed slider only
-          const displaySpanId = sliderId.replace(/_(\\d)$/, 'Display_$1').replace('paintS_', 'paintSDisplay_'); 
-          const displaySpan = document.getElementById(displaySpanId);
+    // Helper to update slider value display
+    function updateSliderDisplay(sliderId) {
+        const slider = document.getElementById(sliderId);
+        // Reverted regex to original simple version for speed slider only
+        const displaySpanId = sliderId.replace(/_(\\d)$/, 'Display_$1').replace('paintS_', 'paintSDisplay_'); 
+        const displaySpan = document.getElementById(displaySpanId);
 
-          if (slider && displaySpan) {
-              let value = slider.value;
-              let suffix = '';
-              
-              // Removed degree symbol and Z formatting logic
-              
-              displaySpan.innerHTML = value + suffix;
-          }
-      }
+        if (slider && displaySpan) {
+            let value = slider.value;
+            let suffix = '';
+            
+            // Removed degree symbol and Z formatting logic
+            
+            displaySpan.innerHTML = value + suffix;
+        }
+    }
 
-      // Function to download settings as a JSON file
-      function downloadSettings() {
-          // Create an object to hold all the settings
-          const settings = {
-              pnpOffset: {
-                  x: parseFloat(offsetXInput.value) || 0,
-                  y: parseFloat(offsetYInput.value) || 0
-              },
-              placeFirstAbs: {
-                  x: parseFloat(firstPlaceXAbsInput.value) || 0,
-                  y: parseFloat(firstPlaceYAbsInput.value) || 0
-              },
-              patternSpeed: {
-                  xSpeed: parseFloat(xSpeedInput.value) || 0,
-                  xAccel: parseFloat(xAccelInput.value) || 0,
-                  ySpeed: parseFloat(ySpeedInput.value) || 0,
-                  yAccel: parseFloat(yAccelInput.value) || 0
-              },
-              grid: {
-                  cols: parseInt(gridColsInput.value) || 0,
-                  rows: parseInt(gridRowsInput.value) || 0
-              },
-              traySize: { // NEW: Added Tray Size to download
-                  width: parseFloat(trayWidthInput.value) || 0,
-                  height: parseFloat(trayHeightInput.value) || 0
-              },
-              paintOffsets: {
-                  gunX: parseFloat(paintGunOffsetXInput.value) || 0,
-                  gunY: parseFloat(paintGunOffsetYInput.value) || 0
-              },
-              paintSides: []
-          };
+    // Function to download settings as a JSON file
+    function downloadSettings() {
+        // Create an object to hold all the settings
+        const settings = {
+            pnpOffset: {
+                x: parseFloat(offsetXInput.value) || 0,
+                y: parseFloat(offsetYInput.value) || 0
+            },
+            placeFirstAbs: {
+                x: parseFloat(firstPlaceXAbsInput.value) || 0,
+                y: parseFloat(firstPlaceYAbsInput.value) || 0
+            },
+            patternSpeed: {
+                xSpeed: parseFloat(xSpeedInput.value) || 0,
+                xAccel: parseFloat(xAccelInput.value) || 0,
+                ySpeed: parseFloat(ySpeedInput.value) || 0,
+                yAccel: parseFloat(yAccelInput.value) || 0
+            },
+            grid: {
+                cols: parseInt(gridColsInput.value) || 0,
+                rows: parseInt(gridRowsInput.value) || 0
+            },
+            traySize: { // NEW: Added Tray Size to download
+                width: parseFloat(trayWidthInput.value) || 0,
+                height: parseFloat(trayHeightInput.value) || 0
+            },
+            paintOffsets: {
+                gunX: parseFloat(paintGunOffsetXInput.value) || 0,
+                gunY: parseFloat(paintGunOffsetYInput.value) || 0
+            },
+            paintSides: []
+        };
 
-          // Add paint side settings
-          for (let i = 0; i < 4; i++) {
-              settings.paintSides.push({
-                  z: parseFloat(paintZInputs[i].value) || 0,
-                  pitch: parseInt(paintPInputs[i].value) || 0,
-                  roll: parseInt(paintRInputs[i].value) || 0,
-                  speed: parseFloat(paintSInputs[i].value) || 0
-              });
-          }
+        // Add paint side settings
+        for (let i = 0; i < 4; i++) {
+            settings.paintSides.push({
+                z: parseFloat(paintZInputs[i].value) || 0,
+                pitch: parseInt(paintPInputs[i].value) || 0,
+                roll: parseInt(paintRInputs[i].value) || 0,
+                speed: parseFloat(paintSInputs[i].value) || 0
+            });
+        }
 
-          // Convert to JSON string
-          const settingsJson = JSON.stringify(settings, null, 2);
-          
-          // Create a Blob with the JSON data
-          const blob = new Blob([settingsJson], { type: 'application/json' });
-          
-          // Create a temporary link element
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          
-          // Get current date and time for filename
-          const date = new Date();
-          const dateStr = date.toISOString().replace(/[:.]/g, '-').slice(0, 19);
-          
-          // Set download filename with date
-          a.download = `paint-machine-settings-${dateStr}.json`;
-          
-          // Append to body, click to trigger download, then remove
-          document.body.appendChild(a);
-          a.click();
-          
-          // Clean up
-          window.URL.revokeObjectURL(a.href);
-          document.body.removeChild(a);
-          
-          console.log("Settings downloaded successfully");
-      }
+        // Convert to JSON string
+        const settingsJson = JSON.stringify(settings, null, 2);
+        
+        // Create a Blob with the JSON data
+        const blob = new Blob([settingsJson], { type: 'application/json' });
+        
+        // Create a temporary link element
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        
+        // Get current date and time for filename
+        const date = new Date();
+        const dateStr = date.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        
+        // Set download filename with date
+        a.download = `paint-machine-settings-${dateStr}.json`;
+        
+        // Append to body, click to trigger download, then remove
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        window.URL.revokeObjectURL(a.href);
+        document.body.removeChild(a);
+        
+        console.log("Settings downloaded successfully");
+    }
 
-      // Function to upload settings from a JSON file
-      function uploadSettings(files) {
-          if (files.length === 0) return;
-          
-          const file = files[0];
-          const reader = new FileReader();
-          
-          reader.onload = function(event) {
-              try {
-                  const settings = JSON.parse(event.target.result);
-                  
-                  // Apply settings to the UI
-                  if (settings.pnpOffset) {
-                      offsetXInput.value = settings.pnpOffset.x;
-                      offsetYInput.value = settings.pnpOffset.y;
-                  }
-                  
-                  if (settings.placeFirstAbs) {
-                      firstPlaceXAbsInput.value = settings.placeFirstAbs.x;
-                      firstPlaceYAbsInput.value = settings.placeFirstAbs.y;
-                  }
-                  
-                  if (settings.patternSpeed) {
-                      xSpeedInput.value = settings.patternSpeed.xSpeed;
-                      xAccelInput.value = settings.patternSpeed.xAccel;
-                      ySpeedInput.value = settings.patternSpeed.ySpeed;
-                      yAccelInput.value = settings.patternSpeed.yAccel;
-                  }
-                  
-                  if (settings.grid) {
-                      gridColsInput.value = settings.grid.cols;
-                      gridRowsInput.value = settings.grid.rows;
-                  }
-                  
-                  if (settings.traySize) {
-                      trayWidthInput.value = settings.traySize.width;
-                      trayHeightInput.value = settings.traySize.height;
-                  }
-                  
-                  if (settings.paintOffsets) {
-                      paintGunOffsetXInput.value = settings.paintOffsets.gunX;
-                      paintGunOffsetYInput.value = settings.paintOffsets.gunY;
-                  }
-                  
-                  if (settings.paintSides && settings.paintSides.length === 4) {
-                      for (let i = 0; i < 4; i++) {
-                          if (settings.paintSides[i]) {
-                              paintZInputs[i].value = settings.paintSides[i].z;
-                              paintPInputs[i].value = settings.paintSides[i].pitch;
-                              
-                              // For roll, we need to set the select element
-                              const rollSelect = document.getElementById(`paintR_${i}`);
-                              if (rollSelect) {
-                                  rollSelect.value = settings.paintSides[i].roll;
-                              }
-                              
-                              paintSInputs[i].value = settings.paintSides[i].speed; // Assume saved speed is 5-25 range
-                              
-                              // Update displays
-                              // Reverted updateSliderDisplay calls for Z/P, reverted Z/P display updates
-                              updateSliderDisplay(`paintS_${i}`);
-                              document.getElementById(`paintZDisplay_${i}`).innerText = `Current: ${settings.paintSides[i].z}`;
-                              document.getElementById(`paintPDisplay_${i}`).innerText = `${settings.paintSides[i].pitch}&deg;`;
-                              document.getElementById(`paintRDisplay_${i}`).innerText = 
-                                  settings.paintSides[i].roll == 0 ? "Vertical" : "Horizontal";
-                          }
-                      }
-                  }
-                  
-                  // Reset the file input
-                  document.getElementById('settingsFileInput').value = '';
-                  
-                  // Show confirmation
-                  alert('Settings loaded successfully! Click Apply buttons to send to machine.');
-                  console.log('Settings loaded from file');
-              } catch (error) {
-                  console.error('Error parsing settings file:', error);
-                  alert('Error loading settings: ' + error.message);
-              }
-          };
-          
-          reader.readAsText(file);
-      }
+    // Function to upload settings from a JSON file
+    function uploadSettings(files) {
+        if (files.length === 0) return;
+        
+        const file = files[0];
+        const reader = new FileReader();
+        
+        reader.onload = function(event) {
+            try {
+                const settings = JSON.parse(event.target.result);
+                
+                // Apply settings to the UI
+                if (settings.pnpOffset) {
+                    offsetXInput.value = settings.pnpOffset.x;
+                    offsetYInput.value = settings.pnpOffset.y;
+                }
+                
+                if (settings.placeFirstAbs) {
+                    firstPlaceXAbsInput.value = settings.placeFirstAbs.x;
+                    firstPlaceYAbsInput.value = settings.placeFirstAbs.y;
+                }
+                
+                if (settings.patternSpeed) {
+                    xSpeedInput.value = settings.patternSpeed.xSpeed;
+                    xAccelInput.value = settings.patternSpeed.xAccel;
+                    ySpeedInput.value = settings.patternSpeed.ySpeed;
+                    yAccelInput.value = settings.patternSpeed.yAccel;
+                }
+                
+                if (settings.grid) {
+                    gridColsInput.value = settings.grid.cols;
+                    gridRowsInput.value = settings.grid.rows;
+                }
+                
+                if (settings.traySize) {
+                    trayWidthInput.value = settings.traySize.width;
+                    trayHeightInput.value = settings.traySize.height;
+                }
+                
+                if (settings.paintOffsets) {
+                    paintGunOffsetXInput.value = settings.paintOffsets.gunX;
+                    paintGunOffsetYInput.value = settings.paintOffsets.gunY;
+                }
+                
+                if (settings.paintSides && settings.paintSides.length === 4) {
+                    for (let i = 0; i < 4; i++) {
+                        if (settings.paintSides[i]) {
+                            paintZInputs[i].value = settings.paintSides[i].z;
+                            paintPInputs[i].value = settings.paintSides[i].pitch;
+                            
+                            // For roll, we need to set the select element
+                            const rollSelect = document.getElementById(`paintR_${i}`);
+                            if (rollSelect) {
+                                rollSelect.value = settings.paintSides[i].roll;
+                            }
+                            
+                            paintSInputs[i].value = settings.paintSides[i].speed; // Assume saved speed is 5-25 range
+                            
+                            // Update displays
+                            // Reverted updateSliderDisplay calls for Z/P, reverted Z/P display updates
+                            updateSliderDisplay(`paintS_${i}`);
+                            document.getElementById(`paintZDisplay_${i}`).innerText = `Current: ${settings.paintSides[i].z}`;
+                            document.getElementById(`paintPDisplay_${i}`).innerText = `${settings.paintSides[i].pitch}&deg;`;
+                            document.getElementById(`paintRDisplay_${i}`).innerText = 
+                                settings.paintSides[i].roll == 0 ? "Vertical" : "Horizontal";
+                        }
+                    }
+                }
+                
+                // Reset the file input
+                document.getElementById('settingsFileInput').value = '';
+                
+                // Show confirmation
+                alert('Settings loaded successfully! Click Apply buttons to send to machine.');
+                console.log('Settings loaded from file');
+            } catch (error) {
+                console.error('Error parsing settings file:', error);
+                alert('Error loading settings: ' + error.message);
+            }
+        };
+        
+        reader.readAsText(file);
+    }
 
-      // NEW Rotation Control Functions
-      function rotateTray(degrees) {
-          const command = `ROTATE ${degrees}`;
-          sendCommand(command);
-      }
+    // NEW Rotation Control Functions
+    function rotateTray(degrees) {
+        const command = `ROTATE ${degrees}`;
+        sendCommand(command);
+    }
 
-      function setRotationZero() {
-          const command = `SET_ROT_ZERO`;
-          sendCommand(command);
-      }
+    function setRotationZero() {
+        const command = `SET_ROT_ZERO`;
+        sendCommand(command);
+    }
 
-      // NEW Function to set Tray Size
-      function setTraySize() {
-          const widthVal = trayWidthInput.value;
-          const heightVal = trayHeightInput.value;
-          // Basic validation
-          if (isNaN(parseFloat(widthVal)) || parseFloat(widthVal) <= 0 ||
-              isNaN(parseFloat(heightVal)) || parseFloat(heightVal) <= 0) {
-              alert("Invalid tray dimensions. Width and Height must be positive numbers.");
-              return;
-          }
-          const command = `SET_TRAY_SIZE ${widthVal} ${heightVal}`;
-          sendCommand(command);
-      }
-      // END NEW Rotation Control Functions
+    // NEW Function to set Tray Size
+    function setTraySize() {
+        const widthVal = trayWidthInput.value;
+        const heightVal = trayHeightInput.value;
+        // Basic validation
+        if (isNaN(parseFloat(widthVal)) || parseFloat(widthVal) <= 0 ||
+            isNaN(parseFloat(heightVal)) || parseFloat(heightVal) <= 0) {
+            alert("Invalid tray dimensions. Width and Height must be positive numbers.");
+            return;
+        }
+        const command = `SET_TRAY_SIZE ${widthVal} ${heightVal}`;
+        sendCommand(command);
+    }
+    // END NEW Rotation Control Functions
     </script>
   </body>
 </html>

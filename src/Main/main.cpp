@@ -886,8 +886,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                 String command = String((char*)payload);
                 Serial.printf("[DEBUG] WebSocket [%u] Received Command: %s\n", num, command.c_str()); // DEBUG
                 
+                // --- NEW: Request for current status ---
+                if (command == "GET_STATUS") { 
+                    Serial.printf("[%u] WebSocket Received: GET_STATUS request.\n", num);
+                    sendAllSettingsUpdate(num, "Current status requested"); // Send update only to requesting client
+                }
+                // --- End NEW ---
                 // --- STOP Command Handler --- << ADDED
-                if (command == "STOP") {
+                else if (command == "STOP") {
                     Serial.println("WebSocket: Received STOP command.");
                     // Force stop all motors immediately
                     if(stepper_x) stepper_x->forceStop();
@@ -1640,7 +1646,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                                 newRoll = ROLL_VERTICAL;  // Map 0 from UI to the actual vertical servo position
                             } else if (newRoll == 90) {
                                 newRoll = ROLL_HORIZONTAL; // Map 90 from UI to the actual horizontal servo position
-                            } else {
+                        } else {
                                 // For any unexpected values, default to vertical for safety
                                 Serial.printf("[WARN] Invalid Roll value %d from UI, defaulting to VERTICAL\n", newRoll);
                                 newRoll = ROLL_VERTICAL;
@@ -1900,6 +1906,9 @@ void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
     if (inPickPlaceMode) doc["status"] = "PickPlaceReady"; // More specific PnP status
     if (inCalibrationMode) doc["status"] = "CalibrationActive";
     // TODO: Add other relevant states if needed (e.g., painting)
+
+    // ADD EXPLICIT HOMED STATUS FIELD
+    doc["homed"] = allHomed; // Add explicit field for homed status
 
     doc["message"] = message;
 
