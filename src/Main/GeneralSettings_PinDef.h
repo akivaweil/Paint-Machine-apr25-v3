@@ -127,7 +127,7 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 
 // === General Constants ===
 #define DEBOUNCE_INTERVAL 5      // milliseconds (Restored original value)
-#define HOMING_SPEED 5000          // steps/s (Changed from 2000)
+#define HOMING_SPEED 3500          // steps/s (Changed from 2000)
 #define HOMING_ACCEL 12500         // steps/s^2 (Changed from 5000, scaled 2.5x)
 #define HOMING_TIMEOUT 15000   // milliseconds
 
@@ -185,5 +185,15 @@ extern float patternRotAccel;
 // Tray Dimensions
 extern float trayWidth_inch;
 extern float trayHeight_inch;
+
+// Painting Specific Settings (Arrays)
+extern float paintZHeight_inch[4]; // Default Z heights for painting each side
+extern int paintPitchAngle[4]; // Default pitch angles (servo values) - Use MAX as default center/0deg visual?
+// extern int paintRollAngle[4]; // Default roll angles <-- REMOVED
+extern int paintPatternType[4]; // ADDED: 0 = Up-Down, 90 = Left-Right (Default Back/Front=Up-Down, Left/Right=Left-Right)
+extern float paintSpeed[4]; // Default speeds
+
+// Painting State
+// ... existing code ...
 
 #endif // GENERALSETTINGS_PINDEF_H 

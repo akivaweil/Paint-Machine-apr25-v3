@@ -242,10 +242,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Pattern:</label>
         <select id="paintR_0" onchange="setPaintSideSettings(0)">
-          <option value="0" selected>Up-Down Pattern</option>
-          <option value="90">Left-Right Pattern</option>
+          <option value="0" selected>Up-Down</option>
+          <option value="90">Left-Right</option>
         </select>
-        <span id="paintRDisplay_0">Up-Down Pattern</span>
+        <!-- <span id="paintRDisplay_0">Up-Down Pattern</span> -->
         
         <label for="paintS_0">Speed:</label>
         <input type="range" id="paintS_0" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_0')" onchange="setPaintSideSettings(0)">
@@ -270,10 +270,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Pattern:</label>
         <select id="paintR_2" onchange="setPaintSideSettings(2)">
-          <option value="0" selected>Up-Down Pattern</option>
-          <option value="90">Left-Right Pattern</option>
+          <option value="0" selected>Up-Down</option>
+          <option value="90">Left-Right</option>
         </select>
-        <span id="paintRDisplay_2">Up-Down Pattern</span>
+        <!-- <span id="paintRDisplay_2">Up-Down Pattern</span> -->
         
         <label for="paintS_2">Speed:</label>
         <input type="range" id="paintS_2" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_2')" onchange="setPaintSideSettings(2)">
@@ -298,10 +298,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Pattern:</label>
         <select id="paintR_3" onchange="setPaintSideSettings(3)">
-          <option value="0" selected>Up-Down Pattern</option>
-          <option value="90">Left-Right Pattern</option>
+          <option value="0" selected>Up-Down</option>
+          <option value="90">Left-Right</option>
         </select>
-        <span id="paintRDisplay_3">Up-Down Pattern</span>
+        <!-- <span id="paintRDisplay_3">Up-Down Pattern</span> -->
         
         <label for="paintS_3">Speed:</label>
         <input type="range" id="paintS_3" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_3')" onchange="setPaintSideSettings(3)">
@@ -326,10 +326,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Pattern:</label>
         <select id="paintR_1" onchange="setPaintSideSettings(1)">
-          <option value="0" selected>Up-Down Pattern</option>
-          <option value="90">Left-Right Pattern</option>
+          <option value="0" selected>Up-Down</option>
+          <option value="90">Left-Right</option>
         </select>
-        <span id="paintRDisplay_1">Up-Down Pattern</span>
+        <!-- <span id="paintRDisplay_1">Up-Down Pattern</span> -->
         
         <label for="paintS_1">Speed:</label>
         <input type="range" id="paintS_1" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_1')" onchange="setPaintSideSettings(1)">
@@ -585,7 +585,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               for (let i = 0; i < 4; i++) {
                   let keyZ = `paintZ_${i}`;
                   let keyP = `paintP_${i}`;
-                  let keyR = `paintR_${i}`;
+                  let keyPat = `paintPat_${i}`; // USE THIS KEY (matches C++)
                   let keyS = `paintS_${i}`;
                   if (data.hasOwnProperty(keyZ) && paintZInputs[i] && paintZDisplays[i]) {
                       let currentZ = parseFloat(data[keyZ]).toFixed(2);
@@ -597,10 +597,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                       paintPInputs[i].value = currentP;
                       paintPDisplays[i].innerHTML = `${currentP}&deg;`;
                   }
-                  if (data.hasOwnProperty(keyR) && paintRInputs[i] && paintRDisplays[i]) {
-                      let currentR = parseInt(data[keyR]);
+                  if (data.hasOwnProperty(keyPat) && paintRInputs[i]) { // Check pattern key, Removed check for paintRDisplays
+                      let currentR = parseInt(data[keyPat]);
                       paintRInputs[i].value = currentR;
-                      paintRDisplays[i].innerHTML = currentR == 0 ? "Up-Down Pattern" : "Left-Right Pattern";
+                      // paintRDisplays[i].innerHTML = currentR == 0 ? "Up-Down Pattern" : "Left-Right Pattern"; // REMOVED Update for deleted span
                   }
                   if (data.hasOwnProperty(keyS) && paintSInputs[i] && paintSDisplays[i]) {
                       // Receive raw speed (e.g., 15000), divide by 1000 for UI display
@@ -984,8 +984,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         const sVal = paintSInputs[sideIndex].value;
 
         // Basic validation
-        if (isNaN(parseFloat(zVal)) || isNaN(parseInt(pVal)) || isNaN(parseInt(rVal)) || isNaN(parseFloat(sVal))) {
-             alert(`Invalid settings for side ${sideIndex}. Please enter numbers.`);
+        if (isNaN(parseFloat(zVal)) || isNaN(parseInt(pVal)) || (rVal !== '0' && rVal !== '90') || isNaN(parseFloat(sVal))) { // Check rVal is '0' or '90' string
+            alert(`Invalid settings for side ${sideIndex}. Please enter numbers/valid pattern.`);
             return;
         }
 
@@ -1013,9 +1013,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         }
 
         // Convert the displayed speed (e.g., 10) to actual speed value (e.g., 10000)
-        const actualSpeed = parseInt(sVal) * 1000;
+        const actualSpeed = parseFloat(sVal) * 1000;
+        const patternValue = parseInt(rVal); // Convert pattern string '0' or '90' to integer
         
-        const command = `SET_PAINT_SIDE_SETTINGS ${sideIndex} ${zVal} ${pVal} ${rVal} ${actualSpeed}`;
+        const command = `SET_PAINT_SIDE_SETTINGS ${sideIndex} ${zVal} ${pVal} ${patternValue} ${actualSpeed}`;
         sendCommand(command);
     }
 
@@ -1074,7 +1075,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
             settings.paintSides.push({
                 z: parseFloat(paintZInputs[i].value) || 0,
                 pitch: parseInt(paintPInputs[i].value) || 0,
-                roll: parseInt(paintRInputs[i].value) || 0,
+                pattern: parseInt(paintRInputs[i].value) || 0, // Changed key to pattern
                 speed: parseFloat(paintSInputs[i].value) || 0
             });
         }
@@ -1157,21 +1158,18 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                             paintZInputs[i].value = settings.paintSides[i].z;
                             paintPInputs[i].value = settings.paintSides[i].pitch;
                             
-                            // For roll, we need to set the select element
-                            const rollSelect = document.getElementById(`paintR_${i}`);
-                            if (rollSelect) {
-                                rollSelect.value = settings.paintSides[i].roll;
+                            // For pattern, we need to set the select element
+                            const patternSelect = document.getElementById(`paintR_${i}`);
+                            if (patternSelect) {
+                                patternSelect.value = settings.paintSides[i].pattern; // Use pattern key
                             }
                             
                             paintSInputs[i].value = settings.paintSides[i].speed; // Assume saved speed is 5-25 range
                             
                             // Update displays
-                            // Reverted updateSliderDisplay calls for Z/P, reverted Z/P display updates
                             updateSliderDisplay(`paintS_${i}`);
                             document.getElementById(`paintZDisplay_${i}`).innerText = `Current: ${settings.paintSides[i].z}`;
                             document.getElementById(`paintPDisplay_${i}`).innerText = `${settings.paintSides[i].pitch}&deg;`;
-                            document.getElementById(`paintRDisplay_${i}`).innerText = 
-                                settings.paintSides[i].roll == 0 ? "Up-Down Pattern" : "Left-Right Pattern";
                         }
                     }
                 }

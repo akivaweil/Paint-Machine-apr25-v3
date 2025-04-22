@@ -26,9 +26,9 @@ float paintGunOffsetX_inch = -3.0f;   // Offset of nozzle from TCP X (Default up
 float paintGunOffsetY_inch = -6.0f;   // Offset of nozzle from TCP Y (Default updated)
 
 // Painting Side Settings (Arrays for 4 sides: 0=Back, 1=Right, 2=Front, 3=Left)
-float paintZHeight_inch[4] = { 1.0f, 1.0f, 1.0f, 1.0f }; // Default Z height for painting each side
-int   paintPitchAngle[4]   = { PITCH_SERVO_MIN, PITCH_SERVO_MIN, PITCH_SERVO_MIN, PITCH_SERVO_MIN }; // Default Pitch angle
-float paintSpeed[4]        = { 10000.0f, 10000.0f, 10000.0f, 10000.0f }; // Default painting speed (steps/sec)
+// float paintZHeight_inch[4] = { 1.0f, 1.0f, 1.0f, 1.0f }; // REMOVED - Defined in main.cpp
+// int   paintPitchAngle[4]   = { PITCH_SERVO_MIN, PITCH_SERVO_MIN, PITCH_SERVO_MIN, PITCH_SERVO_MIN }; // REMOVED - Defined in main.cpp
+// float paintSpeed[4]        = { 10000.0f, 10000.0f, 10000.0f, 10000.0f }; // REMOVED - Defined in main.cpp
 
 // Rotation Positions (degrees relative to Back=0)
 
