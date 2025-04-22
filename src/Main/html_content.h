@@ -899,10 +899,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         // Send command with the actual values
         const command = `SET_SPEED_ACCEL ${xS_actual} ${xA_actual} ${yS_actual} ${yA_actual}`;
         sendCommand(command);
-
-        // Save to Preferences
-        saveSettings(xS_actual, xA_actual, yS_actual, yA_actual);
-        Serial.printf("[DEBUG] Saved Speed/Accel to NVS: X(S:%.0f, A:%.0f), Y(S:%.0f, A:%.0f)\n", xS_actual, xA_actual, yS_actual, yA_actual);
     }
 
     function jogAxis(axis, direction, fixedStep) {
