@@ -138,10 +138,11 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <button id="setSpeedButton" class="button setting-button" onclick="setSpeedAccel()">Set Speed/Accel</button>
     </div>
 
-    <button id="pnpButton" class="button" onclick="sendCommand('ENTER_PICKPLACE')">Pick and Place Mode</button> <!-- Changed text -->
-    <button id="pnpStepButton" class="button" onclick="sendCommand('PNP_NEXT_STEP')" style="display: none;">Next PnP Step (N)</button>
-    <button id="pnpSkipButton" class="button" onclick="sendCommand('PNP_SKIP_LOCATION')" style="display: none;">Skip Next</button>
-    <button id="pnpBackButton" class="button" onclick="sendCommand('PNP_BACK_LOCATION')" style="display: none;">Back One</button>
+    <button id="pnpButton" class="button" onclick="sendCommand('ENTER_PICKPLACE')">Pick and Place Mode</button>
+    <button id="pnpStepButton" class="button" onclick="sendCommand('PNP_NEXT_STEP')">Next PnP Step (N)</button>
+    <br style="margin-bottom: 5px;">
+    <button id="pnpSkipButton" class="button" onclick="sendCommand('PNP_SKIP_LOCATION')" style="width: 70px; height: 70px; padding: 10px; font-size: 14px; line-height: 1.2; vertical-align: middle; margin-right: 5px;">Skip Next</button>
+    <button id="pnpBackButton" class="button" onclick="sendCommand('PNP_BACK_LOCATION')" style="width: 70px; height: 70px; padding: 10px; font-size: 14px; line-height: 1.2; vertical-align: middle;">Back One</button>
   </div> <!-- ADDED -->
   <hr>
   <div class="section-rotation"> <!-- ADDED Rotation Section -->
@@ -616,7 +617,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   pnpButton.innerHTML = "Enter Pick/Place"; // Reset button text
                   pnpButton.className = "button"; // Reset to default button style
                   pnpButton.onclick = function() { sendCommand('ENTER_PICKPLACE'); }; // Reset function
-                  pnpStepButton.style.display = 'none'; // Hide PnP step button
                   enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button
                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
               } else if (data.status === "PickPlaceReady") {
@@ -628,21 +628,16 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   pnpButton.className = "button exit-button"; // Add red styling
                   pnpButton.disabled = false;  
                   pnpButton.onclick = function() { sendCommand('EXIT_PICKPLACE'); }; // Change function to exit
-                  pnpStepButton.style.display = 'inline-block'; // Show PnP step button
                   enterCalibrationButton.style.display = 'none'; // Hide Enter Cal button
                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
-                  pnpSkipButton.style.display = 'inline-block'; // Show Skip button
-                  pnpBackButton.style.display = 'inline-block'; // Show Back button
                   enableButtons(); // Ensure buttons are enabled correctly
               } else if (data.status === "Busy" || data.status === "Moving" || data.status === "Homing") {
                   console.log("JS Debug: Executing 'Busy/Moving/Homing' block"); // JS Debug
                   statusDiv.style.color = 'orange';
                   enableButtons(false, false); // Busy state (applies to normal, PnP, and Cal)
                   // Keep PnP step button visible if already in PnP mode, even if moving
-                  pnpStepButton.style.display = (pnpButton.onclick.toString().includes('EXIT_PICKPLACE')) ? 'inline-block' : 'none';
-                  // Hide Calibration controls if Homing starts (treat like Ready/Error)
-                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls on Homing
-                   enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button on Homing
+                  calibrationControlsDiv.style.display = 'none'; // Hide Cal controls on Homing
+                  enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button on Homing
               } else if (data.status === "CalibrationActive") {
                   console.log("JS Debug: Executing 'CalibrationActive' block"); // JS Debug
                   statusDiv.style.color = 'purple'; // Indicate calibration mode
@@ -655,7 +650,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   pnpButton.innerHTML = "Enter Pick/Place"; // Ensure PnP button is reset
                   pnpButton.className = "button"; // Reset to default button style
                   pnpButton.onclick = function() { sendCommand('ENTER_PICKPLACE'); };
-                  pnpStepButton.style.display = 'none'; // Hide PnP step button
               } else if (data.status === "PickPlaceComplete") {
                   console.log("JS Debug: Executing 'PickPlaceComplete' block"); // JS Debug
                   statusDiv.style.color = 'green';
@@ -665,7 +659,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   enableButtons(); // Update buttons post-PnP
                   pnpButton.innerHTML = "Sequence Complete"; // Update PnP button text
                   pnpButton.disabled = true; // Disable PnP button as sequence is done
-                  pnpStepButton.style.display = 'none'; // Ensure step button is hidden
                   enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button
                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
               } else if (command == "START_PAINTING") {
@@ -781,15 +774,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           // Specific overrides based on state machine logic elsewhere (e.g., PnPComplete disabling pnpButton)
           if (pnpButton.innerHTML.includes('Complete')) {
                pnpButton.disabled = true;
-          }
-          if (pnpButton.innerHTML.includes('Mode')) { // Ensure PnP Step button visibility is correct
-               pnpStepButton.style.display = 'inline-block';
-               pnpSkipButton.style.display = 'inline-block'; // Show Skip/Back in PnP Mode
-               pnpBackButton.style.display = 'inlineblock';
-          } else {
-               pnpStepButton.style.display = 'none';
-               pnpSkipButton.style.display = 'none'; // Hide Skip/Back outside PnP Mode
-               pnpBackButton.style.display = 'none';
           }
       }
 
