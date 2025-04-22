@@ -82,7 +82,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="gridCols" step="1" value="4" onchange="setGridSpacing()">
         <label for="gridRows">Rows:</label>
         <input type="number" id="gridRows" step="1" value="5" onchange="setGridSpacing()">
-        <span id="gridDisplay">Current: 4 x 5</span>
+        <span id="gridDisplay">4 x 5</span>
         <br>
         <span id="spacingDisplay">Spacing: X=Auto, Y=Auto</span> <!-- Updated display text -->
         <!-- <button id="setGridSpacingButton" class="button setting-button" onclick="setGridSpacing()">Set Grid Columns/Rows</button> --> <!-- REMOVED -->
@@ -93,7 +93,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="trayWidth" step="0.1" value="24.0" onchange="setTraySize()">
         <label for="trayHeight">Height:</label>
         <input type="number" id="trayHeight" step="0.1" value="18.0" onchange="setTraySize()">
-        <span id="traySizeDisplay">Current: W=24.00, H=18.00</span> <!-- Default Display -->
+        <span id="traySizeDisplay">W=24.00, H=18.00</span> <!-- Removed "Current: ", Default Display -->
         <!-- <button id="setTraySizeButton" class="button setting-button" onclick="setTraySize()">Set Tray Size</button> --> <!-- REMOVED -->
     </div>
   </div> <!-- ADDED -->
@@ -106,7 +106,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="offsetX" step="0.1" value="15.0" onchange="setOffset()">
         <label for="offsetY">Y:</label>
         <input type="number" id="offsetY" step="0.1" value="0.0" onchange="setOffset()">
-        <span id="offsetDisplay">Current: X=15.00, Y=0.00</span>
+        <span id="offsetDisplay">X=15.00, Y=0.00</span> <!-- Removed "Current: " -->
         <!-- <button id="setOffsetButton" class="button setting-button" onclick="setOffset()">Set Offset</button> --> <!-- REMOVED -->
     </div>
 
@@ -116,7 +116,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <input type="number" id="firstPlaceXAbs" step="0.1" value="20.0" onchange="setFirstPlaceAbs()">
         <label for="firstPlaceYAbs">Abs Y:</label>
         <input type="number" id="firstPlaceYAbs" step="0.1" value="20.0" onchange="setFirstPlaceAbs()">
-        <span id="firstPlaceAbsDisplay">Current: X=20.00, Y=20.00</span> <!-- ID and Default updated -->
+        <span id="firstPlaceAbsDisplay">X=20.00, Y=20.00</span> <!-- Removed "Current: ", ID and Default updated -->
         <!-- <button id="setFirstPlaceAbsButton" class="button setting-button" onclick="setFirstPlaceAbs()">Set Drop Off</button> --> <!-- REMOVED -->
     </div>
 
@@ -124,17 +124,17 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <h3>Speed/Accel (k steps/s)</h3>
         <label for="xSpeed">X Spd:</label>
         <input type="number" id="xSpeed" step="1" value="20" onchange="setSpeedAccel()">
-        <span id="xSpeedDisplay">Current: 20</span> <!-- Represented as 20 -->
+        <span id="xSpeedDisplay">20</span> <!-- Removed "Current: " -->
         <label for="xAccel">X Acc:</label>
         <input type="number" id="xAccel" step="1" value="20" onchange="setSpeedAccel()">
-        <span id="xAccelDisplay">Current: 20</span> <!-- Represented as 20 -->
+        <span id="xAccelDisplay">20</span> <!-- Removed "Current: " -->
         <br>
         <label for="ySpeed">Y Spd:</label>
         <input type="number" id="ySpeed" step="1" value="20" onchange="setSpeedAccel()">
-        <span id="ySpeedDisplay">Current: 20</span> <!-- Represented as 20 -->
+        <span id="ySpeedDisplay">20</span> <!-- Removed "Current: " -->
         <label for="yAccel">Y Acc:</label>
         <input type="number" id="yAccel" step="1" value="20" onchange="setSpeedAccel()">
-        <span id="yAccelDisplay">Current: 20</span> <!-- Represented as 20 -->
+        <span id="yAccelDisplay">20</span> <!-- Removed "Current: " -->
         <!-- <button id="setSpeedButton" class="button setting-button" onclick="setSpeedAccel()">Set Speed/Accel</button> --> <!-- REMOVED -->
     </div>
 
@@ -215,7 +215,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
           <input type="number" id="paintGunOffsetX" step="0.1" value="0.0" onchange="setPaintOffsets()">
           <label for="paintGunOffsetY">Gun Y:</label>
           <input type="number" id="paintGunOffsetY" step="0.1" value="1.5" onchange="setPaintOffsets()">
-          <span id="paintGunOffsetDisplay">Current: X=0.00, Y=1.50</span>
+          <span id="paintGunOffsetDisplay">X=0.00, Y=1.50</span> <!-- Removed "Current: " -->
           <!-- <button id="setPaintOffsetsButton" class="button setting-button" onclick="setPaintOffsets()">Set Gun Offset</button> --> <!-- REMOVED -->
       </div>
 
@@ -504,7 +504,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               if (data.hasOwnProperty('pnpOffsetX') && data.hasOwnProperty('pnpOffsetY')) {
                   let currentX = parseFloat(data.pnpOffsetX).toFixed(1); // Changed to 1 decimal place
                   let currentY = parseFloat(data.pnpOffsetY).toFixed(1); // Changed to 1 decimal place
-                  offsetDisplaySpan.innerHTML = `Current: X=${currentX}, Y=${currentY}`;
+                  offsetDisplaySpan.innerHTML = `X=${currentX}, Y=${currentY}`;
                   offsetXInput.value = currentX;
                   offsetYInput.value = currentY;
               }
@@ -513,7 +513,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               if (data.hasOwnProperty('placeFirstXAbs') && data.hasOwnProperty('placeFirstYAbs')) { // Updated keys
                   let currentX = parseFloat(data.placeFirstXAbs).toFixed(1); // Changed to 1 decimal place
                   let currentY = parseFloat(data.placeFirstYAbs).toFixed(1); // Changed to 1 decimal place
-                  firstPlaceAbsDisplaySpan.innerHTML = `Current: X=${currentX}, Y=${currentY}`; // Updated span ID
+                  firstPlaceAbsDisplaySpan.innerHTML = `X=${currentX}, Y=${currentY}`; // Updated span ID
                   firstPlaceXAbsInput.value = currentX; // Updated input ID
                   firstPlaceYAbsInput.value = currentY; // Updated input ID
               }
@@ -526,10 +526,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   let xA_display = parseInt(data.patXAccel) / 1000;
                   let yS_display = parseInt(data.patYSpeed) / 1000;
                   let yA_display = parseInt(data.patYAccel) / 1000;
-                  xSpeedDisplaySpan.innerHTML = `Current: ${xS_display}`;
-                  xAccelDisplaySpan.innerHTML = `Current: ${xA_display}`;
-                  ySpeedDisplaySpan.innerHTML = `Current: ${yS_display}`;
-                  yAccelDisplaySpan.innerHTML = `Current: ${yA_display}`;
+                  xSpeedDisplaySpan.innerHTML = `${xS_display}`;
+                  xAccelDisplaySpan.innerHTML = `${xA_display}`;
+                  ySpeedDisplaySpan.innerHTML = `${yS_display}`;
+                  yAccelDisplaySpan.innerHTML = `${yA_display}`;
                   xSpeedInput.value = xS_display;
                   xAccelInput.value = xA_display;
                   ySpeedInput.value = yS_display;
@@ -546,7 +546,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   
                   console.log(`[DEBUG] Processing grid settings from server: cols=${currentCols}, rows=${currentRows}, gapX=${currentGapX}, gapY=${currentGapY}`);
                   
-                  gridDisplaySpan.innerHTML = `Current: ${currentCols} x ${currentRows}`;
+                  gridDisplaySpan.innerHTML = `${currentCols} x ${currentRows}`;
                   // Update display text to show Gap with more information
                   spacingDisplaySpan.innerHTML = `Gap: X=${currentGapX}, Y=${currentGapY}`;
                   
@@ -563,7 +563,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   
                   console.log(`[DEBUG] Processing tray dimensions from server: width=${currentW}, height=${currentH}`);
                   
-                  traySizeDisplaySpan.innerHTML = `Current: W=${currentW}, H=${currentH}`;
+                  traySizeDisplaySpan.innerHTML = `W=${currentW}, H=${currentH}`;
                   trayWidthInput.value = currentW;
                   trayHeightInput.value = currentH;
               }
@@ -572,7 +572,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               if (data.hasOwnProperty('paintGunOffX') && data.hasOwnProperty('paintGunOffY')) {
                   let currentX = parseFloat(data.paintGunOffX).toFixed(2);
                   let currentY = parseFloat(data.paintGunOffY).toFixed(2);
-                  paintGunOffsetDisplaySpan.innerHTML = `Current: X=${currentX}, Y=${currentY}`;
+                  paintGunOffsetDisplaySpan.innerHTML = `X=${currentX}, Y=${currentY}`;
                   paintGunOffsetXInput.value = currentX;
                   paintGunOffsetYInput.value = currentY;
               }
@@ -586,7 +586,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   if (data.hasOwnProperty(keyZ) && paintZInputs[i] && paintZDisplays[i]) {
                       let currentZ = parseFloat(data[keyZ]).toFixed(2);
                       paintZInputs[i].value = currentZ;
-                      paintZDisplays[i].innerHTML = `Current: ${currentZ}`;
+                      paintZDisplays[i].innerHTML = `${currentZ}`;
                   }
                   if (data.hasOwnProperty(keyP) && paintPInputs[i] && paintPDisplays[i]) {
                       let currentP = parseInt(data[keyP]);
