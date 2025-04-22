@@ -79,9 +79,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     <div class="input-group">
         <h3>Grid & Spacing</h3>
         <label for="gridCols">Columns:</label>
-        <input type="number" id="gridCols" step="1" value="4">
+        <input type="number" id="gridCols" step="1" value="4" onchange="setGridSpacing()">
         <label for="gridRows">Rows:</label>
-        <input type="number" id="gridRows" step="1" value="5">
+        <input type="number" id="gridRows" step="1" value="5" onchange="setGridSpacing()">
         <span id="gridDisplay">Current: 4 x 5</span>
         <br>
         <span id="spacingDisplay">Spacing: X=Auto, Y=Auto</span> <!-- Updated display text -->
@@ -90,9 +90,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     <div class="input-group"> <!-- Added Tray Dimensions Group -->
         <h3>Tray Dimensions</h3>
         <label for="trayWidth">Width:</label>
-        <input type="number" id="trayWidth" step="0.1" value="24.0"> <!-- Default Value -->
+        <input type="number" id="trayWidth" step="0.1" value="24.0" onchange="setTraySize()">
         <label for="trayHeight">Height:</label>
-        <input type="number" id="trayHeight" step="0.1" value="18.0"> <!-- Default Value -->
+        <input type="number" id="trayHeight" step="0.1" value="18.0" onchange="setTraySize()">
         <span id="traySizeDisplay">Current: W=24.00, H=18.00</span> <!-- Default Display -->
         <!-- <button id="setTraySizeButton" class="button setting-button" onclick="setTraySize()">Set Tray Size</button> --> <!-- REMOVED -->
     </div>
@@ -103,9 +103,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     <div class="input-group">
         <h3>Pickup Location</h3> <!-- Changed header -->
         <label for="offsetX">X:</label>
-        <input type="number" id="offsetX" step="0.1" value="15.0">
+        <input type="number" id="offsetX" step="0.1" value="15.0" onchange="setOffset()">
         <label for="offsetY">Y:</label>
-        <input type="number" id="offsetY" step="0.1" value="0.0">
+        <input type="number" id="offsetY" step="0.1" value="0.0" onchange="setOffset()">
         <span id="offsetDisplay">Current: X=15.00, Y=0.00</span>
         <!-- <button id="setOffsetButton" class="button setting-button" onclick="setOffset()">Set Offset</button> --> <!-- REMOVED -->
     </div>
@@ -113,9 +113,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     <div class="input-group">
         <h3>First Drop Off Location</h3> <!-- Changed header -->
         <label for="firstPlaceXAbs">Abs X:</label>
-        <input type="number" id="firstPlaceXAbs" step="0.1" value="20.0"> <!-- Default updated -->
+        <input type="number" id="firstPlaceXAbs" step="0.1" value="20.0" onchange="setFirstPlaceAbs()">
         <label for="firstPlaceYAbs">Abs Y:</label>
-        <input type="number" id="firstPlaceYAbs" step="0.1" value="20.0"> <!-- Default updated -->
+        <input type="number" id="firstPlaceYAbs" step="0.1" value="20.0" onchange="setFirstPlaceAbs()">
         <span id="firstPlaceAbsDisplay">Current: X=20.00, Y=20.00</span> <!-- ID and Default updated -->
         <!-- <button id="setFirstPlaceAbsButton" class="button setting-button" onclick="setFirstPlaceAbs()">Set Drop Off</button> --> <!-- REMOVED -->
     </div>
@@ -123,17 +123,17 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     <div class="input-group">
         <h3>Speed/Accel (k steps/s)</h3>
         <label for="xSpeed">X Spd:</label>
-        <input type="number" id="xSpeed" step="1" value="20"> <!-- Represented as 20 -->
+        <input type="number" id="xSpeed" step="1" value="20" onchange="setSpeedAccel()">
         <span id="xSpeedDisplay">Current: 20</span> <!-- Represented as 20 -->
         <label for="xAccel">X Acc:</label>
-        <input type="number" id="xAccel" step="1" value="20"> <!-- Represented as 20 -->
+        <input type="number" id="xAccel" step="1" value="20" onchange="setSpeedAccel()">
         <span id="xAccelDisplay">Current: 20</span> <!-- Represented as 20 -->
         <br>
         <label for="ySpeed">Y Spd:</label>
-        <input type="number" id="ySpeed" step="1" value="20"> <!-- Represented as 20 -->
+        <input type="number" id="ySpeed" step="1" value="20" onchange="setSpeedAccel()">
         <span id="ySpeedDisplay">Current: 20</span> <!-- Represented as 20 -->
         <label for="yAccel">Y Acc:</label>
-        <input type="number" id="yAccel" step="1" value="20"> <!-- Represented as 20 -->
+        <input type="number" id="yAccel" step="1" value="20" onchange="setSpeedAccel()">
         <span id="yAccelDisplay">Current: 20</span> <!-- Represented as 20 -->
         <!-- <button id="setSpeedButton" class="button setting-button" onclick="setSpeedAccel()">Set Speed/Accel</button> --> <!-- REMOVED -->
     </div>
@@ -212,9 +212,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       <div class="input-group">
           <h3>Paint Gun Offset</h3>
           <label for="paintGunOffsetX">Gun X:</label>
-          <input type="number" id="paintGunOffsetX" step="0.1" value="0.0">
+          <input type="number" id="paintGunOffsetX" step="0.1" value="0.0" onchange="setPaintOffsets()">
           <label for="paintGunOffsetY">Gun Y:</label>
-          <input type="number" id="paintGunOffsetY" step="0.1" value="1.5">
+          <input type="number" id="paintGunOffsetY" step="0.1" value="1.5" onchange="setPaintOffsets()">
           <span id="paintGunOffsetDisplay">Current: X=0.00, Y=1.50</span>
           <!-- <button id="setPaintOffsetsButton" class="button setting-button" onclick="setPaintOffsets()">Set Gun Offset</button> --> <!-- REMOVED -->
       </div>
@@ -232,23 +232,23 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <h3>Back Side Settings</h3>
         <button id="paintBackButton" class="button" onclick="sendCommand('PAINT_SIDE_0')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Back Side</button>
         <label for="paintZ_0">Z Height:</label>
-        <input type="number" id="paintZ_0" step="0.1" value="1.0"> <!-- Removed min/max -->
+        <input type="number" id="paintZ_0" step="0.1" value="1.0" onchange="setPaintSideSettings(0)">
         <span id="paintZDisplay_0">Current: 1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_0">Pitch:</label>
-        <input type="number" id="paintP_0" step="1" value="0" min="0" max="90">
+        <input type="number" id="paintP_0" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(0)">
         <span id="paintPDisplay_0">0&deg;</span>
         
         <label>Orientation:</label>
-        <select id="paintR_0">
+        <select id="paintR_0" onchange="setPaintSideSettings(0)">
           <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
         </select>
         <span id="paintRDisplay_0">Vertical</span>
         
         <label for="paintS_0">Speed:</label>
-        <input type="range" id="paintS_0" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_0')">
+        <input type="range" id="paintS_0" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_0')" onchange="setPaintSideSettings(0)">
         <span id="paintSDisplay_0">20</span>
         <small style="display: block; margin-top: -5px; color: #aaa;">(5000-20000)</small> <!-- Speed hint -->
         
@@ -260,23 +260,23 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <h3>Front Side Settings</h3>
         <button id="paintFrontButton" class="button" onclick="sendCommand('PAINT_SIDE_2')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Front Side</button>
         <label for="paintZ_2">Z Height:</label>
-        <input type="number" id="paintZ_2" step="0.1" value="1.0"> <!-- Removed min/max -->
+        <input type="number" id="paintZ_2" step="0.1" value="1.0" onchange="setPaintSideSettings(2)">
         <span id="paintZDisplay_2">Current: 1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_2">Pitch:</label>
-        <input type="number" id="paintP_2" step="1" value="0" min="0" max="90">
+        <input type="number" id="paintP_2" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(2)">
         <span id="paintPDisplay_2">0&deg;</span>
         
         <label>Orientation:</label>
-        <select id="paintR_2">
+        <select id="paintR_2" onchange="setPaintSideSettings(2)">
           <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
         </select>
         <span id="paintRDisplay_2">Vertical</span>
         
         <label for="paintS_2">Speed:</label>
-        <input type="range" id="paintS_2" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_2')">
+        <input type="range" id="paintS_2" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_2')" onchange="setPaintSideSettings(2)">
         <span id="paintSDisplay_2">20</span>
         <small style="display: block; margin-top: -5px; color: #aaa;">(5000-20000)</small> <!-- Speed hint -->
         
@@ -288,23 +288,23 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <h3>Left Side Settings</h3>
         <button id="paintLeftButton" class="button" onclick="sendCommand('PAINT_SIDE_3')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Left Side</button>
         <label for="paintZ_3">Z Height:</label>
-        <input type="number" id="paintZ_3" step="0.1" value="1.0"> <!-- Removed min/max -->
+        <input type="number" id="paintZ_3" step="0.1" value="1.0" onchange="setPaintSideSettings(3)">
         <span id="paintZDisplay_3">Current: 1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_3">Pitch:</label>
-        <input type="number" id="paintP_3" step="1" value="0" min="0" max="90">
+        <input type="number" id="paintP_3" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(3)">
         <span id="paintPDisplay_3">0&deg;</span>
         
         <label>Orientation:</label>
-        <select id="paintR_3">
+        <select id="paintR_3" onchange="setPaintSideSettings(3)">
           <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
         </select>
         <span id="paintRDisplay_3">Vertical</span>
         
         <label for="paintS_3">Speed:</label>
-        <input type="range" id="paintS_3" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_3')">
+        <input type="range" id="paintS_3" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_3')" onchange="setPaintSideSettings(3)">
         <span id="paintSDisplay_3">20</span>
         <small style="display: block; margin-top: -5px; color: #aaa;">(5000-20000)</small> <!-- Speed hint -->
         
@@ -316,23 +316,23 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <h3>Right Side Settings</h3>
         <button id="paintRightButton" class="button" onclick="sendCommand('PAINT_SIDE_1')" style="background-color: #A142F4; display: block; margin: 0 auto 15px auto;">Paint Right Side</button>
         <label for="paintZ_1">Z Height:</label>
-        <input type="number" id="paintZ_1" step="0.1" value="1.0"> <!-- Removed min/max -->
+        <input type="number" id="paintZ_1" step="0.1" value="1.0" onchange="setPaintSideSettings(1)">
         <span id="paintZDisplay_1">Current: 1.0</span>
         <!-- <small style="display: block; margin-top: -5px; color: #aaa;">(0 = 2.75" down, Home = 2.75")</small> --> <!-- Removed hint -->
         
         <label for="paintP_1">Pitch:</label>
-        <input type="number" id="paintP_1" step="1" value="0" min="0" max="90">
+        <input type="number" id="paintP_1" step="1" value="0" min="0" max="90" onchange="setPaintSideSettings(1)">
         <span id="paintPDisplay_1">0&deg;</span>
         
         <label>Orientation:</label>
-        <select id="paintR_1">
+        <select id="paintR_1" onchange="setPaintSideSettings(1)">
           <option value="0" selected>Vertical</option>
           <option value="90">Horizontal</option>
         </select>
         <span id="paintRDisplay_1">Vertical</span>
         
         <label for="paintS_1">Speed:</label>
-        <input type="range" id="paintS_1" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_1')">
+        <input type="range" id="paintS_1" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_1')" onchange="setPaintSideSettings(1)">
         <span id="paintSDisplay_1">20</span>
         <small style="display: block; margin-top: -5px; color: #aaa;">(5000-20000)</small> <!-- Speed hint -->
         
