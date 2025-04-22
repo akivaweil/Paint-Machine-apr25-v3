@@ -716,9 +716,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
       function enableButtons() {
         let connected = websocket && websocket.readyState === WebSocket.OPEN;
-        console.log("enableButtons() - Debug State: Connected="+connected+", AllHomed="+allHomed+", IsMoving="+isMoving+", IsHoming="+isHoming+", InPickAndPlaceMode="+inPickAndPlaceMode+", InManualMode="+inManualMode+", InCalibrationMode="+inCalibrationMode);
+        console.log("enableButtons() - Debug State: Connected="+connected+", AllHomed="+allHomed+", IsMoving="+isMoving+", IsHoming="+isHoming);
         
         let inCalibMode = calibrationControlsDiv.style.display === 'block';
+        let inPickAndPlaceMode = pnpButton.innerHTML.includes('Exit'); // Check if in PnP mode by button text
         let canStop = connected && (isMoving || isHoming || inCalibMode); // Can stop if doing anything interruptible
 
         homeButton.disabled = !connected; // Home All button is always enabled if connected
