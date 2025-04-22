@@ -438,11 +438,14 @@ void moveToPositionInches(float targetX_inch, float targetY_inch, float targetZ_
     long targetY_steps = (long)(targetY_inch * STEPS_PER_INCH_XY);
     long targetZ_steps = (long)(targetZ_inch * STEPS_PER_INCH_Z);
 
-    // === Z Limit Check ===
-    long min_z_steps = (long)(Z_MAX_TRAVEL_NEG_INCH * STEPS_PER_INCH_Z);
-    long max_z_steps = (long)(Z_HOME_POS_INCH * STEPS_PER_INCH_Z); // Should be 0
-    targetZ_steps = max(min_z_steps, targetZ_steps); // Ensure not below min travel
-    targetZ_steps = min(max_z_steps, targetZ_steps); // Ensure not above home position (0)
+    // === Z Limit Check (only for Pick & Place mode) ===
+    if (inPickPlaceMode) {
+        // Only apply limits in Pick & Place mode
+        long min_z_steps = (long)(Z_MAX_TRAVEL_NEG_INCH * STEPS_PER_INCH_Z);
+        long max_z_steps = (long)(Z_HOME_POS_INCH * STEPS_PER_INCH_Z); // Should be 0
+        targetZ_steps = max(min_z_steps, targetZ_steps); // Ensure not below min travel
+        targetZ_steps = min(max_z_steps, targetZ_steps); // Ensure not above home position (0)
+    }
     // === End Z Limit Check ===
 
     // Move Z axis first (if necessary)
@@ -552,11 +555,15 @@ void moveZToPositionInches(float targetZ_inch, float speedHz, float accel) {
     }
 
     long targetZ_steps = (long)(targetZ_inch * STEPS_PER_INCH_Z);
-    // === Z Limit Check ===
-    long min_z_steps = (long)(Z_MAX_TRAVEL_NEG_INCH * STEPS_PER_INCH_Z);
-    long max_z_steps = (long)(Z_HOME_POS_INCH * STEPS_PER_INCH_Z); // Should be 0
-    targetZ_steps = max(min_z_steps, targetZ_steps); // Ensure not below min travel
-    targetZ_steps = min(max_z_steps, targetZ_steps); // Ensure not above home position (0)
+    
+    // === Z Limit Check (only for Pick & Place mode) ===
+    if (inPickPlaceMode) {
+        // Only apply limits in Pick & Place mode
+        long min_z_steps = (long)(Z_MAX_TRAVEL_NEG_INCH * STEPS_PER_INCH_Z);
+        long max_z_steps = (long)(Z_HOME_POS_INCH * STEPS_PER_INCH_Z); // Should be 0
+        targetZ_steps = max(min_z_steps, targetZ_steps); // Ensure not below min travel
+        targetZ_steps = min(max_z_steps, targetZ_steps); // Ensure not above home position (0)
+    }
     // === End Z Limit Check ===
 
     long currentZ_steps = stepper_z->getCurrentPosition();

@@ -242,10 +242,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Orientation:</label>
         <select id="paintR_0">
-          <option value="0" selected>Vertical</option>
-          <option value="90">Horizontal</option>
+          <option value="0" selected>Horizontal</option>
+          <option value="90">Vertical</option>
         </select>
-        <span id="paintRDisplay_0">Vertical</span>
+        <span id="paintRDisplay_0">Horizontal</span>
         
         <label for="paintS_0">Speed:</label>
         <input type="range" id="paintS_0" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_0')">
@@ -269,10 +269,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Orientation:</label>
         <select id="paintR_1">
-          <option value="0" selected>Vertical</option>
-          <option value="90">Horizontal</option>
+          <option value="0" selected>Horizontal</option>
+          <option value="90">Vertical</option>
         </select>
-        <span id="paintRDisplay_1">Vertical</span>
+        <span id="paintRDisplay_1">Horizontal</span>
         
         <label for="paintS_1">Speed:</label>
         <input type="range" id="paintS_1" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_1')">
@@ -296,10 +296,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Orientation:</label>
         <select id="paintR_2">
-          <option value="0" selected>Vertical</option>
-          <option value="90">Horizontal</option>
+          <option value="0" selected>Horizontal</option>
+          <option value="90">Vertical</option>
         </select>
-        <span id="paintRDisplay_2">Vertical</span>
+        <span id="paintRDisplay_2">Horizontal</span>
         
         <label for="paintS_2">Speed:</label>
         <input type="range" id="paintS_2" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_2')">
@@ -323,10 +323,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Orientation:</label>
         <select id="paintR_3">
-          <option value="0" selected>Vertical</option>
-          <option value="90">Horizontal</option>
+          <option value="0" selected>Horizontal</option>
+          <option value="90">Vertical</option>
         </select>
-        <span id="paintRDisplay_3">Vertical</span>
+        <span id="paintRDisplay_3">Horizontal</span>
         
         <label for="paintS_3">Speed:</label>
         <input type="range" id="paintS_3" min="5" max="25" value="20" oninput="updateSliderDisplay('paintS_3')">
@@ -606,7 +606,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   if (data.hasOwnProperty(keyR) && paintRInputs[i] && paintRDisplays[i]) {
                       let currentR = parseInt(data[keyR]);
                       paintRInputs[i].value = currentR;
-                      paintRDisplays[i].innerHTML = currentR == 0 ? "Vertical" : "Horizontal";
+                      paintRDisplays[i].innerHTML = currentR == 0 ? "Horizontal" : "Vertical";
                   }
                   if (data.hasOwnProperty(keyS) && paintSInputs[i] && paintSDisplays[i]) {
                       // Receive raw speed (e.g., 15000), divide by 1000 for UI display
@@ -1186,7 +1186,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                             document.getElementById(`paintZDisplay_${i}`).innerText = `Current: ${settings.paintSides[i].z}`;
                             document.getElementById(`paintPDisplay_${i}`).innerText = `${settings.paintSides[i].pitch}&deg;`;
                             document.getElementById(`paintRDisplay_${i}`).innerText = 
-                                settings.paintSides[i].roll == 0 ? "Vertical" : "Horizontal";
+                                settings.paintSides[i].roll == 0 ? "Horizontal" : "Vertical";
                         }
                     }
                 }
