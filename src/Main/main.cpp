@@ -779,7 +779,8 @@ void paintSide(int sideIndex) {
 // --- Arduino Setup ---
 void setup() {
     Serial.begin(115200);
-    Serial.println("Booting... Loading settings from NVS...");
+    Serial.println("\n=== Booting Paint + PnP Machine ==="); // Clearer boot message
+    Serial.println("Loading settings from NVS...");
 
     // Load settings from NVS
     loadSettings();
@@ -819,7 +820,8 @@ void setup() {
     // Attach servos to pins using default min/max pulse widths (500, 2400 us)
     Serial.printf("[DEBUG Setup] Attaching pitch servo to pin %d\n", PITCH_SERVO_PIN); // DEBUG
     servo_pitch.attach(PITCH_SERVO_PIN);
-    // servo_roll.attach(ROLL_SERVO_PIN);
+    Serial.printf("[DEBUG Setup] Servo attached status: %d\n", servo_pitch.attached()); // <<< ADDED DEBUG
+
     // Move servos to initial max positions
     Serial.printf("[DEBUG Setup] Setting initial Pitch Servo position to %d\n", SERVO_INIT_POS_PITCH); // DEBUG (Replaced PITCH_SERVO_MAX)
     servo_pitch.write(SERVO_INIT_POS_PITCH); // Use defined init position (Replaced PITCH_SERVO_MAX)
@@ -1253,16 +1255,18 @@ void loadSettings() {
 
 // Function to set the pitch servo angle directly
 void setPitchServoAngle(int angle) {
+    Serial.printf("[DEBUG setPitchServoAngle] Received angle: %d\n", angle); // <<< ADDED DEBUG
     // Ensure angle is within the servo's physical limits (0-180 typical)
     // Even without software limits, it's good practice to clamp to the standard range
     int targetAngle = constrain(angle, 0, 180); 
+    Serial.printf("[DEBUG setPitchServoAngle] Clamped targetAngle: %d\n", targetAngle); // <<< ADDED DEBUG
 
     if (servo_pitch.attached()) {
-        // Serial.printf("Setting pitch servo to %d degrees\n", targetAngle); // Optional debug
+        Serial.printf("[DEBUG setPitchServoAngle] Servo IS attached. Writing angle %d\n", targetAngle); // <<< ADDED DEBUG
         servo_pitch.write(targetAngle);
         delay(15); // Small delay to allow servo to start moving
     } else {
-        Serial.println("[ERROR] Pitch servo not attached!");
+        Serial.println("[ERROR setPitchServoAngle] Pitch servo NOT attached!"); // <<< MODIFIED DEBUG
     }
 }
 

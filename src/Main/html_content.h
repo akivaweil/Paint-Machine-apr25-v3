@@ -977,17 +977,17 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     // Helper to update slider value display
     function updateSliderDisplay(sliderId) {
         const slider = document.getElementById(sliderId);
-        // Reverted regex to original simple version for speed slider only
-        const displaySpanId = sliderId.replace(/_(\\d)$/, 'Display_$1').replace('paintS_', 'paintSDisplay_'); 
+        // Simpler approach: Assume display ID is slider ID + 'Display'
+        const displaySpanId = sliderId + 'Display';
         const displaySpan = document.getElementById(displaySpanId);
 
         if (slider && displaySpan) {
             let value = slider.value;
-            let suffix = '';
-            
-            // Removed degree symbol and Z formatting logic
-            
+            let suffix = ''; // No suffix needed for pitch angle
+
             displaySpan.innerHTML = value + suffix;
+        } else {
+             console.error(`Could not find slider '${sliderId}' or display span '${displaySpanId}'`); // Add error logging
         }
     }
 

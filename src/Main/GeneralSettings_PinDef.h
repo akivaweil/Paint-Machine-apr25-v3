@@ -91,7 +91,7 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 #define ROTATION_DIR_PIN 39
 
 // Servos
-#define PITCH_SERVO_PIN 47        // Updated as requested
+#define PITCH_SERVO_PIN 21        // Updated as requested
 
 // Actuators (Relays)
 #define PICK_CYLINDER_PIN 10      // Relay for pick cylinder (Changed back from 12)

@@ -384,8 +384,9 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                  } else if (command.startsWith("SET_SERVO_PITCH ")) { // <<< ADDED THIS BLOCK
                     Serial.println("WebSocket: Received SET_SERVO_PITCH command.");
                     int angle;
-                    // Expecting \\\"SET_SERVO_PITCH angle\\\"
+                    // Expecting \"SET_SERVO_PITCH angle\"
                     int parsed = sscanf(command.c_str() + strlen("SET_SERVO_PITCH "), "%d", &angle);
+                    Serial.printf("[DEBUG webSocketEvent] Parsed SET_SERVO_PITCH: parsed=%d, angle=%d\n", parsed, angle); // <<< ADDED DEBUG
                     if (parsed == 1) {
                         // Basic validation (0-180 is typical for servos)
                         if (angle >= 0 && angle <= 180) {
