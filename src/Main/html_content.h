@@ -229,7 +229,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
       <!-- Side Buttons -->
       <div style="margin: 15px 0;">
-        <button id="stopButton" class="button" onclick="sendCommand('STOP')" style="background-color: #dc3545;">STOP</button>
+        <!-- Stop button removed -->
       </div>
 
       <!-- Side Settings Panels -->
@@ -248,7 +248,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <label>Pattern:</label>
         <select id="paintR_0" onchange="setPaintSideSettings(0)">
           <option value="0" selected>Up-Down</option>
-          <option value="90">Left-Right</option>
+          <option value="90">Sideways</option>
         </select>
         
         <label for="paintS_0">Speed:</label>
@@ -269,7 +269,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <label>Pattern:</label>
         <select id="paintR_2" onchange="setPaintSideSettings(2)">
           <option value="0" selected>Up-Down</option>
-          <option value="90">Left-Right</option>
+          <option value="90">Sideways</option>
         </select>
         
         <label for="paintS_2">Speed:</label>
@@ -290,7 +290,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <label>Pattern:</label>
         <select id="paintR_3" onchange="setPaintSideSettings(3)">
           <option value="0">Up-Down</option>
-          <option value="90" selected>Left-Right</option>
+          <option value="90" selected>Sideways</option>
         </select>
         
         <label for="paintS_3">Speed:</label>
@@ -311,7 +311,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <label>Pattern:</label>
         <select id="paintR_1" onchange="setPaintSideSettings(1)">
           <option value="0">Up-Down</option>
-          <option value="90" selected>Left-Right</option>
+          <option value="90" selected>Sideways</option>
         </select>
         
         <label for="paintS_1">Speed:</label>

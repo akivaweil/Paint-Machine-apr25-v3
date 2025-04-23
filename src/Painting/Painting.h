@@ -23,11 +23,11 @@ extern float paintSpeed[4];
 #define PAINT_Z_TRAVEL_CLEARANCE_INCH 0.2f // How far above paint height to travel
 
 // Rotation Positions (degrees relative to Back=0)
-// Assuming 0 = Back, 90 = Right, 180 = Front, 270 = Left
-const int ROT_POS_BACK_DEG = 0;
-const int ROT_POS_RIGHT_DEG = 90;
-const int ROT_POS_FRONT_DEG = 180;
-const int ROT_POS_LEFT_DEG = 270;
+// Declared here, defined in Painting.cpp
+extern const int ROT_POS_BACK_DEG;
+extern const int ROT_POS_RIGHT_DEG;
+extern const int ROT_POS_FRONT_DEG;
+extern const int ROT_POS_LEFT_DEG;
 
 // === Function Declarations ===
 

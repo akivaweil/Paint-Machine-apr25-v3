@@ -9,14 +9,26 @@
 #include "../Painting/Painting.h" // Include the new Painting header
 #include "Web/WebHandler.h" // Include the new Web Handler header
 #include <ArduinoJson.h>
-#include "../Painting/PaintingPatterns.h" // <<< ADDED INCLUDE
+#include "../Painting/Patterns/PredefinedPatterns.h" // <<< ADDED NEW INCLUDE
+#include "SharedGlobals.h" // <<< ADDED INCLUDE
+#include "../PickPlace/PickPlace.h" // <<< CORRECTED PATH
+#include "../Painting/Patterns/PatternActions.h"
+#include "../Painting/Patterns/PaintPatterns_SideSpecific.h" // <<< INCLUDE NEW HEADER
+#include "../Web/WebHandler.h"
 
 // === Global Variable Definitions ===
+
+// PnP Item Dimensions (NEW - Defined here, declared extern in SharedGlobals.h)
+const float pnpItemWidth_inch = 3.0f;
+const float pnpItemHeight_inch = 3.0f;
+const float pnpBorderWidth_inch = 0.25f; // Border around grid
+
+// Rotation constants defined in Painting.h - extern declared in SharedGlobals.h
 
 // Painting Specific Settings (Arrays) - DEFINITIONS
 float paintZHeight_inch[4] = {1.0, 1.0, 1.0, 1.0};
 int paintPitchAngle[4] = {SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH}; // Use defined constant from header (Replaced PITCH_SERVO_MAX)
-int paintPatternType[4] = {0, 90, 0, 90}; // Default: Back/Front=Up-Down(0), Left/Right=Left-Right(90)
+int paintPatternType[4] = {0, 90, 0, 90}; // Default: Back/Front=Up-Down(0), Left/Right=Sideways(90)
 float paintSpeed[4] = {10000.0, 10000.0, 10000.0, 10000.0};
 
 // Define WiFi credentials (Reverted to hardcoded for now)
@@ -562,7 +574,7 @@ void moveZToPositionInches(float targetZ_inch, float speedHz, float accel) {
     stepper_z->moveTo(targetZ_steps);
 
     // Wait for Z move completion (blocking)
-    while (stepper_z->isRunning() && !stopRequested) { // <<< MODIFIED: Added !stopRequested check
+    while (stepper_z->isRunning()) { // <<< REMOVED: !stopRequested check
         webSocket.loop(); // Keep websocket alive
         yield();
     }
@@ -608,7 +620,7 @@ void moveToXYPositionInches_Paint(float targetX_inch, float targetY_inch, float 
     }
 
     // Wait for XY move completion (blocking for simplicity in painting sequence)
-    while ((stepper_x->isRunning() || stepper_y_left->isRunning() || stepper_y_right->isRunning()) && !stopRequested) { // <<< MODIFIED: Added !stopRequested check
+    while (stepper_x->isRunning() || stepper_y_left->isRunning() || stepper_y_right->isRunning()) { // <<< REMOVED: !stopRequested check
         yield();
     }
     // Serial.println("Paint XY move complete.");
@@ -650,13 +662,14 @@ void rotateToAbsoluteDegree(int targetDegree) {
     stepper_rot->moveTo(targetSteps); // Move to absolute step position
 
     // Wait for rotation completion (blocking)
-    while (stepper_rot->isRunning() && !stopRequested) { 
+    while (stepper_rot->isRunning()) { // <<< REMOVED: !stopRequested check
         webSocket.loop(); // Keep WebSocket responsive
         yield();
     }
 
+    // Check stop AFTER loop completes (stopRequested might still be set)
     if (stopRequested) {
-        Serial.println("STOP requested during rotation.");
+        Serial.println("STOP requested during rotation. Rotation may not have completed.");
         // isMoving will be reset by the main STOP handler
         // webSocket status will be updated by the main STOP handler
     } else {
@@ -675,7 +688,7 @@ void rotateToAbsoluteDegree(int targetDegree) {
 
 void paintSide(int sideIndex) {
     Serial.printf("Starting paintSide for side %d\n", sideIndex);
-    stopRequested = false; // <<< ADDED: Reset stop flag at start
+    stopRequested = false; // Reset stop flag at start
 
     // 1. Check Machine State
     if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
@@ -684,104 +697,104 @@ void paintSide(int sideIndex) {
         webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Cannot start painting, invalid machine state.\"}");
         return;
     }
+    // <<< ADDED: Validate sideIndex before proceeding
+    if (sideIndex < 0 || sideIndex > 3) {
+        Serial.printf("[ERROR] paintSide denied: Invalid side index %d\n", sideIndex);
+         webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Invalid side index provided for painting.\"}");
+        return;
+    }
 
     // 2. Set Machine Busy State
     isMoving = true; // Use isMoving flag to indicate painting activity
     char busyMsg[100];
-    sprintf(busyMsg, "{\"status\":\"Busy\", \"message\":\"Painting Side %d...\"}", sideIndex);
+    sprintf(busyMsg, "{\"status\":\"Busy\", \"message\":\"Starting Paint Sequence for Side %d...\"}", sideIndex);
     webSocket.broadcastTXT(busyMsg);
     Serial.println(busyMsg); // Debug
 
-    // 3. Get Side Parameters (Use parameters for the *requested* sideIndex)
-    float zHeight = paintZHeight_inch[sideIndex];
+    // 3. Get Side Parameters
     int pitch = paintPitchAngle[sideIndex];
-    float speed = paintSpeed[sideIndex]; // Speed in steps/s
+    float speed = paintSpeed[sideIndex]; // Speed in steps/s (Hz)
     float accel = patternXAccel; // Assuming X/Y use same accel for painting
-    int patternType = paintPatternType[sideIndex]; // Get selected pattern type
+    // int patternType = paintPatternType[sideIndex]; // <<<< REMOVED: Pattern type is now implicit in the side function
 
-    // 4. Optional: Rotate (Example: Rotate based on sideIndex if needed - ADD LATER IF REQUIRED)
-    // ... Rotation logic if necessary ...
-    // delay(100); // Small delay after rotation
+    // 4. Optional: Rotate - Handled within the pattern sequence now
 
-    // 5. Set Servo Angles
+    // 5. Set Servo Angles (Pitch only for now)
     Serial.printf("Setting servos for Side %d: Pitch=%d\n", sideIndex, pitch);
     servo_pitch.write(pitch);
     delay(300); // Allow servos to settle
 
-    // 6. Define Path Reference Points and Spacing (Some calculation moved to pattern functions)
-    // float backStartX = placeFirstXAbsolute_inch + paintGunOffsetX_inch + 0.25; // Top-right corner ref for Back
-    // float backStartY = placeFirstYAbsolute_inch + paintGunOffsetY_inch;       // Top-right corner ref for Back
-    // float rowSpacing = 3.0 + placeGapY_inch; // Vertical distance between rows (fixed for back/front)
-    // float colSpacing = (placeGridCols > 1) ? (trayWidth_inch / (placeGridCols - 1)) : 0; // Horizontal distance between columns
-    // Serial.printf("Path References: BackStart(%.2f, %.2f), GunOffset(%.2f, %.2f), RowSpacing(%.2f), ColSpacing(%.2f)\n",
-    //               backStartX, backStartY, paintGunOffsetX_inch, paintGunOffsetY_inch, rowSpacing, colSpacing);
-
-    // 7. Move to Start Z Height
-    Serial.println("Moving to start Z height...");
-    moveZToPositionInches(zHeight, patternZSpeed, patternZAccel); // Use sideIndex's zHeight
-    if (stopRequested) {
-        Serial.println("STOP requested. Aborting paintSide.");
-        isMoving = false; 
-        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); 
-        return;
-    }
-
-    // 8. Execute Painting Pattern using the new functions
-    Serial.printf("Executing painting pattern type %d for side %d\n", patternType, sideIndex);
+    // Steps 6 (Path Refs), 7 (Move Z), 8 (Execute Pattern) are now handled within the called pattern function
+    Serial.println("Calling side-specific pattern execution function...");
     bool patternStopped = false;
 
-    if (patternType == 0) { // --- Up-Down Pattern (Back/Front sides) ---
-        patternStopped = executeUpDownPattern(sideIndex, speed, accel);
-    } else { // --- Left-Right Pattern (Left/Right sides) ---
-        patternStopped = executeLeftRightPattern(sideIndex, speed, accel);
+    // <<< REPLACED: Call the appropriate side-specific pattern function using a switch statement
+    switch (sideIndex) {
+        case 0: // Back
+            patternStopped = executePaintPatternBack(speed, accel);
+            break;
+        case 1: // Right
+            patternStopped = executePaintPatternRight(speed, accel);
+            break;
+        case 2: // Front
+            patternStopped = executePaintPatternFront(speed, accel);
+            break;
+        case 3: // Left
+             patternStopped = executePaintPatternLeft(speed, accel);
+            break;
+        // Default case already handled by index check at the start
     }
 
-    // --- Check if pattern was stopped --- 
+    // --- Check if pattern sequence was stopped or failed --- 
     if (patternStopped) {
-        Serial.println("Painting pattern stopped by user request.");
-        // isMoving should have been cleared by the stop handler
-        // Send Ready message if needed (stop handler might do this)
-        // webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}");
+        Serial.println("Painting sequence stopped by user request or error within pattern function.");
+        // isMoving should be false if stopped correctly, but ensure it
+        if (stopRequested) {
+             // If explicitly stopped, the stop handler usually sends the Ready message
+             // isMoving = false; // Should be handled by stop logic
+        } else {
+            // If stopped due to an error within the pattern function
+             isMoving = false; 
+             webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped due to error.\"}");
+        }
         return; // Exit paintSide function
     }
-    // --- Pattern Completed Normally --- 
+    // --- Pattern Sequence Completed Normally --- 
 
-    // 9. Painting Complete - Return Z to home (or safe height)
-    Serial.println("Painting pattern complete. Returning Z to safe height.");
-    // 10. Move Z Axis Up (e.g., to safe height 0)
+    // 9. Painting Complete - Actions after pattern (e.g., return Z)
+    Serial.println("Painting sequence complete. Performing post-pattern actions.");
+    
+    // 10. Move Z Axis Up to safe height (0)
     Serial.println("Moving Z axis up to safe height (0)...");
-    moveZToPositionInches(0.0, patternZSpeed, patternZAccel);
+    moveZToPositionInches(0.0, patternZSpeed, patternZAccel); 
+    // Check for stop AFTER Z move (stopRequested might have been set during the move)
     if (stopRequested) {
-        Serial.println("STOP requested after pattern completion (during Z move). Aborting.");
-        isMoving = false;
-        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user after pattern.\"}");
+        Serial.println("STOP requested during final Z move. Aborting return home.");
+        // isMoving will be reset by the main STOP handler
         return;
     }
 
-    // 11. Return to home position (X=0, Y=0, Z=0) - Optional, depends on workflow
-    // Commenting out for now, might want to stay near the workpiece
-    /*
-    Serial.println("Returning to home position (X=0, Y=0, Z=0)...");
-    isMoving = false; // Temporarily clear flag for the move function
-    moveToPositionInches(0.0, 0.0, 0.0);
-    isMoving = true; // Set moving flag again for the wait loop
-    while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning()) || (stepper_z && stepper_z->isRunning())) {
-        webSocket.loop();
+    // 11. Return to home position (X=0, Y=0)
+    Serial.println("Returning XY to home position (0, 0)...");
+    moveToXYPositionInches(0.0, 0.0);
+    // Wait for XY move completion (blocking)
+    while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning())) {
+        // REMOVED check for stopRequested inside loop
+        webSocket.loop(); // Keep responsive
         yield();
-        if (stopRequested) {
-            Serial.println("STOP requested. Aborting paintSide during return to home.");
-            isMoving = false;
-            webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}");
-            return;
-        }
+    }
+    // Check for stop AFTER XY move
+    if (stopRequested) {
+        Serial.println("STOP requested during return to home move. Aborting.");
+        // isMoving will be reset by the main STOP handler
+        return; // Exit paintSide
     }
     Serial.println("Return to home complete.");
-    */
 
-    // 12. Clear Busy State & Send Ready Message
-    isMoving = false; // Ensure isMoving is false before sending final status
+    // 12. Clear Busy State & Send Final Ready Message
+    isMoving = false; // Ensure isMoving is false
     char readyMsg[100];
-    sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Painting Side %d complete.\"}", sideIndex);
+    sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Painting Side %d complete. Returned home.\"}", sideIndex);
     webSocket.broadcastTXT(readyMsg);
     Serial.println(readyMsg);
 

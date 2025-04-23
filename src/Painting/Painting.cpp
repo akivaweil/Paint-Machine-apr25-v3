@@ -3,6 +3,12 @@
 #include <FastAccelStepper.h> // Include if needed for future painting moves
 #include <WebSocketsServer.h> // Include if needed for status updates
 
+// === Constant Definitions (Declared extern in Painting.h) ===
+const int ROT_POS_BACK_DEG = 0;
+const int ROT_POS_RIGHT_DEG = 90;
+const int ROT_POS_FRONT_DEG = 180;
+const int ROT_POS_LEFT_DEG = 270;
+
 // === Extern Global Variables (Defined in main.cpp) ===
 // Declare external references to variables defined in main.cpp that painting logic might need
 extern WebSocketsServer webSocket; // For sending status messages

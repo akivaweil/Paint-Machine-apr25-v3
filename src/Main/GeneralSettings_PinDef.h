@@ -127,7 +127,7 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 
 // === General Constants ===
 #define DEBOUNCE_INTERVAL 5      // milliseconds (Restored original value)
-#define HOMING_SPEED 3500          // steps/s (Changed from 2000)
+#define HOMING_SPEED 2000          // steps/s (Changed from 2000)
 #define HOMING_ACCEL 12500         // steps/s^2 (Changed from 5000, scaled 2.5x)
 #define HOMING_TIMEOUT 15000   // milliseconds
 
@@ -141,9 +141,9 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 #define Z_MAX_TRAVEL_POS_INCH 2.75f // Maximum Z travel downwards (Restored original value)
 
 // PnP Item Dimensions (NEW - Moved from main.cpp)
-const float pnpItemWidth_inch = 3.0f;
-const float pnpItemHeight_inch = 3.0f;
-const float pnpBorderWidth_inch = 0.25f; // Border around grid
+// const float pnpItemWidth_inch = 3.0f;
+// const float pnpItemHeight_inch = 3.0f;
+// const float pnpBorderWidth_inch = 0.25f; // Border around grid
 
 // === Extern Variables ===
 // These are defined in one .cpp file (e.g., main.cpp) and declared here
