@@ -656,31 +656,43 @@ void rotateToAbsoluteDegree(int targetDegree) {
     sprintf(rotMsg, "{\"status\":\"Moving\", \"message\":\"Rotating tray to %d degrees...\"}", targetDegree);
     webSocket.broadcastTXT(rotMsg);
 
-    // Set speed and acceleration (use defaults from GeneralSettings_PinDef.h)
-    stepper_rot->setSpeedInHz(patternRotSpeed); 
+    // Always set speed and acceleration - ensuring the motor has proper acceleration profile
+    stepper_rot->setSpeedInHz(patternRotSpeed);
     stepper_rot->setAcceleration(patternRotAccel);
-    stepper_rot->moveTo(targetSteps); // Move to absolute step position
+    
+    // Check if the move can be properly executed
+    if (!stepper_rot->moveTo(targetSteps)) {
+        Serial.println("[ERROR] Rotation move failed - stepper may be disabled");
+        webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Rotation failed. Motor might be disabled.\"}");
+        isMoving = false;
+        return;
+    }
 
     // Wait for rotation completion (blocking)
-    while (stepper_rot->isRunning()) { // <<< REMOVED: !stopRequested check
+    while (stepper_rot->isRunning()) {
         webSocket.loop(); // Keep WebSocket responsive
         yield();
     }
 
-    // Check stop AFTER loop completes (stopRequested might still be set)
-    if (stopRequested) {
-        Serial.println("STOP requested during rotation. Rotation may not have completed.");
-        // isMoving will be reset by the main STOP handler
-        // webSocket status will be updated by the main STOP handler
-    } else {
-        Serial.printf("Rotation to %d degrees complete. Final steps: %ld\n", targetDegree, stepper_rot->getCurrentPosition());
-        isMoving = false; // Clear busy flag ONLY if not stopped
-        // Send 'Ready' status after rotation is complete (unless stopped)
-        char readyMsg[100];
-        sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Rotation to %d degrees complete.\"}", targetDegree);
-        webSocket.broadcastTXT(readyMsg); 
-        sendCurrentPositionUpdate(); // Update position display
+    // After move completes
+    long finalPos = stepper_rot->getCurrentPosition();
+    float finalAngle = (float)finalPos / STEPS_PER_DEGREE;
+    
+    // Verify if move completed successfully
+    if (abs(finalPos - targetSteps) > 2) { // More than 2 steps off (> 0.18 degrees)
+        Serial.printf("[WARN] Rotation didn't reach exact target. Final: %ld steps (%.2f°), Target: %ld steps (%d°)\n",
+                    finalPos, finalAngle, targetSteps, targetDegree);
     }
+
+    Serial.printf("Rotation to %d degrees complete. Final steps: %ld (%.2f°)\n", 
+                targetDegree, finalPos, finalAngle);
+    isMoving = false; // Clear busy flag
+    
+    // Send 'Ready' status after rotation is complete
+    char readyMsg[100];
+    sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Rotation to %d degrees complete.\"}", targetDegree);
+    webSocket.broadcastTXT(readyMsg); 
+    sendCurrentPositionUpdate(); // Update position display
 }
 // --- End NEW Rotation Function ---
 
@@ -979,6 +991,12 @@ void setup() {
             stepper_rot->setEnablePin(-1);
             stepper_rot->setAutoEnable(false);
             stepper_rot->setCurrentPosition(0);
+            
+            // Set default speed and acceleration for the rotation stepper
+            stepper_rot->setSpeedInHz(patternRotSpeed);
+            stepper_rot->setAcceleration(patternRotAccel);
+            Serial.printf("DEBUG: Rotation stepper configured with speed=%.2f Hz, accel=%.2f steps/s^2\n", 
+                        patternRotSpeed, patternRotAccel);
         } else {
             Serial.println("DEBUG: ERROR - Failed to initialize rotation stepper (non-conflict scenario)!");
             stepper_rot = NULL;
