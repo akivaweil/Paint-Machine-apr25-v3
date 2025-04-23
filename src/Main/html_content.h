@@ -602,6 +602,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   pnpButton.innerHTML = "Enter Pick/Place"; // Reset button text
                   pnpButton.className = "button"; // Reset to default button style
                   pnpButton.onclick = function() { sendCommand('ENTER_PICKPLACE'); }; // Reset function
+                  pnpStepButton.style.display = 'none'; // Hide PnP Step button
+                  pnpSkipButton.style.display = 'none'; // Hide Skip button
+                  pnpBackButton.style.display = 'none'; // Hide Back button
                   enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button
                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
               } else if (data.status === "PickPlaceReady") {
@@ -613,6 +616,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   pnpButton.className = "button exit-button"; // Add red styling
                   pnpButton.disabled = false; // Ensure enabled here, enableButtons will handle final state 
                   pnpButton.onclick = function() { sendCommand('EXIT_PICKPLACE'); }; // Change function to exit
+                  pnpStepButton.style.display = 'inline-block'; // Show PnP Step button
+                  pnpSkipButton.style.display = 'inline-block'; // Show Skip button
+                  pnpBackButton.style.display = 'inline-block'; // Show Back button
                   enterCalibrationButton.style.display = 'none'; // Hide Enter Cal button
                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
               } else if (data.status === "Busy" || data.status === "Moving" || data.status === "Homing") {
@@ -624,6 +630,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                   console.log("JS Debug: Executing 'CalibrationActive' block"); // JS Debug
                   statusDiv.style.color = 'purple'; // Indicate calibration mode
                   allHomed = true; // Assume homed when entering calibration
+                  pnpStepButton.style.display = 'none'; // Hide PnP Step button
+                  pnpSkipButton.style.display = 'none'; // Hide Skip button
+                  pnpBackButton.style.display = 'none'; // Hide Back button
                   enterCalibrationButton.style.display = 'none'; // Hide Enter Cal button
                   calibrationControlsDiv.style.display = 'block'; // Show Cal controls
                   pnpButton.innerHTML = "Enter Pick/Place"; // Ensure PnP button is reset
@@ -637,6 +646,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                      pnpButton.disabled = true; // Disable PnP button as sequence is done
                   }
                   enterCalibrationButton.style.display = 'inline-block'; // Show Enter Cal button
+                  pnpStepButton.style.display = 'none'; // Hide PnP Step button
+                  pnpSkipButton.style.display = 'none'; // Hide Skip button
+                  pnpBackButton.style.display = 'none'; // Hide Back button
                   calibrationControlsDiv.style.display = 'none'; // Hide Cal controls
               }
 
@@ -677,8 +689,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         let connected = websocket && websocket.readyState === WebSocket.OPEN;
         console.log("enableButtons() - Debug State: Connected=" + connected + ", AllHomed=" + allHomed + ", IsMoving=" + isMoving + ", IsHoming=" + isHoming + ", StatusDiv='" + statusDiv.innerHTML + "'"); // Updated Debug
         
-        let inCalibMode = calibrationControlsDiv.style.display === 'block';
-        let inPickAndPlaceMode = statusDiv.innerHTML.includes('PickPlaceReady') || pnpButton.innerHTML.includes('Exit'); // More robust check
+        let inCalibMode = calibrationControlsDiv.style.display === 'block'; // Check if calibration controls are shown
+        let inPickAndPlaceMode = pnpStepButton.style.display === 'inline-block'; // Check if PnP Step button is shown
         let canStop = connected && (isMoving || isHoming || inCalibMode);
 
         homeButton.disabled = !connected || isMoving || isHoming; // MODIFIED: Disable if moving/homing
