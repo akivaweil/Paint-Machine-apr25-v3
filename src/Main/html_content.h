@@ -107,6 +107,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       <button class="button" onclick="sendCommand('PAINT_ALL')" style="background-color: #ffc107;">Paint All Sides</button>
       <br>
       <button class="button" onclick="sendCommand('CLEAN_GUN')" style="background-color: #00bcd4;">Clean Gun</button>
+      <button id="pressurizeButton" class="button" onclick="togglePressure()" style="background-color: #ff9800;">Pressurize</button>
       <button id="pnpButton" class="button" onclick="sendCommand('ENTER_PICKPLACE')">Pick and Place Mode</button> 
       <button id="enterCalibrationButton" class="button" onclick="sendCommand('ENTER_CALIBRATION')">Manual Mode</button> <!-- Moved from Manual section -->
     </div>
@@ -203,7 +204,15 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
   <div class="section-paint">
     <h2>Paint Control</h2>
     <div id="paintControls">
-      <!-- Settings for Paint Gun Offset - REMOVED -->
+      <!-- Settings for Paint Gun Offset - RESTORED -->
+      <div class="input-group" style="background-color: #444;">
+        <h3>Paint Gun Offset (inches from TCP)</h3>
+        <label for="paintGunOffsetX">Offset X:</label>
+        <input type="number" id="paintGunOffsetX" step="0.1" value="0.0" onchange="setPaintGunOffset()">
+        <label for="paintGunOffsetY">Offset Y:</label>
+        <input type="number" id="paintGunOffsetY" step="0.1" value="1.5" onchange="setPaintGunOffset()">
+        <button class="button setting-button" onclick="setPaintGunOffset()">Save Gun Offset</button>
+      </div>
       
       <!-- Side Settings Panels -->
       <div style="clear:both;"></div>
@@ -417,6 +426,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     var inPickPlaceMode = false;
     var inCalibrationMode = false;
     var stopRequested = false;
+    var isPressurized = false; // New state variable for pressure pot
     
     // UI element references
     var homeButton = document.getElementById('homeButton');
@@ -431,6 +441,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     var jogStepInput = document.getElementById('jogStep');
     var currentPosDisplaySpan = document.getElementById('currentPosDisplay');
     var stopButton = document.querySelector('.exit-button');
+    var pressurizeButton = document.getElementById('pressurizeButton');
 
     // Paint control elements
     var paintBackButton = document.getElementById('paintBackButton');
@@ -646,6 +657,12 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
                 console.log(`JS Debug: Received explicit homed status=${data.homed}`);
                 allHomed = data.homed; // Use explicit homed status from server
             }
+            
+            // Check for pressure state if available
+            if (data.hasOwnProperty('pressurized')) {
+                isPressurized = data.pressurized;
+                updatePressurizeButtonUI();
+            }
 
             // --- Update UI Elements based on data ---
             // Update offset display and inputs if offset info is present
@@ -823,14 +840,17 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
             enableButtons(); // ADDED single call here
 
             // NEW: Update Paint Start Position fields
-            if (data.settings.paintStartX_0 !== undefined) document.getElementById('paintStartX_0').value = data.settings.paintStartX_0;
-            if (data.settings.paintStartY_0 !== undefined) document.getElementById('paintStartY_0').value = data.settings.paintStartY_0;
-            if (data.settings.paintStartX_1 !== undefined) document.getElementById('paintStartX_1').value = data.settings.paintStartX_1;
-            if (data.settings.paintStartY_1 !== undefined) document.getElementById('paintStartY_1').value = data.settings.paintStartY_1;
-            if (data.settings.paintStartX_2 !== undefined) document.getElementById('paintStartX_2').value = data.settings.paintStartX_2;
-            if (data.settings.paintStartY_2 !== undefined) document.getElementById('paintStartY_2').value = data.settings.paintStartY_2;
-            if (data.settings.paintStartX_3 !== undefined) document.getElementById('paintStartX_3').value = data.settings.paintStartX_3;
-            if (data.settings.paintStartY_3 !== undefined) document.getElementById('paintStartY_3').value = data.settings.paintStartY_3;
+            // Check if data.settings exists before trying to access it
+            if (data.settings) { 
+              if (data.settings.paintStartX_0 !== undefined) document.getElementById('paintStartX_0').value = data.settings.paintStartX_0;
+              if (data.settings.paintStartY_0 !== undefined) document.getElementById('paintStartY_0').value = data.settings.paintStartY_0;
+              if (data.settings.paintStartX_1 !== undefined) document.getElementById('paintStartX_1').value = data.settings.paintStartX_1;
+              if (data.settings.paintStartY_1 !== undefined) document.getElementById('paintStartY_1').value = data.settings.paintStartY_1;
+              if (data.settings.paintStartX_2 !== undefined) document.getElementById('paintStartX_2').value = data.settings.paintStartX_2;
+              if (data.settings.paintStartY_2 !== undefined) document.getElementById('paintStartY_2').value = data.settings.paintStartY_2;
+              if (data.settings.paintStartX_3 !== undefined) document.getElementById('paintStartX_3').value = data.settings.paintStartX_3;
+              if (data.settings.paintStartY_3 !== undefined) document.getElementById('paintStartY_3').value = data.settings.paintStartY_3;
+            } // End check for data.settings
 
         } catch (e) {
             console.error("Error processing WebSocket message:", e); // Added error logging
@@ -988,6 +1008,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       jogStepInput = document.getElementById('jogStep');
       currentPosDisplaySpan = document.getElementById('currentPosDisplay');
       stopButton = document.querySelector('.exit-button');
+      pressurizeButton = document.getElementById('pressurizeButton'); // Add pressurize button reference
 
       // Paint control elements
       paintBackButton = document.getElementById('paintBackButton');
@@ -1477,6 +1498,35 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       console.log("Sending command:", command);
       websocket.send(command);
       setStatus('Saving paint start positions...', 'Busy');
+  }
+
+  // Add the togglePressure function to handle the pressure button
+  function togglePressure() {
+      isPressurized = !isPressurized;
+      updatePressurizeButtonUI();
+      sendCommand('TOGGLE_PRESSURE');
+  }
+  
+  // Function to update the pressurize button appearance
+  function updatePressurizeButtonUI() {
+      if (pressurizeButton) {
+          if (isPressurized) {
+              pressurizeButton.innerHTML = "Depressurize";
+              pressurizeButton.style.backgroundColor = "#e91e63"; // Pink/red when pressurized
+          } else {
+              pressurizeButton.innerHTML = "Pressurize";
+              pressurizeButton.style.backgroundColor = "#ff9800"; // Orange when not pressurized
+          }
+      }
+  }
+
+  // Function to set Paint Gun Offset
+  function setPaintGunOffset() {
+      const xOffset = parseFloat(paintGunOffsetXInput.value);
+      const yOffset = parseFloat(paintGunOffsetYInput.value);
+      const command = `SET_PAINT_GUN_OFFSET ${xOffset} ${yOffset}`;
+      sendCommand(command);
+      alert("Paint Gun Offset saved successfully!");
   }
   </script>
 </body>

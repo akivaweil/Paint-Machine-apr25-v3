@@ -273,9 +273,9 @@ void executeNextPickPlaceStep() {
     Serial.println("[DEBUG] --- Starting PnP Step --- ");
 
     // == Move from Waiting Offset to Actual Pick Location == (NEW)
-    Serial.printf("[DEBUG] Moving from waiting offset to actual Pick location (X=%.2f, Y=%.2f)...\n", pnpOffsetX_inch, pnpOffsetY_inch);
+    Serial.printf("[DEBUG] Moving from waiting offset to actual Pick location (X=%.2f, Y=%.2f)...\n", pnpPickLocationX_inch, pnpPickLocationY_inch);
     webSocket.broadcastTXT("{\"status\":\"Moving\", \"message\":\"Moving to Pick Location...\"}");
-    moveToXYPositionInches_PnP(pnpOffsetX_inch, pnpOffsetY_inch);
+    moveToXYPositionInches_PnP(pnpPickLocationX_inch, pnpPickLocationY_inch);
     unsigned long prePickMoveStartTime = millis();
     while (stepper_x->isRunning() || stepper_y_left->isRunning() || stepper_y_right->isRunning()) {
         if (millis() - prePickMoveStartTime > 5000) { // Shorter timeout for this small move
@@ -366,15 +366,15 @@ void executeNextPickPlaceStep() {
     // Move Z up to Travel height
 
     // == Return to Pick Location (User Step 13) ==
-    // MODIFIED: Return to the WAITING offset position
-    float returnPosX = pnpOffsetX_inch;
-    float returnPosY = pnpOffsetY_inch + 1.0f; // Go back to the +1 inch Y offset
-    sprintf(msgBuffer, "{\"status\":\"Moving\", \"message\":\"PnP Step %d,%d: Returning to Pick Waiting Pos (%.2f, %.2f)\"}",
+    // MODIFIED: Return to the Pick Location (not an offset)
+    float returnPosX = pnpPickLocationX_inch;
+    float returnPosY = pnpPickLocationY_inch;
+    sprintf(msgBuffer, "{\"status\":\"Moving\", \"message\":\"PnP Step %d,%d: Returning to Pick Pos (%.2f, %.2f)\"}",
             currentPlaceRow + 1, currentPlaceCol + 1, returnPosX, returnPosY);
-    Serial.println("[DEBUG] 13. Returning to Pick WAITING location..."); // Updated message
+    Serial.println("[DEBUG] 13. Returning to Pick location..."); // Updated message
     Serial.println(msgBuffer); // Debug
     webSocket.broadcastTXT(msgBuffer);
-    // Move XY to Pick Waiting Location
+    // Move XY to Pick Location
     moveToXYPositionInches_PnP(returnPosX, returnPosY);
     // Wait for XY move to complete (blocking)
     unsigned long pickMoveStartTime = millis();
@@ -390,7 +390,7 @@ void executeNextPickPlaceStep() {
          }
         webSocket.loop(); yield(); // Keep responsive
     }
-     Serial.printf("[DEBUG] Arrived back at Pick WAITING position (%.2f, %.2f).\n", returnPosX, returnPosY); // Updated message
+     Serial.printf("[DEBUG] Arrived back at Pick location (%.2f, %.2f).\n", returnPosX, returnPosY); // Updated message
      Serial.println("[DEBUG] --- Completed PnP Step --- ");
      Serial.printf("[DEBUG] Current Grid Pos Before Increment: Col=%d, Row=%d\n", currentPlaceCol, currentPlaceRow); // DEBUG
 
