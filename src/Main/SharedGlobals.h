@@ -27,6 +27,13 @@ extern bool allHomed;
 extern volatile bool isHoming;
 extern volatile bool inPickPlaceMode;
 extern volatile bool inCalibrationMode;
+extern volatile bool isPainting; // NEW: Flag to indicate active painting sequence
+
+// Painting State Machine Variables
+extern volatile int currentPaintStep; // Current step in the painting state machine
+extern volatile int currentPaintSide; // Current side being painted in the sequence
+extern volatile bool isPaintSequence; // Flag for multi-side painting sequence
+extern volatile bool paintNextSide;   // Signal to move to the next side in the sequence
 
 // PnP/Grid/Tray Settings (Potentially needed by patterns/actions)
 extern const float pnpItemWidth_inch;
@@ -85,6 +92,8 @@ void moveToXYPositionInches_Paint(float targetX_inch, float targetY_inch, float 
 void moveZToPositionInches(float targetZ_inch, float speedHz, float accel);
 void rotateToAbsoluteDegree(int targetDegree);
 void sendCurrentPositionUpdate(); // For updating UI after moves
+void startPaintingSide(int sideIndex, bool isSequence = false); // Function to start painting a side
+void processPaintingStateMachine(); // Function to process painting state machine steps
 
 // Potentially others if needed by actions/patterns, e.g.:
 // void printAndBroadcast(const char* message); // If we want a single status function

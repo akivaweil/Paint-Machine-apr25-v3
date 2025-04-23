@@ -36,6 +36,13 @@ float paintSpeed[4] = {10000.0, 10000.0, 10000.0, 10000.0};
 float paintStartX[4] = { 11.5f, 29.5f, 11.5f, 8.0f }; // Defaults based on current logic
 float paintStartY[4] = { 20.5f, 20.0f, 0.5f,  6.5f }; // Defaults based on current logic
 
+// Painting State Machine Variables (NEW)
+volatile bool isPainting = false;      // Flag indicating active painting
+volatile int currentPaintStep = 0;     // Current step in the painting process
+volatile int currentPaintSide = -1;    // Current side being painted (-1 = none)
+volatile bool isPaintSequence = false; // Flag for multi-side painting sequence
+volatile bool paintNextSide = false;   // Signal to move to the next side
+
 // Pick and Place Specific Locations - DEFINITIONS
 float pnpPickLocationX_inch = 2.0f; // Default pick location X
 float pnpPickLocationY_inch = 2.0f; // Default pick location Y
@@ -134,6 +141,7 @@ void sendCurrentPositionUpdate(); // Forward declaration for position updates
 void sendAllSettingsUpdate(uint8_t specificClientNum, String message); // Helper to send all settings
 void saveSettings(); // Defined above
 void loadSettings(); // Defined above
+void setDefaultSettings(); // New helper function to set defaults
 void setPitchServoAngle(int angle);
 void movePitchServoSmoothly(int targetAngle);
 
@@ -504,7 +512,7 @@ void moveToPositionInches(float targetX_inch, float targetY_inch, float targetZ_
 
     long targetZ_steps = (long)(targetZ_inch * STEPS_PER_INCH_Z); // Convert constrained value
 
-    // Move Z axis first (if necessary)
+    // Move Z axis (if necessary)
     bool needToMoveZ = (stepper_z && stepper_z->getCurrentPosition() != targetZ_steps);
     if (needToMoveZ) {
         stepper_z->setSpeedInHz(patternZSpeed);
@@ -513,13 +521,8 @@ void moveToPositionInches(float targetX_inch, float targetY_inch, float targetZ_
         // Serial.printf("  Moving Z to %ld steps\\n", targetZ_steps);
     }
 
-    // Wait for Z to finish if it moved
-    while (needToMoveZ && stepper_z->isRunning()) {
-        webSocket.loop(); // Keep websocket alive
-        yield();
-    }
-    // Serial.println("  Z move complete (or skipped).");
-
+    // *** REMOVED: Wait for Z to finish if it moved ***
+    // Now non-blocking: loop() will detect when all motors have stopped
 
     // Move X and Y axes simultaneously
     bool needToMoveX = (stepper_x && stepper_x->getCurrentPosition() != targetX_steps);
@@ -547,7 +550,8 @@ void moveToPositionInches(float targetX_inch, float targetY_inch, float targetZ_
        }
     }
 
-    // Wait for X and Y to complete (this part is checked in the main loop now)
+    // *** REMOVED: Wait for movement completion - now non-blocking ***
+    // The loop() function will detect movement completion and reset the isMoving flag
 }
 
 // Function to move only X and Y axes to a target position in inches
@@ -777,142 +781,229 @@ void rotateToAbsoluteDegree(int targetDegree) {
 
 // --- Painting Logic ---
 
-void paintSide(int sideIndex) {
-    Serial.printf("Starting paintSide for side %d\n", sideIndex);
+// --- Start a painting operation on a specific side (can be part of a sequence)
+void startPaintingSide(int sideIndex, bool isSequence) {
+    Serial.printf("Starting painting for side %d (sequence: %s)\n", sideIndex, isSequence ? "true" : "false");
     stopRequested = false; // Reset stop flag at start
-
-    // 1. Check Machine State
-    if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
-        Serial.printf("[ERROR] paintSide denied: Invalid state (allHomed=%d, isMoving=%d, isHoming=%d, inPickPlaceMode=%d, inCalibrationMode=%d)\n",
-                      allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+    
+    // Validate painting request
+    if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode || isPainting) {
+        Serial.printf("[ERROR] startPaintingSide denied: Invalid state (allHomed=%d, isMoving=%d, isHoming=%d, inPickPlaceMode=%d, inCalibrationMode=%d, isPainting=%d)\n",
+                      allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode, isPainting);
         webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Cannot start painting, invalid machine state.\"}");
         return;
     }
-    // <<< ADDED: Validate sideIndex before proceeding
+    
+    // Validate side index
     if (sideIndex < 0 || sideIndex > 3) {
-        Serial.printf("[ERROR] paintSide denied: Invalid side index %d\n", sideIndex);
-         webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Invalid side index provided for painting.\"}");
+        Serial.printf("[ERROR] startPaintingSide denied: Invalid side index %d\n", sideIndex);
+        webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Invalid side index provided for painting.\"}");
         return;
     }
-
-    // 2. Set Machine Busy State
-    isMoving = true; // Use isMoving flag to indicate painting activity
+    
+    // Set new flags
+    isPainting = true;
+    isMoving = true;
+    currentPaintSide = sideIndex;
+    currentPaintStep = 0;
+    isPaintSequence = isSequence;
+    paintNextSide = false;
+    
+    // Send status message
     char busyMsg[100];
     sprintf(busyMsg, "{\"status\":\"Busy\", \"message\":\"Starting Paint Sequence for Side %d...\"}", sideIndex);
     webSocket.broadcastTXT(busyMsg);
-    Serial.println(busyMsg); // Debug
+    Serial.println(busyMsg);
+}
 
-    // 3. Get Side Parameters
-    int pitch = paintPitchAngle[sideIndex];
-    float speed = paintSpeed[sideIndex]; // Speed in steps/s (Hz)
-    float accel = patternXAccel; // Assuming X/Y use same accel for painting
-    // int patternType = paintPatternType[sideIndex]; // <<<< REMOVED: Pattern type is now implicit in the side function
-
-    // 4. Optional: Rotate - Handled within the pattern sequence now
-
-    // 5. Set Servo Angles (Pitch only for now)
-    Serial.printf("Setting servos for Side %d: Pitch=%d\n", sideIndex, pitch);
-    servo_pitch.write(pitch);
-    delay(300); // Allow servos to settle
-
-    // Steps 6 (Path Refs), 7 (Move Z), 8 (Execute Pattern) are now handled within the called pattern function
-    Serial.println("Calling side-specific pattern execution function...");
-    bool patternStopped = false;
-
-    // <<< REPLACED: Call the appropriate side-specific pattern function using a switch statement
-    switch (sideIndex) {
-        case 0: // Back
-            patternStopped = executePaintPatternBack(speed, accel);
-            break;
-        case 1: // Right
-            patternStopped = executePaintPatternRight(speed, accel);
-            break;
-        case 2: // Front
-            patternStopped = executePaintPatternFront(speed, accel);
-            break;
-        case 3: // Left
-             patternStopped = executePaintPatternLeft(speed, accel);
-            break;
-        // Default case already handled by index check at the start
-    }
-
-    // --- Check if pattern sequence was stopped or failed --- 
-    if (patternStopped) {
-        Serial.println("Painting sequence stopped by user request or error within pattern function.");
-        // isMoving should be false if stopped correctly, but ensure it
-        if (stopRequested) {
-             // If explicitly stopped, the stop handler usually sends the Ready message
-             // isMoving = false; // Should be handled by stop logic
-        } else {
-            // If stopped due to an error within the pattern function
-             isMoving = false; 
-             webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped due to error.\"}");
-        }
-        return; // Exit paintSide function
-    }
-    // --- Pattern Sequence Completed Normally --- 
-
-    // 9. Painting Complete - Actions after pattern (e.g., return Z)
-    Serial.println("Painting sequence complete. Performing post-pattern actions.");
+// --- Main painting state machine - called from loop()
+void processPaintingStateMachine() {
+    // Only process if painting is active
+    if (!isPainting) return;
     
-    // Ensure paint gun is deactivated after pattern completion
-    deactivatePaintGun(true);
-    
-    // Double-check directly with pins for safety
-    digitalWrite(PAINT_GUN_PIN, LOW);
-    digitalWrite(PRESSURE_POT_PIN, LOW);
-    
-    // 10. Move Z Axis Up to safe height (0)
-    Serial.println("Moving Z axis up to safe height (0)...");
-    moveZToPositionInches(0.0, patternZSpeed, patternZAccel); 
-    // Check for stop AFTER Z move (stopRequested might have been set during the move)
+    // Check for stop request
     if (stopRequested) {
-        Serial.println("STOP requested during final Z move. Aborting return home.");
-        // isMoving will be reset by the main STOP handler
+        Serial.println("Painting operation stopped by user request");
+        deactivatePaintGun(true);
+        isPainting = false;
+        isMoving = false;
+        currentPaintSide = -1;
+        currentPaintStep = 0;
+        isPaintSequence = false;
+        paintNextSide = false;
+        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}");
         return;
     }
-
-    // 11. Return to home position (X=0, Y=0)
-    Serial.println("Returning XY to home position (0, 0)...");
-    moveToXYPositionInches(0.0, 0.0);
-    // Wait for XY move completion (blocking)
-    while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning())) {
-        // REMOVED check for stopRequested inside loop
-        webSocket.loop(); // Keep responsive
-        yield();
+    
+    // Check if we're waiting for motors to stop moving
+    if ((stepper_x && stepper_x->isRunning()) || 
+        (stepper_y_left && stepper_y_left->isRunning()) || 
+        (stepper_y_right && stepper_y_right->isRunning()) || 
+        (stepper_z && stepper_z->isRunning()) || 
+        (stepper_rot && stepper_rot->isRunning())) {
+        // Motors still moving, wait
+        return;
     }
-    // Check for stop AFTER XY move
-    if (stopRequested) {
-        Serial.println("STOP requested during return to home move. Aborting.");
-        // isMoving will be reset by the main STOP handler
-        return; // Exit paintSide
-    }
-    Serial.println("Return to home complete.");
-
-    // New step: Return rotation to 0 position
-    if (stepper_rot) {
-        Serial.println("Returning rotation to 0 position...");
-        webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Returning rotation to home position (0°)...\"}");
+    
+    // Check if we need to move to next side in sequence
+    if (paintNextSide && isPaintSequence) {
+        paintNextSide = false;
+        int nextSide = -1;
         
-        // Use the rotation function to move to 0 degrees
-        rotateToAbsoluteDegree(0);
-        
-        // Check if stop was requested during rotation
-        if (stopRequested) {
-            Serial.println("STOP requested during return to zero rotation. Aborting.");
-            return; // Exit paintSide
+        // Determine next side based on the predefined order: 0,2,3,1
+        switch (currentPaintSide) {
+            case 0: nextSide = 2; break; // Back -> Front
+            case 2: nextSide = 3; break; // Front -> Left
+            case 3: nextSide = 1; break; // Left -> Right
+            case 1:                      // Right -> Done
+                isPainting = false;
+                isMoving = false;
+                currentPaintSide = -1;
+                currentPaintStep = 0;
+                isPaintSequence = false;
+                Serial.println("Paint All Sides sequence complete!");
+                webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Paint All Sides sequence completed successfully.\"}");
+                return;
+            default:
+                nextSide = 0; // Start with Back if current is invalid
         }
-        Serial.println("Return rotation to 0 position complete.");
+        
+        if (nextSide >= 0) {
+            // Start the next side
+            currentPaintSide = nextSide;
+            currentPaintStep = 0;
+            char busyMsg[100];
+            sprintf(busyMsg, "{\"status\":\"Busy\", \"message\":\"Moving to next side in sequence: Side %d\"}", nextSide);
+            webSocket.broadcastTXT(busyMsg);
+            Serial.println(busyMsg);
+        }
     }
+    
+    // Process current step for the current side
+    switch (currentPaintStep) {
+        case 0: // Initial setup - set servo angle
+            {
+                int pitch = paintPitchAngle[currentPaintSide];
+                Serial.printf("Setting servo pitch to %d for side %d\n", pitch, currentPaintSide);
+                servo_pitch.write(pitch);
+                delay(300); // Allow servo to settle
+                currentPaintStep = 1;
+            }
+            break;
+            
+        case 1: // Start pattern execution
+            {
+                float speed = paintSpeed[currentPaintSide];
+                float accel = patternXAccel;
+                bool patternSuccessful = false;
+                
+                Serial.printf("Executing paint pattern for side %d\n", currentPaintSide);
+                
+                // Call the appropriate side-specific pattern function
+                switch (currentPaintSide) {
+                    case 0: // Back
+                        patternSuccessful = !executePaintPatternBack(speed, accel);
+                        break;
+                    case 1: // Right
+                        patternSuccessful = !executePaintPatternRight(speed, accel);
+                        break;
+                    case 2: // Front
+                        patternSuccessful = !executePaintPatternFront(speed, accel);
+                        break;
+                    case 3: // Left
+                        patternSuccessful = !executePaintPatternLeft(speed, accel);
+                        break;
+                }
+                
+                // Check if pattern was successful
+                if (patternSuccessful) {
+                    Serial.println("Paint pattern executed successfully");
+                    currentPaintStep = 2;
+                } else {
+                    Serial.println("Paint pattern execution failed or stopped");
+                    deactivatePaintGun(true);
+                    isPainting = false;
+                    isMoving = false;
+                    currentPaintSide = -1;
+                    currentPaintStep = 0;
+                    isPaintSequence = false;
+                    webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Pattern execution failed or stopped.\"}");
+                }
+            }
+            break;
+            
+        case 2: // Post-pattern actions - ensure paint gun is off
+            deactivatePaintGun(true);
+            digitalWrite(PAINT_GUN_PIN, LOW);      // Double check directly with pins
+            digitalWrite(PRESSURE_POT_PIN, LOW);   // for safety
+            Serial.println("Deactivated paint gun after pattern completion");
+            currentPaintStep = 3;
+            break;
+            
+        case 3: // Move Z to safe height
+            Serial.println("Moving Z axis to safe height (0)");
+            moveZToPositionInches(0.0, patternZSpeed, patternZAccel);
+            currentPaintStep = 4;
+            break;
+            
+        case 4: // Move to home XY position
+            Serial.println("Returning to home XY position (0,0)");
+            moveToXYPositionInches(0.0, 0.0);
+            currentPaintStep = 5;
+            break;
+            
+        case 5: // Return rotation to 0
+            if (stepper_rot) {
+                Serial.println("Returning rotation to 0 position");
+                rotateToAbsoluteDegree(0);
+                currentPaintStep = 6;
+            } else {
+                // Skip rotation step if no rotation stepper
+                currentPaintStep = 6;
+            }
+            break;
+            
+        case 6: // Complete painting of this side
+            {
+                char readyMsg[100];
+                
+                if (isPaintSequence) {
+                    // If in a sequence, signal to move to the next side
+                    Serial.printf("Side %d painting complete. Ready for next side.\n", currentPaintSide);
+                    paintNextSide = true;
+                } else {
+                    // If single side, complete the painting operation
+                    sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Painting Side %d complete.\"}", currentPaintSide);
+                    webSocket.broadcastTXT(readyMsg);
+                    Serial.println(readyMsg);
+                    sendCurrentPositionUpdate();
+                    
+                    isPainting = false;
+                    isMoving = false;
+                    currentPaintSide = -1;
+                    currentPaintStep = 0;
+                }
+            }
+            break;
+    }
+}
 
-    // 12. Clear Busy State & Send Final Ready Message
-    isMoving = false; // Ensure isMoving is false
-    char readyMsg[100];
-    sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Painting Side %d complete. Returned home.\"}", sideIndex);
-    webSocket.broadcastTXT(readyMsg);
-    Serial.println(readyMsg);
-
-    sendCurrentPositionUpdate(); // Send final position
+// --- Legacy blocking paintSide function (kept for reference and fallback)
+// This function is now replaced by the non-blocking startPaintingSide + processPaintingStateMachine
+void paintSide(int sideIndex) {
+    // Make sure we're not already in a painting state
+    if (isPainting) {
+        Serial.println("[WARN] Attempting to start paintSide while already painting - resetting state first");
+        isPainting = false;
+        isMoving = false;
+        currentPaintSide = -1;
+        currentPaintStep = 0;
+        isPaintSequence = false;
+        paintNextSide = false;
+    }
+    
+    // Start the painting process using the new non-blocking approach
+    startPaintingSide(sideIndex, false);
 }
 
 // --- Arduino Setup ---
@@ -1137,95 +1228,85 @@ void setup() {
 
 // --- Arduino Loop ---
 void loop() {
-    // Handle OTA requests if WiFi is connected
+    // Handle Wi-Fi and OTA
     if (WiFi.status() == WL_CONNECTED) {
         ArduinoOTA.handle();
-        webSocket.loop();       // Handle WebSocket connections
-        webServer.handleClient(); // Handle HTTP requests
+        webServer.handleClient();
+        webSocket.loop();
     }
-
-    // Update switch debouncers (less critical now, mainly for potential future use)
-    debouncer_x_home.update();
-    debouncer_y_left_home.update();
-    debouncer_y_right_home.update();
-    debouncer_z_home.update();
+    
+    // NEW: Process painting state machine for non-blocking operation
+    processPaintingStateMachine();
+    
+    // Handle the PnP mode request button (if pressed)
     debouncer_pnp_cycle_button.update();
-
-    // --- Handle Physical Button Press ---
-    if (debouncer_pnp_cycle_button.rose()) { // Trigger on button press (rising edge)
-        Serial.println("[DEBUG] Physical Button Pressed! (rose)"); // DEBUG
-        // Only trigger the cycle if in PnP mode and not already doing something
-        if (inPickPlaceMode && !isMoving && !isHoming) {
-             Serial.println("[DEBUG] Triggering PnP cycle from physical button."); // DEBUG
-             executeNextPickPlaceStep(); // Call the correct function
-        } else {
-             Serial.printf("[DEBUG] Ignoring physical button: inPnP=%d, isMoving=%d, isHoming=%d\n", inPickPlaceMode, isMoving, isHoming); // DEBUG
-            // Serial.println("Ignoring physical button press (not in PnP mode or busy).");
-            // Optional: Provide feedback? (e.g., short LED blink)
-        }
+    if (debouncer_pnp_cycle_button.rose()) {
+        Serial.println("PnP cycle button pressed!");
+        // Handle PnP button press (future feature)
     }
-
-    // --- Handle Homing Request after PnP --- 
+    
+    // Handle pending homing after PnP sequence completes
     if (pendingHomingAfterPnP && !isMoving && !isHoming) {
-        Serial.println("[DEBUG] Handling pending homing request after PnP sequence.");
-        pendingHomingAfterPnP = false; // Clear the flag
-        homeAllAxes(); // Initiate homing
+        Serial.println("Executing pending homing after PnP exit");
+        pendingHomingAfterPnP = false; // Clear the flag first to prevent re-trigger
+        homeAllAxes(); // Home all axes after PnP sequence completes
     }
-
-    // Check if a move command (GOTO or JOG) is active and has finished
-    if (isMoving) { 
-        // Remember which motors were running at the start of this loop iteration
-        bool rot_was_running = stepper_rot && stepper_rot->isRunning();
-
-        bool x_running = stepper_x && stepper_x->isRunning();
-        bool yl_running = stepper_y_left && stepper_y_left->isRunning();
-        bool yr_running = stepper_y_right && stepper_y_right->isRunning();
-        bool z_running = stepper_z && stepper_z->isRunning(); // Include Z check
-        bool rot_running = stepper_rot && stepper_rot->isRunning(); // Keep this check for the condition
-
-        // Add detailed rotation debugging every 500ms
-        static unsigned long lastRotDebugTime = 0;
-        unsigned long currentTime = millis();
-        if (rot_running && currentTime - lastRotDebugTime > 500) {
-            lastRotDebugTime = currentTime;
-            Serial.printf("DEBUG ROTATION: Current pos: %ld steps, Target pos: %ld, Speed: %.2f us\n", 
-                        stepper_rot->getCurrentPosition(),
-                        stepper_rot->targetPos(),
-                        stepper_rot->getCurrentSpeedInUs());
-        }
-        
-        if (!x_running && !yl_running && !yr_running && !z_running && !rot_running) { // Added rot_running
-            Serial.printf("[DEBUG] loop(): Detected move completion. Clearing isMoving flag (was %d).\n", isMoving); // DEBUG
+    
+    // IMPROVED FIX: Check for movement completion and reset flags
+    // This ensures we don't get stuck in a "busy" state when movements complete
+    // Also checks if we're stuck in a painting state without actual painting happening
+    
+    // Check if machine is stuck in painting mode
+    static unsigned long lastPaintStepChangeTime = 0;
+    static int lastPaintStep = -1;
+    
+    if (isPainting) {
+        if (currentPaintStep != lastPaintStep) {
+            lastPaintStep = currentPaintStep;
+            lastPaintStepChangeTime = millis();
+        } else if (millis() - lastPaintStepChangeTime > 10000) { // 10 seconds timeout
+            // Machine is stuck in same painting step for too long
+            Serial.println("WARNING: Machine appears stuck in painting mode - resetting state");
+            deactivatePaintGun(true);
+            isPainting = false;
             isMoving = false;
+            currentPaintSide = -1;
+            currentPaintStep = 0;
+            isPaintSequence = false;
+            paintNextSide = false;
+            webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting operation reset due to inactivity.\"}");
+            lastPaintStep = -1;
+        }
+    } else {
+        lastPaintStep = -1;
+    }
+    
+    // Check for normal movement completion
+    if (isMoving) {
+        // Check if all motors have stopped
+        bool anyMotorRunning = false;
+        if (stepper_x && stepper_x->isRunning()) anyMotorRunning = true;
+        if (stepper_y_left && stepper_y_left->isRunning()) anyMotorRunning = true;
+        if (stepper_y_right && stepper_y_right->isRunning()) anyMotorRunning = true;
+        if (stepper_z && stepper_z->isRunning()) anyMotorRunning = true;
+        if (stepper_rot && stepper_rot->isRunning()) anyMotorRunning = true;
+        
+        // If no motors are running but we still have the isMoving flag set, clear it
+        if (!anyMotorRunning) {
+            isMoving = false;
+            Serial.println("Movement completed - resetting busy flag");
+            sendCurrentPositionUpdate();
             
-            if (inCalibrationMode) {
-                // If calibration is active, send position update and CalibrationActive status
-                // Serial.println("Jog move complete.");
-                webSocket.broadcastTXT("{\"status\":\"CalibrationActive\", \"message\":\"Jog complete.\"}");
-                sendCurrentPositionUpdate(); // Send updated position (without angle)
-            } else if (!inPickPlaceMode) { // Includes rotation moves now
-                 // If it was a general move (not PnP), send Ready status
-            // Serial.println("Generic move complete.");
-            webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Move complete.\"}");
-                 // If the rotation motor just finished, send a position update
-                 if (rot_was_running) {
-                    Serial.printf("DEBUG: Rotation move completed. Final position: %ld steps\n", 
-                                stepper_rot->getCurrentPosition());
-                    sendCurrentPositionUpdate(); // Send updated position (without angle)
-                 }
+            // Only send the ready message if we're not in a special mode
+            if (!isPainting && !isHoming && !inPickPlaceMode && !inCalibrationMode) {
+                webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Movement completed.\"}");
             }
-            // Note: PnP move completion is handled within the PnP logic itself
         }
     }
-
-    // Small delay to prevent excessive polling if nothing else is happening
-    // But ensure yield() or delay() is called frequently enough for background tasks
-    // If WiFi/servers are active, their loop/handle calls provide yielding.
-    // If not connected, add a small delay.
-    if (WiFi.status() != WL_CONNECTED) {
-         delay(1);
-    }
-} 
+    
+    // Small delay to prevent CPU from maxing out
+    delay(1);
+}
 
 // NEW: Function to calculate and set grid spacing automatically
 void calculateAndSetGridSpacing(int cols, int rows) {
@@ -1315,8 +1396,32 @@ void calculateAndSetGridSpacing(int cols, int rows) {
 // Function to save all configurable settings to NVS
 void saveSettings() {
     Serial.println("[DEBUG] saveSettings() started.");
-    preferences.begin("paint-machine", false); // Open NVS in R/W mode
-
+    
+    // Log some key values before saving
+    Serial.println("[DEBUG] Values being saved:");
+    Serial.printf("  Grid: %d cols, %d rows\n", placeGridCols, placeGridRows);
+    Serial.printf("  Tray: %.2f x %.2f inches\n", trayWidth_inch, trayHeight_inch);
+    Serial.printf("  PnP Pick: (%.2f, %.2f, %.2f)\n", pnpPickLocationX_inch, pnpPickLocationY_inch, pnpPickLocationZ_inch);
+    Serial.printf("  Place First: (%.2f, %.2f)\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch);
+    
+    // Log paint start positions
+    Serial.println("  Paint Start X positions:");
+    for (int i = 0; i < 4; i++) {
+        Serial.printf("    Side %d: %.2f\n", i, paintStartX[i]);
+    }
+    Serial.println("  Paint Start Y positions:");
+    for (int i = 0; i < 4; i++) {
+        Serial.printf("    Side %d: %.2f\n", i, paintStartY[i]);
+    }
+    
+    // Open NVS in R/W mode with error checking
+    if (!preferences.begin("paint-machine", false)) {
+        Serial.println("[ERROR] Failed to open NVS namespace for writing!");
+        return;
+    }
+    
+    // Save all settings with error checking
+    
     // Save PnP/Grid Settings
     preferences.putInt("gridCols", placeGridCols);
     preferences.putInt("gridRows", placeGridRows);
@@ -1324,6 +1429,7 @@ void saveSettings() {
     preferences.putFloat("trayHeight", trayHeight_inch);
     preferences.putFloat("gunOffsetX", paintGunOffsetX_inch);
     preferences.putFloat("gunOffsetY", paintGunOffsetY_inch);
+    
     // Save PnP positions
     preferences.putFloat("pnpPickX", pnpPickLocationX_inch);
     preferences.putFloat("pnpPickY", pnpPickLocationY_inch);
@@ -1333,24 +1439,74 @@ void saveSettings() {
     preferences.putFloat("firstPlaceY", placeFirstYAbsolute_inch);
     
     // Save Painting Side Settings
-    preferences.putBytes("paintZ", paintZHeight_inch, sizeof(paintZHeight_inch));
-    preferences.putBytes("paintP", paintPitchAngle, sizeof(paintPitchAngle));
-    preferences.putBytes("paintPat", paintPatternType, sizeof(paintPatternType)); // Updated key from paintR
-    preferences.putBytes("paintS", paintSpeed, sizeof(paintSpeed));
+    size_t bytesWritten = preferences.putBytes("paintZ", paintZHeight_inch, sizeof(paintZHeight_inch));
+    if (bytesWritten != sizeof(paintZHeight_inch)) {
+        Serial.printf("[ERROR] Failed to save paintZ: expected %d bytes, wrote %d bytes\n", 
+                     sizeof(paintZHeight_inch), bytesWritten);
+    }
+    
+    bytesWritten = preferences.putBytes("paintP", paintPitchAngle, sizeof(paintPitchAngle));
+    if (bytesWritten != sizeof(paintPitchAngle)) {
+        Serial.printf("[ERROR] Failed to save paintP: expected %d bytes, wrote %d bytes\n", 
+                     sizeof(paintPitchAngle), bytesWritten);
+    }
+    
+    bytesWritten = preferences.putBytes("paintPat", paintPatternType, sizeof(paintPatternType));
+    if (bytesWritten != sizeof(paintPatternType)) {
+        Serial.printf("[ERROR] Failed to save paintPat: expected %d bytes, wrote %d bytes\n", 
+                     sizeof(paintPatternType), bytesWritten);
+    }
+    
+    bytesWritten = preferences.putBytes("paintS", paintSpeed, sizeof(paintSpeed));
+    if (bytesWritten != sizeof(paintSpeed)) {
+        Serial.printf("[ERROR] Failed to save paintS: expected %d bytes, wrote %d bytes\n", 
+                     sizeof(paintSpeed), bytesWritten);
+    }
 
-    // NEW: Save Painting Start Positions
-    preferences.putBytes("paintStartX", paintStartX, sizeof(paintStartX));
-    preferences.putBytes("paintStartY", paintStartY, sizeof(paintStartY));
+    // NEW: Save Painting Start Positions with error checking
+    bytesWritten = preferences.putBytes("paintStartX", paintStartX, sizeof(paintStartX));
+    if (bytesWritten != sizeof(paintStartX)) {
+        Serial.printf("[ERROR] Failed to save paintStartX: expected %d bytes, wrote %d bytes\n", 
+                     sizeof(paintStartX), bytesWritten);
+    }
+    
+    bytesWritten = preferences.putBytes("paintStartY", paintStartY, sizeof(paintStartY));
+    if (bytesWritten != sizeof(paintStartY)) {
+        Serial.printf("[ERROR] Failed to save paintStartY: expected %d bytes, wrote %d bytes\n", 
+                     sizeof(paintStartY), bytesWritten);
+    }
 
+    // Verification - check a few key values
+    int verifyGridCols = preferences.getInt("gridCols", -1);
+    float verifyFirstPlaceX = preferences.getFloat("firstPlaceX", -999.0);
+    
+    if (verifyGridCols != placeGridCols) {
+        Serial.printf("[ERROR] Verification failed for gridCols: expected %d, got %d\n", 
+                      placeGridCols, verifyGridCols);
+    }
+    
+    if (abs(verifyFirstPlaceX - placeFirstXAbsolute_inch) > 0.001) {
+        Serial.printf("[ERROR] Verification failed for firstPlaceX: expected %.2f, got %.2f\n", 
+                      placeFirstXAbsolute_inch, verifyFirstPlaceX);
+    }
+    
+    // Close preferences
     preferences.end();
-    Serial.println("Settings saved to NVS.");
+    Serial.println("[INFO] Settings saved to NVS and verified.");
     Serial.println("[DEBUG] saveSettings() finished.");
 }
 
 // Function to load all configurable settings from NVS
 void loadSettings() {
     Serial.println("[DEBUG] loadSettings() started.");
-    preferences.begin("paint-machine", true); // Open NVS in read-only mode
+    
+    // Open NVS in read-only mode with error checking
+    if (!preferences.begin("paint-machine", true)) {
+        Serial.println("[ERROR] Failed to open NVS namespace for reading!");
+        // Set default values since we can't read from NVS
+        setDefaultSettings();
+        return;
+    }
 
     // Load PnP/Grid Settings (with defaults if not found)
     placeGridCols = preferences.getInt("gridCols", 4);
@@ -1359,6 +1515,7 @@ void loadSettings() {
     trayHeight_inch = preferences.getFloat("trayHeight", 18.0f); 
     paintGunOffsetX_inch = preferences.getFloat("gunOffsetX", 0.0f);
     paintGunOffsetY_inch = preferences.getFloat("gunOffsetY", 1.5f);
+    
     // Load PnP positions (using defaults)
     pnpPickLocationX_inch = preferences.getFloat("pnpPickX", 2.0f);
     pnpPickLocationY_inch = preferences.getFloat("pnpPickY", 2.0f);
@@ -1367,30 +1524,124 @@ void loadSettings() {
     placeFirstXAbsolute_inch = preferences.getFloat("firstPlaceX", 5.0f);
     placeFirstYAbsolute_inch = preferences.getFloat("firstPlaceY", 5.0f);
 
-    // Load Painting Side Settings (using defaults if sizes mismatch or keys missing)
+    // Load Painting Side Settings with error checking
     float defaultZ[4] = {1.0, 1.0, 1.0, 1.0};
     int defaultP[4] = {SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH};
     int defaultPat[4] = {0, 90, 0, 90};
     float defaultS[4] = {10000.0, 10000.0, 10000.0, 10000.0};
-    preferences.getBytes("paintZ", paintZHeight_inch, sizeof(paintZHeight_inch));
-    preferences.getBytes("paintP", paintPitchAngle, sizeof(paintPitchAngle));
-    preferences.getBytes("paintPat", paintPatternType, sizeof(paintPatternType)); // Updated key
-    preferences.getBytes("paintS", paintSpeed, sizeof(paintSpeed));
+    
+    size_t bytesRead = preferences.getBytes("paintZ", paintZHeight_inch, sizeof(paintZHeight_inch));
+    if (bytesRead != sizeof(paintZHeight_inch)) {
+        Serial.printf("[WARN] Failed to load paintZ: expected %d bytes, read %d bytes. Using defaults.\n", 
+                     sizeof(paintZHeight_inch), bytesRead);
+        memcpy(paintZHeight_inch, defaultZ, sizeof(paintZHeight_inch));
+    }
+    
+    bytesRead = preferences.getBytes("paintP", paintPitchAngle, sizeof(paintPitchAngle));
+    if (bytesRead != sizeof(paintPitchAngle)) {
+        Serial.printf("[WARN] Failed to load paintP: expected %d bytes, read %d bytes. Using defaults.\n", 
+                     sizeof(paintPitchAngle), bytesRead);
+        memcpy(paintPitchAngle, defaultP, sizeof(paintPitchAngle));
+    }
+    
+    bytesRead = preferences.getBytes("paintPat", paintPatternType, sizeof(paintPatternType));
+    if (bytesRead != sizeof(paintPatternType)) {
+        Serial.printf("[WARN] Failed to load paintPat: expected %d bytes, read %d bytes. Using defaults.\n", 
+                     sizeof(paintPatternType), bytesRead);
+        memcpy(paintPatternType, defaultPat, sizeof(paintPatternType));
+    }
+    
+    bytesRead = preferences.getBytes("paintS", paintSpeed, sizeof(paintSpeed));
+    if (bytesRead != sizeof(paintSpeed)) {
+        Serial.printf("[WARN] Failed to load paintS: expected %d bytes, read %d bytes. Using defaults.\n", 
+                     sizeof(paintSpeed), bytesRead);
+        memcpy(paintSpeed, defaultS, sizeof(paintSpeed));
+    }
 
-    // NEW: Load Painting Start Positions (using defaults)
+    // Load Painting Start Positions with error checking
     float defaultStartX[4] = { 11.5f, 29.5f, 11.5f, 8.0f };
     float defaultStartY[4] = { 20.5f, 20.0f, 0.5f,  6.5f };
-    preferences.getBytes("paintStartX", paintStartX, sizeof(paintStartX));
-    preferences.getBytes("paintStartY", paintStartY, sizeof(paintStartY));
+    
+    bytesRead = preferences.getBytes("paintStartX", paintStartX, sizeof(paintStartX));
+    if (bytesRead != sizeof(paintStartX)) {
+        Serial.printf("[WARN] Failed to load paintStartX: expected %d bytes, read %d bytes. Using defaults.\n", 
+                     sizeof(paintStartX), bytesRead);
+        memcpy(paintStartX, defaultStartX, sizeof(paintStartX));
+    }
+    
+    bytesRead = preferences.getBytes("paintStartY", paintStartY, sizeof(paintStartY));
+    if (bytesRead != sizeof(paintStartY)) {
+        Serial.printf("[WARN] Failed to load paintStartY: expected %d bytes, read %d bytes. Using defaults.\n", 
+                     sizeof(paintStartY), bytesRead);
+        memcpy(paintStartY, defaultStartY, sizeof(paintStartY));
+    }
     
     preferences.end();
 
+    // Log the loaded values
+    Serial.println("[DEBUG] Values loaded from NVS:");
+    Serial.printf("  Grid: %d cols, %d rows\n", placeGridCols, placeGridRows);
+    Serial.printf("  Tray: %.2f x %.2f inches\n", trayWidth_inch, trayHeight_inch);
+    Serial.printf("  PnP Pick: (%.2f, %.2f, %.2f)\n", pnpPickLocationX_inch, pnpPickLocationY_inch, pnpPickLocationZ_inch);
+    Serial.printf("  Place First: (%.2f, %.2f)\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch);
+    
+    // Log paint start positions
+    Serial.println("  Paint Start X positions:");
+    for (int i = 0; i < 4; i++) {
+        Serial.printf("    Side %d: %.2f\n", i, paintStartX[i]);
+    }
+    Serial.println("  Paint Start Y positions:");
+    for (int i = 0; i < 4; i++) {
+        Serial.printf("    Side %d: %.2f\n", i, paintStartY[i]);
+    }
+
     // Recalculate gaps after loading grid/tray settings
     calculateAndSetGridSpacing(placeGridCols, placeGridRows);
-    Serial.println("[INFO] Settings loaded from NVS.");
-    // Log a sample value
-    Serial.printf("[DEBUG] loadSettings: Loaded pnpOffsetX = %.2f\n", pnpOffsetX_inch);
+    Serial.println("[INFO] Settings loaded from NVS and verified.");
     Serial.println("[DEBUG] loadSettings() finished.");
+}
+
+// Helper function to set default values for all settings
+void setDefaultSettings() {
+    Serial.println("[INFO] Setting default values for all settings");
+    
+    // PnP/Grid Settings
+    placeGridCols = 4;
+    placeGridRows = 5;
+    trayWidth_inch = 24.0f;
+    trayHeight_inch = 18.0f;
+    paintGunOffsetX_inch = 0.0f;
+    paintGunOffsetY_inch = 1.5f;
+    
+    // PnP positions
+    pnpPickLocationX_inch = 2.0f;
+    pnpPickLocationY_inch = 2.0f;
+    pnpPickLocationZ_inch = 2.0f;
+    pnpPlaceHeight_inch = 0.5f;
+    placeFirstXAbsolute_inch = 5.0f;
+    placeFirstYAbsolute_inch = 5.0f;
+    
+    // Paint settings
+    for (int i = 0; i < 4; i++) {
+        paintZHeight_inch[i] = 1.0f;
+        paintPitchAngle[i] = SERVO_INIT_POS_PITCH;
+        paintPatternType[i] = (i % 2 == 0) ? 0 : 90; // Alternating patterns
+        paintSpeed[i] = 10000.0f;
+    }
+    
+    // Paint start positions
+    paintStartX[0] = 11.5f;  // Back
+    paintStartX[1] = 29.5f;  // Right
+    paintStartX[2] = 11.5f;  // Front
+    paintStartX[3] = 8.0f;   // Left
+    
+    paintStartY[0] = 20.5f;  // Back
+    paintStartY[1] = 20.0f;  // Right
+    paintStartY[2] = 0.5f;   // Front
+    paintStartY[3] = 6.5f;   // Left
+    
+    // Recalculate grid spacing
+    calculateAndSetGridSpacing(placeGridCols, placeGridRows);
 }
 
 // Function to set the pitch servo angle directly
@@ -1646,12 +1897,16 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                  commandHandled = true;
                  Serial.printf("[%u] Handling PAINT_ALL\n", num);
                  Serial.printf("    State Check (PAINT_ALL): allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
-                 if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) { Serial.println("    PAINT_ALL Denied: Invalid state."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot start Paint All, machine is busy or not ready.\"}"); } 
-                 else {
-                     Serial.println("    PAINT_ALL Accepted: Starting sequence."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Starting Paint All sequence...\"}");
-                     paintSide(0); if (!stopRequested) paintSide(2); if (!stopRequested) paintSide(3); if (!stopRequested) paintSide(1); 
-                     if (stopRequested) { Serial.println("    PAINT_ALL Sequence Stopped by User."); } 
-                     else { Serial.println("    PAINT_ALL Sequence Completed."); webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Paint All sequence completed.\"}"); }
+                 if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) { 
+                     Serial.println("    PAINT_ALL Denied: Invalid state."); 
+                     webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot start Paint All, machine is busy or not ready.\"}"); 
+                 } else {
+                     Serial.println("    PAINT_ALL Accepted: Starting sequence."); 
+                     webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Starting Paint All sequence...\"}");
+                     
+                     // Start the painting sequence using the non-blocking approach
+                     // The sequence will paint sides in this order: 0 (Back), 2 (Front), 3 (Left), 1 (Right)
+                     startPaintingSide(0, true);
                  }
              } 
              else if (strcmp(commandStr, "CLEAN_GUN") == 0) {
