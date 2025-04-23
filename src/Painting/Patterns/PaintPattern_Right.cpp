@@ -36,7 +36,7 @@ bool executePaintPatternRight(float speed, float accel) {
 
     // Calculate starting coordinates relative to Left side's start (8.0, 6.5)
     float startX_Right = 8.0f + 25.5f; // 33.5f
-    float startY_Right = 6.5f + 17.5f; // 24.0f
+    float startY_Right = (6.5f + 17.5f) - 4.0f; // NEW 20.0f (User requested -4 inches)
 
     if (patternType == 0) { // --- Up/Down Pattern (User Defined) --- 
         // Serial.println("  Executing Up/Down Pattern Logic for Right..."); // OLD
@@ -75,8 +75,8 @@ bool executePaintPatternRight(float speed, float accel) {
         // 5. Column Loop (Up-Down Pattern for Right - User Defined)
         Serial.println("  Starting column sweeps...");
         bool currentSweepDown = sweepDownFirstUser; // Start with DOWN sweep
-        for (int c = 0; c < placeGridCols; ++c) { // Loop COLUMNS times
-            Serial.printf("\n  -- Column %d --\n", c);
+        for (int c = 0; c < placeGridRows; ++c) { // FLIPPED: Loop ROWS times based on user feedback
+            Serial.printf("\n  -- Column/Sweep %d --\n", c); // Renamed label for clarity
             // Horizontal shift happens *before* the sweep for columns c > 0
             // float shiftX = (c > 0) ? -colSpacing : 0.0f; // OLD
             if (c > 0) {
@@ -133,8 +133,8 @@ bool executePaintPatternRight(float speed, float accel) {
         // 5. Row Loop (Sideways Pattern - User Defined)
         Serial.println("  Starting row sweeps...");
         bool currentSweepLeft = sweepLeftFirstUser; // Start with LEFT sweep
-        for (int r = 0; r < placeGridRows; ++r) { // Loop ROWS times
-            Serial.printf("\n  -- Row %d --\n", r);
+        for (int r = 0; r < placeGridCols; ++r) { // FLIPPED: Loop COLS times based on user feedback
+            Serial.printf("\n  -- Row/Sweep %d --\n", r); // Renamed label for clarity
             // Vertical shift happens *before* the sweep for rows r > 0
             // float shiftY = (r > 0) ? -rowSpacing : 0.0f; // OLD
             if (r > 0) {

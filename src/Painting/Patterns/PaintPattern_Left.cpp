@@ -62,8 +62,8 @@ bool executePaintPatternLeft(float speed, float accel) {
         // 5. Column Loop (Up-Down Pattern - User Defined)
         Serial.println("  Starting column sweeps...");
         bool currentSweepUp = sweepUpFirst; // Start with UP sweep
-        for (int c = 0; c < placeGridCols; ++c) { // Loop COLUMNS times for Up/Down pattern
-            Serial.printf("\n  -- Column %d --\n", c);
+        for (int c = 0; c < placeGridRows; ++c) { // FLIPPED: Loop ROWS times based on user feedback
+            Serial.printf("\n  -- Column/Sweep %d --\n", c); // Renamed label for clarity
             // Horizontal shift happens *before* the sweep for columns c > 0
             if (c > 0) {
                 Serial.printf("    Shifting horizontally by %.3f (3.0 + %.3f)\n", horizontalShiftDistUser, placeGapY_inch);
@@ -112,8 +112,8 @@ bool executePaintPatternLeft(float speed, float accel) {
         // 5. Row Loop (Sideways Pattern - User Defined)
         Serial.println("  Starting row sweeps...");
         bool currentSweepRight = sweepRightFirstUser;
-        for (int r = 0; r < placeGridRows; ++r) { // Loop ROWS times for Sideways pattern
-            Serial.printf("\n  -- Row %d --\n", r);
+        for (int r = 0; r < placeGridCols; ++r) { // FLIPPED: Loop COLS times based on user feedback
+            Serial.printf("\n  -- Row/Sweep %d --\n", r); // Renamed label for clarity
             // Vertical shift happens *before* the sweep for rows r > 0
             if (r > 0) {
                  Serial.printf("    Shifting vertically by %.3f (3.0 + %.3f)\n", verticalShiftDistUser, placeGapX_inch);
