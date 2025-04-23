@@ -9,6 +9,15 @@
 #include <ESP32Servo.h>
 
 // =====================
+// Painting Specific Settings (Arrays) - MOVED TO TOP
+// =====================
+extern float paintZHeight_inch[4]; // Default Z heights for painting each side
+extern int paintPitchAngle[4]; // Default pitch angles (servo values) - Use MAX as default center/0deg visual?
+// extern int paintRollAngle[4]; // Default roll angles <-- REMOVED
+extern int paintPatternType[4]; // ADDED: 0 = Up-Down, 90 = Left-Right (Default Back/Front=Up-Down, Left/Right=Left-Right)
+extern float paintSpeed[4]; // Default speeds
+
+// =====================
 // WiFi Settings (Credentials defined in main.cpp)
 // =====================
 extern const char* ssid;
@@ -37,7 +46,7 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 // =====================
 // #define PITCH_SERVO_MIN 150         // Minimum safe pitch angle (degrees) - adjusted after servo swap
 // #define PITCH_SERVO_MAX 180         // Maximum safe pitch angle (degrees) - matches ROLL_HORIZONTAL
-#define SERVO_INIT_POS_PITCH 180 // Initial pitch position on boot (Was PITCH_SERVO_MAX)
+#define SERVO_INIT_POS_PITCH 30 // NEW Initial pitch position on boot (User requested 20)
 
 // =====================
 // Miscellaneous Settings
@@ -185,13 +194,6 @@ extern float patternRotAccel;
 // Tray Dimensions
 extern float trayWidth_inch;
 extern float trayHeight_inch;
-
-// Painting Specific Settings (Arrays)
-extern float paintZHeight_inch[4]; // Default Z heights for painting each side
-extern int paintPitchAngle[4]; // Default pitch angles (servo values) - Use MAX as default center/0deg visual?
-// extern int paintRollAngle[4]; // Default roll angles <-- REMOVED
-extern int paintPatternType[4]; // ADDED: 0 = Up-Down, 90 = Left-Right (Default Back/Front=Up-Down, Left/Right=Left-Right)
-extern float paintSpeed[4]; // Default speeds
 
 // Painting State
 // ... existing code ...

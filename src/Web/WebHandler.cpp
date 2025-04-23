@@ -27,6 +27,7 @@ void handleRoot() {
   webServer.send(200, "text/html", HTML_PROGMEM); // Use HTML_PROGMEM from html_content.h
 }
 
+/* // <<< START COMMENTING OUT
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
     switch(type) {
         case WStype_DISCONNECTED:
@@ -623,11 +624,19 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                 }
             }
             break;
-        // Removed WStype_BIN and others as they are empty
+        case WStype_BIN:
+            // Handle binary WebSocket message if needed
+            break;
+        case WStype_ERROR:
+        case WStype_FRAGMENT_TEXT_START:
+        case WStype_FRAGMENT_BIN_START:
+        case WStype_FRAGMENT:
+        case WStype_FRAGMENT_FIN:
+            // Ignore other WebSocket types
+            break;
     }
-}
+} */ // <<< END COMMENTING OUT
 
-// Function to send current position via WebSocket
 void sendCurrentPositionUpdate() {
     if (!allHomed) return; // Don't send if not homed
 

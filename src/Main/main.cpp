@@ -1300,3 +1300,164 @@ void movePitchServoSmoothly(int targetAngle) {
     // ... existing code ...
 }
 
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
+    switch (type) {
+        case WStype_TEXT: {
+            Serial.printf("[%u] WebSocket Received: %s\n", num, payload);
+
+            // --- Parse Command ---
+            // Re-added command parsing using strtok
+            char* cmd = strtok((char*)payload, " "); // Get the first word as the command
+            if (cmd == NULL) return; // Ignore empty messages
+            Serial.printf("[DEBUG] WebSocket [%u] Received Command: %s\n", num, cmd);
+
+            // --- Handle Command ---
+            if (strcmp(cmd, "GET_STATUS") == 0) {
+                // Respond with current status and position
+                // ... existing code ...
+            } else if (strcmp(cmd, "SET_SERVO_PITCH") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "ROTATE") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "SET_ROT_ZERO") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "HOME") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "GOTO_5_5_0") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "GOTO_20_20_0") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "SET_PNP_OFFSET") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "SET_FIRST_PLACE_ABS") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "SET_GRID_SPACING") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "SET_TRAY_SIZE") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "SET_PNP_SPEEDS") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "ENTER_PICKPLACE") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "EXIT_PICKPLACE") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "PNP_NEXT_STEP") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "PNP_SKIP_LOCATION") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "PNP_BACK_LOCATION") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "ENTER_CALIBRATION") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "EXIT_CALIBRATION") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "JOG") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "MOVE_TO_COORDS") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "SET_OFFSET_FROM_CURRENT") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "SET_FIRST_PLACE_ABS_FROM_CURRENT") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "SET_PAINT_GUN_OFFSET") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "SET_PAINT_SIDE_SETTINGS") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "PAINT_SIDE_0") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "PAINT_SIDE_1") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "PAINT_SIDE_2") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "PAINT_SIDE_3") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "STOP") == 0) {
+                // ... existing code ...
+            } else if (strcmp(cmd, "PAINT_ALL") == 0) {
+                Serial.println("PAINT_ALL command received.");
+                if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
+                    webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot start Paint All, machine is busy or not ready.\"}");
+                } else {
+                    webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Starting Paint All sequence...\"}");
+                    paintSide(0); // Paint Back
+                    if (!stopRequested) paintSide(2); // Paint Front
+                    if (!stopRequested) paintSide(3); // Paint Left
+                    if (!stopRequested) paintSide(1); // Paint Right
+                    
+                    if (stopRequested) {
+                        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Paint All sequence stopped by user.\"}");
+                    } else {
+                         webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Paint All sequence completed.\"}");
+                    }
+                }
+            } else if (strcmp(cmd, "CLEAN_GUN") == 0) {
+                Serial.println("CLEAN_GUN command received.");
+                if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
+                    webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot start Clean Gun, machine is busy or not ready.\"}");
+                } else {
+                    webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Starting Clean Gun sequence...\"}");
+                    isMoving = true; // Set busy flag
+                    stopRequested = false; // Clear stop flag
+
+                    // 1. Rotate tray to 0 degrees
+                    Serial.println("  Cleaning: Rotating to 0 degrees...");
+                    rotateToAbsoluteDegree(0);
+                    if (stopRequested) { isMoving = false; return; } // Check stop after rotation
+
+                    // 2. Move gun to clean position (X=3, Y=10)
+                    Serial.println("  Cleaning: Moving to clean position (3, 10)...");
+                    // Use a moderate speed for this move
+                    moveToXYPositionInches_Paint(3.0, 10.0, patternXSpeed / 2, patternXAccel / 2); 
+                    if (stopRequested) { isMoving = false; return; } // Check stop after XY move
+
+                    // 3. Activate spray mechanism (PICK_CYLINDER_PIN) for 3 seconds
+                    Serial.println("  Cleaning: Activating spray (Pin 10 HIGH)...");
+                    digitalWrite(PICK_CYLINDER_PIN, HIGH);
+                    unsigned long sprayStartTime = millis();
+                    while (millis() - sprayStartTime < 3000) {
+                        webSocket.loop(); // Keep websocket alive during delay
+                        if (stopRequested) break; // Allow stop during spray
+                        yield();
+                    }
+
+                    // 4. Deactivate spray mechanism
+                    Serial.println("  Cleaning: Deactivating spray (Pin 10 LOW)...");
+                    digitalWrite(PICK_CYLINDER_PIN, LOW);
+
+                    // 5. Return to home (optional, but good practice)
+                    if (!stopRequested) {
+                        Serial.println("  Cleaning: Returning XY to home...");
+                        moveToXYPositionInches(0.0, 0.0);
+                        while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning())) {
+                            webSocket.loop(); 
+                            if (stopRequested) break;
+                            yield();
+                        }
+                    }
+                    
+                    isMoving = false; // Clear busy flag
+                    if (stopRequested) {
+                         webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Clean Gun sequence stopped.\"}");
+                    } else {
+                        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Clean Gun sequence completed.\"}");
+                    }
+                    sendCurrentPositionUpdate();
+                }
+            } else {
+                // Unknown command
+                Serial.print("Unknown command received: ");
+                Serial.println(cmd);
+            }
+        }
+        break;
+        
+        case WStype_BIN:
+            // ... existing code ...
+            break;
+            
+        default:
+            // ... existing code ...
+            break;
+    }
+}
+
