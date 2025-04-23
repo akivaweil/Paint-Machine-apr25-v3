@@ -35,8 +35,8 @@ bool executePaintPatternRight(float speed, float accel) {
     // --- Pattern Specific Setup & Execution --- 
 
     // Calculate starting coordinates relative to Left side's start (8.0, 6.5)
-    float startX_Right = 8.0f + 25.5f; // 33.5f
-    float startY_Right = (6.5f + 17.5f) - 4.0f; // NEW 20.0f (User requested -4 inches)
+    float startX_Right = 29.5f; // 33.5f
+    float startY_Right = (24.0f) - 4.0f; // NEW 20.0f (User requested -4 inches)
 
     if (patternType == 0) { // --- Up/Down Pattern (User Defined) --- 
         // Serial.println("  Executing Up/Down Pattern Logic for Right..."); // OLD

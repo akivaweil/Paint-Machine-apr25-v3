@@ -405,6 +405,12 @@ void homeAllAxes() {
     }
 
     isHoming = false;
+
+    // Set pitch servo to initial position
+    // This servo controls the paint gun direction/angle
+    Serial.println("Setting pitch servo to initial position");
+    servo_pitch.write(SERVO_INIT_POS_PITCH);
+    delay(300); // Allow servo to settle
 }
 
 // --- Movement Logic ---
@@ -860,13 +866,14 @@ void setup() {
     // --- Servo Setup ---
     // Serial.println("Initializing Servos...");
     // Allow allocation of all timers
-	ESP32PWM::allocateTimer(0);
-	ESP32PWM::allocateTimer(1);
-	ESP32PWM::allocateTimer(2);
-	ESP32PWM::allocateTimer(3);
-	servo_pitch.setPeriodHertz(50);    // Standard 50Hz servo frequency
+    ESP32PWM::allocateTimer(0);
+    ESP32PWM::allocateTimer(1);
+    ESP32PWM::allocateTimer(2);
+    ESP32PWM::allocateTimer(3);
+    servo_pitch.setPeriodHertz(50);    // Standard 50Hz servo frequency
 
     // Attach servos to pins using default min/max pulse widths (500, 2400 us)
+    // The pitch servo controls the paint gun direction/angle (0-180 degrees)
     Serial.printf("[DEBUG Setup] Attaching pitch servo to pin %d\n", PITCH_SERVO_PIN); // DEBUG
     servo_pitch.attach(PITCH_SERVO_PIN);
     Serial.printf("[DEBUG Setup] Servo attached status: %d\n", servo_pitch.attached()); // <<< ADDED DEBUG
@@ -1581,6 +1588,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                  else {
                      Serial.println("    CLEAN_GUN Accepted: Starting sequence."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Starting Clean Gun sequence...\"}");
                      isMoving = true; stopRequested = false; 
+                     
+                     // Set servo to initial position (controls paint gun direction)
+                     Serial.println("Setting pitch servo to initial position for cleaning");
+                     servo_pitch.write(SERVO_INIT_POS_PITCH);
+                     delay(300); // Allow servo to settle
+                     
                      // Sequence...
                      rotateToAbsoluteDegree(0); if (stopRequested) { Serial.println("Clean Gun stopped during Rotation"); deactivatePaintGun(true); isMoving = false; return; } 
                      moveToXYPositionInches_Paint(3.0, 10.0, patternXSpeed / 2, patternXAccel / 2); if (stopRequested) { Serial.println("Clean Gun stopped during XY Move"); deactivatePaintGun(true); isMoving = false; return; } 
@@ -1590,6 +1603,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                      deactivatePaintGun(true); 
                      if (stopRequested) { isMoving = false; return; } 
                      if (!stopRequested) { moveToXYPositionInches(0.0, 0.0); while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning())) { webSocket.loop(); if (stopRequested) { Serial.println("Clean Gun stopped during Return Home"); break; } yield(); } }
+                     
+                     // Ensure servo is back to initial position after cleaning
+                     Serial.println("Returning pitch servo to initial position after cleaning");
+                     servo_pitch.write(SERVO_INIT_POS_PITCH);
+                     delay(300); // Allow servo to settle
+                     
                      isMoving = false; 
                      if (stopRequested) { Serial.println("Clean Gun stopped by user."); } 
                      else { Serial.println("Clean Gun sequence completed."); webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Clean Gun sequence completed.\"}"); }
