@@ -37,12 +37,12 @@ bool executePaintPatternLeft(float speed, float accel) {
     if (patternType == 0) { // --- Up/Down Pattern --- 
         Serial.println("  Executing Up/Down Pattern Logic for Left (User Defined)...");
 
-        float startX = 8.0f; // UPDATED User defined start X
-        float startY = 6.5f;  // UPDATED User defined start Y
-        bool sweepUpFirst = true; // User defined: First sweep is UP
-        float verticalSweepDistUser = trayWidth_inch; // User defined: sweep vertically by TRAY WIDTH
-        float horizontalShiftDistUser = 3.0f + placeGapY_inch; // User defined: 3 inches + placeGapY_inch (Y gap for X shift)
-        Serial.printf("    Start Corner: User Defined (%.3f, %.3f), First Sweep: UP ^^\n", startX, startY);
+        float startX = paintStartX[sideIndex]; // NEW: Use global setting
+        float startY = paintStartY[sideIndex]; // NEW: Use global setting
+        bool sweepUpFirst = true; // Left Up/Down sweeps UP first
+        float verticalSweepDistUser = trayWidth_inch; // Sweep vertically by TRAY WIDTH
+        float horizontalShiftDistUser = 3.0f + placeGapY_inch; // Fixed shift + Y gap
+        Serial.printf("    Start Corner: Global Setting (%.3f, %.3f), First Sweep: UP ^^\n", startX, startY);
         Serial.printf("    Sweep Vertical (TrayWidth): %.3f, Shift Horizontal (3 + GapY): %.3f (GapY=%.3f)\n", 
                       verticalSweepDistUser, horizontalShiftDistUser, placeGapY_inch);
 
@@ -87,12 +87,12 @@ bool executePaintPatternLeft(float speed, float accel) {
     } else if (patternType == 90) { // --- Sideways Pattern --- 
         Serial.println("  Executing Sideways Pattern Logic for Left (User Defined)...");
         
-        float startX = 8.0f; // UPDATED User defined start X
-        float startY = 6.5f;  // UPDATED User defined start Y
-        bool sweepRightFirstUser = true; // User defined: First sweep is RIGHT
-        float horizontalSweepDistUser = trayHeight_inch; // User defined: sweep horizontally by TRAY HEIGHT
-        float verticalShiftDistUser = 3.0f + placeGapX_inch; // User defined: 3 inches + placeGapX_inch (X gap for Y shift)
-        Serial.printf("    Start Corner: User Defined (%.3f, %.3f), First Sweep: RIGHT >>>\n", startX, startY);
+        float startX = paintStartX[sideIndex]; // NEW: Use global setting
+        float startY = paintStartY[sideIndex]; // NEW: Use global setting
+        bool sweepRightFirstUser = true; // Left Sideways sweeps RIGHT first
+        float horizontalSweepDistUser = trayHeight_inch; // Sweep horizontally by TRAY HEIGHT
+        float verticalShiftDistUser = 3.0f + placeGapX_inch; // Fixed shift + X gap
+        Serial.printf("    Start Corner: Global Setting (%.3f, %.3f), First Sweep: RIGHT >>>\n", startX, startY);
         Serial.printf("    Sweep Horizontal (TrayHeight): %.3f, Shift Vertical (3 + GapX): %.3f (GapX=%.3f)\n", 
                       horizontalSweepDistUser, verticalShiftDistUser, placeGapX_inch);
 

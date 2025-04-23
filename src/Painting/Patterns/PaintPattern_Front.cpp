@@ -37,13 +37,13 @@ bool executePaintPatternFront(float speed, float accel) {
     if (patternType == 0) { // --- Up/Down Pattern --- 
         Serial.println("  Executing Up/Down Pattern Logic for Front (User Defined)...");
 
-        // 3. Determine Start XY & Sweep Direction (User Defined)
-        float startX = 11.5f; // User defined start X
-        float startY = 0.5f;  // User defined start Y
-        bool sweepUpFirst = true; // User defined: First sweep is UP
-        float verticalSweepDistUser = trayHeight_inch; // User defined: sweep full tray height
-        float horizontalShiftDistUser = 3.0f + placeGapX_inch; // User defined: 3 inches + placeGapX_inch
-        Serial.printf("    Start Corner: User Defined (%.3f, %.3f), First Sweep: UP ^^^", startX, startY);
+        // 3. Determine Start XY & Sweep Direction (USING GLOBAL SETTINGS)
+        float startX = paintStartX[sideIndex]; // NEW: Use global setting
+        float startY = paintStartY[sideIndex]; // NEW: Use global setting
+        bool sweepUpFirst = true; // Front Up/Down sweeps UP first
+        float verticalSweepDistUser = trayHeight_inch; // Sweep full tray height
+        float horizontalShiftDistUser = 3.0f + placeGapX_inch; // Fixed shift + gap
+        Serial.printf("    Start Corner: Global Setting (%.3f, %.3f), First Sweep: UP ^^^", startX, startY);
         Serial.printf("    Sweep Vertical: %.3f, Shift Horizontal (3 + GapX): %.3f (GapX=%.3f)\n", 
                       verticalSweepDistUser, horizontalShiftDistUser, placeGapX_inch);
 
@@ -89,16 +89,16 @@ bool executePaintPatternFront(float speed, float accel) {
     } else if (patternType == 90) { // --- Sideways Pattern --- 
         Serial.println("  Executing Sideways Pattern Logic for Front (User Defined)...");
         
-        // 3. Determine Start XY & Sweep Direction (User Defined)
-        float startX = 11.5f; // User defined start X
-        float startY = 0.5f;  // User defined start Y
-        bool sweepRightFirst = true; // Sweep RIGHT first for Front side Sideways pattern
+        // 3. Determine Start XY & Sweep Direction (USING GLOBAL SETTINGS)
+        float startX = paintStartX[sideIndex]; // NEW: Use global setting
+        float startY = paintStartY[sideIndex]; // NEW: Use global setting
+        bool sweepRightFirst = true; // Front Sideways sweeps RIGHT first
         // Calculate spacing needed for vertical shifts
         float colSpacing = 0.0, rowSpacing = 0.0; // Need rowSpacing
         calculatePaintingSpacing(colSpacing, rowSpacing); // Get rowSpacing
         float verticalShiftDistance = 3.0f + placeGapY_inch; // NEW: User defined: 3 inches + placeGapY_inch (placeGapY_inch is calculated from UI)
-        float horizontalSweepDist = trayWidth_inch; // User defined: sweep full tray width
-        Serial.printf("    Start Corner: User Defined (%.3f, %.3f), First Sweep: RIGHT >>>\n", startX, startY);
+        float horizontalSweepDist = trayWidth_inch; // Sweep full tray width
+        Serial.printf("    Start Corner: Global Setting (%.3f, %.3f), First Sweep: RIGHT >>>\n", startX, startY);
         Serial.printf("    Sweep Horizontal: %.3f, Shift Vertical (3 + GapY): %.3f (GapY=%.3f)\n", horizontalSweepDist, verticalShiftDistance, placeGapY_inch); // NEW Print with GapY info
 
 

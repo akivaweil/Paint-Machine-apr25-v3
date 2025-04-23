@@ -68,6 +68,8 @@ extern float paintZHeight_inch[4];
 extern int   paintPitchAngle[4];
 extern int   paintPatternType[4];
 extern float paintSpeed[4];
+extern float paintStartX[4]; // Added declaration for paint start X positions
+extern float paintStartY[4]; // Added declaration for paint start Y positions
 
 // --- Extern Function Declarations ---
 // Functions defined in main.cpp (or other modules) called by the web handler
@@ -99,7 +101,8 @@ void handleRoot();
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 extern void saveSettings(); // Declare saveSettings defined in main.cpp
 void sendCurrentPositionUpdate(); // Sends position via WebSocket
-void sendAllSettingsUpdate(uint8_t specificClientNum, String message); // Sends all settings via WebSocket
+void sendCurrentSettings(uint8_t specificClientNum); // NEW Declaration
+void sendAllSettingsUpdate(uint8_t specificClientNum, String message); // Add declaration for sendAllSettingsUpdate
 extern void setPitchServoAngle(int angle); // Declaration for the new function
 
 

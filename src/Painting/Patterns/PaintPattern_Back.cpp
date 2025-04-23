@@ -37,11 +37,11 @@ bool executePaintPatternBack(float speed, float accel) {
     if (patternType == 0) { // --- Up/Down Pattern --- 
         Serial.println("  Executing Up/Down Pattern Logic for Back...");
 
-        // 3. Determine Start XY & Sweep Direction (Hard-coded for Back Up/Down)
-        float startX = placeFirstXAbsolute_inch + paintGunOffsetX_inch; // Top-Right X
-        float startY = placeFirstYAbsolute_inch + paintGunOffsetY_inch; // Top-Right Y
-        bool sweepDownFirst = true;
-        Serial.printf("    Start Corner: Top-Right (%.3f, %.3f), First Sweep: DOWN vvv\n", startX, startY);
+        // 3. Determine Start XY & Sweep Direction (USING GLOBAL SETTINGS)
+        float startX = paintStartX[sideIndex]; // NEW: Use global setting
+        float startY = paintStartY[sideIndex]; // NEW: Use global setting
+        bool sweepDownFirst = true; // Back side sweeps down first
+        Serial.printf("    Start Corner: Global Setting (%.3f, %.3f), First Sweep: DOWN vvv\n", startX, startY);
 
         // 4. Execute Action Sequence 
         stopped = actionRotateTo(targetAngle);
@@ -80,13 +80,11 @@ bool executePaintPatternBack(float speed, float accel) {
     } else if (patternType == 90) { // --- Sideways Pattern --- 
         Serial.println("  Executing Sideways Pattern Logic for Back...");
         
-        // 3. Determine Start XY & Sweep Direction (Adapted for Back Sideways)
-        // Similar to Right side pattern logic (Side 1), but with Back rotation angle.
-        float startX = placeFirstXAbsolute_inch + paintGunOffsetX_inch; // Top-Right X (Same as UpDown for Back)
-        float startY = placeFirstYAbsolute_inch + paintGunOffsetY_inch; // Top-Right Y (Same as UpDown for Back)
+        // 3. Determine Start XY & Sweep Direction (USING GLOBAL SETTINGS)
+        float startX = paintStartX[sideIndex]; // NEW: Use global setting
+        float startY = paintStartY[sideIndex]; // NEW: Use global setting
         bool sweepRightFirst = false; // Sweep LEFT first for Back side Sideways pattern
-        float startRefY = startY; // Use the top Y as the reference for vertical shifts
-        Serial.printf("    Start Corner: Top-Right (%.3f, %.3f), First Sweep: LEFT <<<\n", startX, startY);
+        Serial.printf("    Start Corner: Global Setting (%.3f, %.3f), First Sweep: LEFT <<<\n", startX, startY);
 
         // 4. Execute Action Sequence
         stopped = actionRotateTo(targetAngle);

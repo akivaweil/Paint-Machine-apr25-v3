@@ -25,16 +25,30 @@ bool actionRotateTo(int targetAngle) {
 
     if (!stepper_rot) {
         Serial.println("ERROR: Rotation stepper not available!");
-        // Consider how to signal error - maybe return true?
-        return false; // Continue for now, but rotation failed
+        // Log more detailed error information
+        Serial.println("  Check ROTATION_STEP_PIN and ROTATION_DIR_PIN in GeneralSettings_PinDef.h");
+        Serial.println("  Ensure there are no pin conflicts with other steppers");
+        webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Rotation stepper not available. Check configuration.\"}");
+        return true; // Signal error to caller
     }
+
+    // Get current position before rotation for logging
+    long currentSteps = stepper_rot->getCurrentPosition();
+    float currentAngle = (float)currentSteps / STEPS_PER_DEGREE;
+    Serial.printf("  Current rotation before move: %.2f degrees (Steps: %ld)\n", currentAngle, currentSteps);
+    Serial.printf("  Target rotation: %d degrees\n", targetAngle);
 
     // Call the existing global function (declared extern in .h)
     rotateToAbsoluteDegree(targetAngle); 
 
+    // Log final position after rotation
+    currentSteps = stepper_rot->getCurrentPosition();
+    currentAngle = (float)currentSteps / STEPS_PER_DEGREE;
+    Serial.printf("  Final rotation after move: %.2f degrees (Steps: %ld)\n", currentAngle, currentSteps);
+
     // rotateToAbsoluteDegree has its own check for stopRequested and waits for completion.
     // We just need to check the flag *after* it returns in case it was stopped.
-    return false; // Assume completion if we get here (stop is checked by caller or main loop)
+    return stopRequested; // Return true if stopped, false if completed normally
 }
 
 // ACTION: Move To Absolute XY

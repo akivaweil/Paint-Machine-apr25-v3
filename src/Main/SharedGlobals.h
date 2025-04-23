@@ -41,15 +41,25 @@ extern float trayWidth_inch;
 extern float trayHeight_inch;
 extern const float pnpBorderWidth_inch; // Needed for gap calculation if done outside main
 
+// PnP Specific Locations (Defined in main.cpp)
+extern float pnpPickLocationX_inch;
+extern float pnpPickLocationY_inch;
+extern float pnpPickLocationZ_inch;
+extern float pnpPlaceHeight_inch;
+
 // Painting Settings (Potentially needed by patterns/actions)
-extern float paintZHeight_inch[4]; 
-extern int   paintPitchAngle[4]; 
+extern float paintZHeight_inch[4];
+extern int   paintPitchAngle[4];
 extern int   paintPatternType[4];
 extern float paintSpeed[4];
 extern float paintGunOffsetX_inch;
 extern float paintGunOffsetY_inch;
 extern float patternZSpeed; // General Z speed
 extern float patternZAccel; // General Z accel
+
+// Painting Specific Settings (Arrays) - Defined in main.cpp
+extern float paintStartX[4]; // NEW: Start X for each side
+extern float paintStartY[4]; // NEW: Start Y for each side
 
 // Core Constants
 // REMOVED - These are #defined in GeneralSettings_PinDef.h

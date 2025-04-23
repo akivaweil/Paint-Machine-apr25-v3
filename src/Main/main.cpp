@@ -32,6 +32,16 @@ int paintPitchAngle[4] = {SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH, SERVO_INIT
 int paintPatternType[4] = {0, 90, 0, 90}; // Default: Back/Front=Up-Down(0), Left/Right=Sideways(90)
 float paintSpeed[4] = {10000.0, 10000.0, 10000.0, 10000.0};
 
+// NEW: Painting Start Positions (X, Y) for each side [Back, Right, Front, Left]
+float paintStartX[4] = { 11.5f, 29.5f, 11.5f, 8.0f }; // Defaults based on current logic
+float paintStartY[4] = { 20.5f, 20.0f, 0.5f,  6.5f }; // Defaults based on current logic
+
+// Pick and Place Specific Locations - DEFINITIONS
+float pnpPickLocationX_inch = 2.0f; // Default pick location X
+float pnpPickLocationY_inch = 2.0f; // Default pick location Y
+float pnpPickLocationZ_inch = 2.0f; // Default pick location Z (clearance height)
+float pnpPlaceHeight_inch   = 0.5f; // Default place Z height
+
 // Define WiFi credentials (Reverted to hardcoded for now)
 const char* ssid = "Everwood";
 const char* password = "Everwood-Staff";
@@ -220,6 +230,7 @@ void homeAllAxes() {
     bool y_left_done = false;
     bool y_right_done = false;
     bool z_done = false;
+    bool rot_done = false;  // Add rotation done flag
 
     // Configure and start all steppers if they exist
     // Z Axis
@@ -271,83 +282,121 @@ void homeAllAxes() {
         y_right_done = true; // Consider done if stepper doesn't exist
     }
 
+    // Rotation Axis - Set to zero position
+    if (stepper_rot) {
+        // For rotation, we just set it to position 0 rather than using a home switch
+        stepper_rot->setSpeedInHz(patternRotSpeed);
+        stepper_rot->setAcceleration(patternRotAccel);
+        
+        // If rotation motor is not already at zero, move it to zero
+        long currentPos = stepper_rot->getCurrentPosition();
+        if (currentPos != 0) {
+            Serial.printf("Homing rotation motor from position %ld to 0\n", currentPos);
+            stepper_rot->moveTo(0);
+        } else {
+            rot_done = true; // Already at zero position
+        }
+    } else {
+        rot_done = true; // No rotation stepper, so consider it done
+    }
+
     // Wait for all axes to home or timeout
     unsigned long startTime = millis();
     
     // Monitor all switches and stop once triggered
-    while (!(x_done && y_left_done && y_right_done && z_done)) {
+    while (!(x_done && y_left_done && y_right_done && z_done && rot_done)) {
         if (millis() - startTime > HOMING_TIMEOUT) {
             // Serial.println("Homing timed out!");
-            // Stop all motors that haven't homed yet
             if (stepper_x && !x_done) stepper_x->forceStop();
             if (stepper_y_left && !y_left_done) stepper_y_left->forceStop();
             if (stepper_y_right && !y_right_done) stepper_y_right->forceStop();
             if (stepper_z && !z_done) stepper_z->forceStop();
+            if (stepper_rot && !rot_done) stepper_rot->forceStop();
             
             webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Homing timed out!\"}");
-            isHoming = false;
-            return;
+            break;
         }
 
-        webSocket.loop(); // Keep WebSocket responsive
+        debouncer_x_home.update();
+        debouncer_y_left_home.update();
+        debouncer_y_right_home.update();
+        debouncer_z_home.update();
+        webSocket.loop(); // Keep WebSocket responsive during blocking operations
 
-        // Check Z axis
-        if (stepper_z && !z_done) {
-            debouncer_z_home.update();
-            if (debouncer_z_home.read() == HIGH) { // Switch is active high
-                stepper_z->stopMove();
-                stepper_z->forceStop();
-                stepper_z->setCurrentPosition(0); // Correct: Home position is 0
-                z_done = true;
-                z_homed = true;
-                // Serial.println("Z axis homed.");
-            }
-        }
-
-        // Check X axis
-        if (stepper_x && !x_done) {
-            debouncer_x_home.update();
+        // X Axis
+        if (!x_done && stepper_x) {
             if (debouncer_x_home.read() == HIGH) {
                 stepper_x->stopMove();
                 stepper_x->forceStop();
                 stepper_x->setCurrentPosition(0);
-                x_done = true;
                 x_homed = true;
+                x_done = true;
                 // Serial.println("X axis homed.");
+            } else if (!stepper_x->isRunning()) {
+                x_done = true; // X is done, but not properly homed
+                // Serial.println("X axis stopped without hitting switch.");
             }
         }
 
-        // Check Y Left axis
-        if (stepper_y_left && !y_left_done) {
-            debouncer_y_left_home.update();
+        // Y Left Axis
+        if (!y_left_done && stepper_y_left) {
             if (debouncer_y_left_home.read() == HIGH) {
                 stepper_y_left->stopMove();
                 stepper_y_left->forceStop();
                 stepper_y_left->setCurrentPosition(0);
-                y_left_done = true;
                 y_left_homed = true;
-                // Serial.println("Y Left homed.");
+                y_left_done = true;
+                // Serial.println("Y Left axis homed.");
+            } else if (!stepper_y_left->isRunning()) {
+                y_left_done = true; // Y Left is done, but not properly homed
+                // Serial.println("Y Left axis stopped without hitting switch.");
             }
         }
 
-        // Check Y Right axis
-        if (stepper_y_right && !y_right_done) {
-            debouncer_y_right_home.update();
+        // Y Right Axis
+        if (!y_right_done && stepper_y_right) {
             if (debouncer_y_right_home.read() == HIGH) {
                 stepper_y_right->stopMove();
                 stepper_y_right->forceStop();
                 stepper_y_right->setCurrentPosition(0);
-                y_right_done = true;
                 y_right_homed = true;
-                // Serial.println("Y Right homed.");
+                y_right_done = true;
+                // Serial.println("Y Right axis homed.");
+            } else if (!stepper_y_right->isRunning()) {
+                y_right_done = true; // Y Right is done, but not properly homed
+                // Serial.println("Y Right axis stopped without hitting switch.");
+            }
+        }
+
+        // Z Axis
+        if (!z_done && stepper_z) {
+            if (debouncer_z_home.read() == HIGH) {
+                stepper_z->stopMove();
+                stepper_z->forceStop();
+                stepper_z->setCurrentPosition(0);
+                z_homed = true;
+                z_done = true;
+                // Serial.println("Z axis homed.");
+            } else if (!stepper_z->isRunning()) {
+                z_done = true; // Z is done, but not properly homed
+                // Serial.println("Z axis stopped without hitting switch.");
             }
         }
         
+        // Rotation Axis (no switch, just check if it's done moving)
+        if (!rot_done && stepper_rot) {
+            if (!stepper_rot->isRunning()) {
+                // Rotation has stopped, mark as done
+                rot_done = true;
+                Serial.println("Rotation axis homed to position 0.");
+            }
+        }
+
         yield(); // Allow background tasks
     }
 
     // Check if all homing was successful
-    bool all_success = x_homed && y_left_homed && y_right_homed && z_homed;
+    bool all_success = x_homed && y_left_homed && y_right_homed && z_homed && rot_done;
 
     if (all_success) {
         // Serial.println("All axes homed successfully.");
@@ -400,6 +449,7 @@ void homeAllAxes() {
         if (!y_left_homed) failedAxes += "Y-Left ";
         if (!y_right_homed) failedAxes += "Y-Right ";
         if (!z_homed) failedAxes += "Z";
+        if (!rot_done) failedAxes += " Rotation";
         webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Homing Failed for: " + failedAxes + "\"}");
         allHomed = false;
     }
@@ -645,10 +695,13 @@ void rotateToAbsoluteDegree(int targetDegree) {
         webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Rotation control unavailable (pin conflict?)\"}");
         return;
     }
-    if (isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
-        Serial.printf("[WARN] rotateToAbsoluteDegree: Cannot rotate while busy (state: Mv=%d, Hm=%d, PnP=%d, Cal=%d).\n",
-                      isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
-        webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Cannot rotate: Machine is busy.\"}");
+    
+    // REMOVED CONDITION: We no longer check for isMoving which was preventing automated sequences
+    // Only check for homing, pick/place and calibration modes which truly should prevent rotation
+    if (isHoming || inPickPlaceMode || inCalibrationMode) {
+        Serial.printf("[WARN] rotateToAbsoluteDegree: Cannot rotate while in special mode (Hm=%d, PnP=%d, Cal=%d).\n",
+                     isHoming, inPickPlaceMode, inCalibrationMode);
+        webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Cannot rotate: Machine is in special mode.\"}");
         return;
     }
 
@@ -662,10 +715,16 @@ void rotateToAbsoluteDegree(int targetDegree) {
     }
 
     Serial.printf("Rotating from %.1f deg to %d deg (Steps: %ld to %ld)\n", currentAngle, targetDegree, currentSteps, targetSteps);
-    isMoving = true; // Set machine busy
-    char rotMsg[100];
-    sprintf(rotMsg, "{\"status\":\"Moving\", \"message\":\"Rotating tray to %d degrees...\"}", targetDegree);
-    webSocket.broadcastTXT(rotMsg);
+    
+    // Set a local moving flag but don't interfere with the global isMoving flag
+    // which may be set by the painting sequence
+    bool wasMovingBefore = isMoving;
+    if (!wasMovingBefore) {
+        isMoving = true; // Only set if it wasn't already set
+        char rotMsg[100];
+        sprintf(rotMsg, "{\"status\":\"Moving\", \"message\":\"Rotating tray to %d degrees...\"}", targetDegree);
+        webSocket.broadcastTXT(rotMsg);
+    }
 
     // Always set speed and acceleration - ensuring the motor has proper acceleration profile
     stepper_rot->setSpeedInHz(patternRotSpeed);
@@ -675,7 +734,11 @@ void rotateToAbsoluteDegree(int targetDegree) {
     if (!stepper_rot->moveTo(targetSteps)) {
         Serial.println("[ERROR] Rotation move failed - stepper may be disabled");
         webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Rotation failed. Motor might be disabled.\"}");
-        isMoving = false;
+        
+        // Only reset isMoving if we set it (not if it was already set)
+        if (!wasMovingBefore) {
+            isMoving = false;
+        }
         return;
     }
 
@@ -697,12 +760,17 @@ void rotateToAbsoluteDegree(int targetDegree) {
 
     Serial.printf("Rotation to %d degrees complete. Final steps: %ld (%.2f°)\n", 
                 targetDegree, finalPos, finalAngle);
-    isMoving = false; // Clear busy flag
+                
+    // Only reset isMoving if we set it (not if it was already set)
+    if (!wasMovingBefore) {
+        isMoving = false;
+        
+        // Send 'Ready' status after rotation is complete, but only if we weren't in a sequence
+        char readyMsg[100];
+        sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Rotation to %d degrees complete.\"}", targetDegree);
+        webSocket.broadcastTXT(readyMsg);
+    }
     
-    // Send 'Ready' status after rotation is complete
-    char readyMsg[100];
-    sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Rotation to %d degrees complete.\"}", targetDegree);
-    webSocket.broadcastTXT(readyMsg); 
     sendCurrentPositionUpdate(); // Update position display
 }
 // --- End NEW Rotation Function ---
@@ -820,6 +888,22 @@ void paintSide(int sideIndex) {
         return; // Exit paintSide
     }
     Serial.println("Return to home complete.");
+
+    // New step: Return rotation to 0 position
+    if (stepper_rot) {
+        Serial.println("Returning rotation to 0 position...");
+        webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Returning rotation to home position (0°)...\"}");
+        
+        // Use the rotation function to move to 0 degrees
+        rotateToAbsoluteDegree(0);
+        
+        // Check if stop was requested during rotation
+        if (stopRequested) {
+            Serial.println("STOP requested during return to zero rotation. Aborting.");
+            return; // Exit paintSide
+        }
+        Serial.println("Return rotation to 0 position complete.");
+    }
 
     // 12. Clear Busy State & Send Final Ready Message
     isMoving = false; // Ensure isMoving is false
@@ -1224,95 +1308,85 @@ void calculateAndSetGridSpacing(int cols, int rows) {
     }
     
     Serial.printf("[DEBUG] Sending update to UI with message: %s\n", message.c_str());
-    sendAllSettingsUpdate(255, message); // Send to all clients
+    // sendAllSettingsUpdate(255, message); // OLD: Call to old function
+    sendCurrentSettings(255); // NEW: Call the renamed function (sends to all clients)
 } 
 
 // Function to save all configurable settings to NVS
 void saveSettings() {
     Serial.println("[DEBUG] saveSettings() started.");
-    preferences.begin("machineCfg", false); // Open namespace in read/write mode
+    preferences.begin("paint-machine", false); // Open NVS in R/W mode
 
-    // PnP Settings
-    preferences.putFloat("pnpOffsetX", pnpOffsetX_inch);
-    preferences.putFloat("pnpOffsetY", pnpOffsetY_inch);
-    preferences.putFloat("placeFirstX", placeFirstXAbsolute_inch);
-    preferences.putFloat("placeFirstY", placeFirstYAbsolute_inch);
+    // Save PnP/Grid Settings
     preferences.putInt("gridCols", placeGridCols);
     preferences.putInt("gridRows", placeGridRows);
     preferences.putFloat("trayWidth", trayWidth_inch);
     preferences.putFloat("trayHeight", trayHeight_inch);
-    // Note: Gap is calculated, not saved directly
+    preferences.putFloat("gunOffsetX", paintGunOffsetX_inch);
+    preferences.putFloat("gunOffsetY", paintGunOffsetY_inch);
+    // Save PnP positions
+    preferences.putFloat("pnpPickX", pnpPickLocationX_inch);
+    preferences.putFloat("pnpPickY", pnpPickLocationY_inch);
+    preferences.putFloat("pnpPickZ", pnpPickLocationZ_inch);
+    preferences.putFloat("pnpPlaceZ", pnpPlaceHeight_inch);
+    preferences.putFloat("firstPlaceX", placeFirstXAbsolute_inch);
+    preferences.putFloat("firstPlaceY", placeFirstYAbsolute_inch);
+    
+    // Save Painting Side Settings
+    preferences.putBytes("paintZ", paintZHeight_inch, sizeof(paintZHeight_inch));
+    preferences.putBytes("paintP", paintPitchAngle, sizeof(paintPitchAngle));
+    preferences.putBytes("paintPat", paintPatternType, sizeof(paintPatternType)); // Updated key from paintR
+    preferences.putBytes("paintS", paintSpeed, sizeof(paintSpeed));
 
-    // Speed/Accel Settings
-    preferences.putFloat("patXSpeed", patternXSpeed);
-    preferences.putFloat("patXAccel", patternXAccel);
-    preferences.putFloat("patYSpeed", patternYSpeed);
-    preferences.putFloat("patYAccel", patternYAccel);
-    // Z/Rot Speed/Accel are not currently set via UI, so not saving
-
-    // Painting Offsets
-    preferences.putFloat("paintPatOffX", paintPatternOffsetX_inch);
-    preferences.putFloat("paintPatOffY", paintPatternOffsetY_inch);
-    preferences.putFloat("paintGunOffX", paintGunOffsetX_inch);
-    preferences.putFloat("paintGunOffY", paintGunOffsetY_inch);
-
-    // Paint Side Settings
-    for (int i = 0; i < 4; ++i) {
-        String keyZ = "paintZ_" + String(i);
-        String keyP = "paintP_" + String(i);
-        String keyR = "paintR_" + String(i); // Use R for Pattern
-        String keyS = "paintS_" + String(i);
-        preferences.putFloat(keyZ.c_str(), paintZHeight_inch[i]);
-        preferences.putInt(keyP.c_str(), paintPitchAngle[i]);
-        preferences.putInt(keyR.c_str(), paintPatternType[i]);
-        preferences.putFloat(keyS.c_str(), paintSpeed[i]);
-    }
+    // NEW: Save Painting Start Positions
+    preferences.putBytes("paintStartX", paintStartX, sizeof(paintStartX));
+    preferences.putBytes("paintStartY", paintStartY, sizeof(paintStartY));
 
     preferences.end();
-    Serial.println("[INFO] Settings saved to NVS.");
+    Serial.println("Settings saved to NVS.");
     Serial.println("[DEBUG] saveSettings() finished.");
 }
 
 // Function to load all configurable settings from NVS
 void loadSettings() {
     Serial.println("[DEBUG] loadSettings() started.");
-    preferences.begin("machineCfg", true); // Open namespace in read-only mode
+    preferences.begin("paint-machine", true); // Open NVS in read-only mode
 
-    // PnP Settings
-    pnpOffsetX_inch = preferences.getFloat("pnpOffsetX", 15.0f);
-    pnpOffsetY_inch = preferences.getFloat("pnpOffsetY", 0.0f);
-    placeFirstXAbsolute_inch = preferences.getFloat("placeFirstX", 20.0f);
-    placeFirstYAbsolute_inch = preferences.getFloat("placeFirstY", 20.0f);
+    // Load PnP/Grid Settings (with defaults if not found)
     placeGridCols = preferences.getInt("gridCols", 4);
     placeGridRows = preferences.getInt("gridRows", 5);
     trayWidth_inch = preferences.getFloat("trayWidth", 24.0f);
-    trayHeight_inch = preferences.getFloat("trayHeight", 18.0f);
+    trayHeight_inch = preferences.getFloat("trayHeight", 18.0f); 
+    paintGunOffsetX_inch = preferences.getFloat("gunOffsetX", 0.0f);
+    paintGunOffsetY_inch = preferences.getFloat("gunOffsetY", 1.5f);
+    // Load PnP positions (using defaults)
+    pnpPickLocationX_inch = preferences.getFloat("pnpPickX", 2.0f);
+    pnpPickLocationY_inch = preferences.getFloat("pnpPickY", 2.0f);
+    pnpPickLocationZ_inch = preferences.getFloat("pnpPickZ", 2.0f);
+    pnpPlaceHeight_inch = preferences.getFloat("pnpPlaceZ", 0.5f);
+    placeFirstXAbsolute_inch = preferences.getFloat("firstPlaceX", 5.0f);
+    placeFirstYAbsolute_inch = preferences.getFloat("firstPlaceY", 5.0f);
 
-    // Speed/Accel Settings
-    patternXSpeed = preferences.getFloat("patXSpeed", 20000.0f);
-    patternXAccel = preferences.getFloat("patXAccel", 20000.0f);
-    patternYSpeed = preferences.getFloat("patYSpeed", 20000.0f);
-    patternYAccel = preferences.getFloat("patYAccel", 20000.0f);
+    // Load Painting Side Settings (using defaults if sizes mismatch or keys missing)
+    float defaultZ[4] = {1.0, 1.0, 1.0, 1.0};
+    int defaultP[4] = {SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH};
+    int defaultPat[4] = {0, 90, 0, 90};
+    float defaultS[4] = {10000.0, 10000.0, 10000.0, 10000.0};
+    preferences.getBytes("paintZ", paintZHeight_inch, sizeof(paintZHeight_inch));
+    preferences.getBytes("paintP", paintPitchAngle, sizeof(paintPitchAngle));
+    preferences.getBytes("paintPat", paintPatternType, sizeof(paintPatternType)); // Updated key
+    preferences.getBytes("paintS", paintSpeed, sizeof(paintSpeed));
 
-    // Painting Offsets
-    paintPatternOffsetX_inch = preferences.getFloat("paintPatOffX", 0.0f);
-    paintPatternOffsetY_inch = preferences.getFloat("paintPatOffY", 0.0f);
-    paintGunOffsetX_inch = preferences.getFloat("paintGunOffX", 0.0f);
-    paintGunOffsetY_inch = preferences.getFloat("paintGunOffY", 1.5f);
-
-    // Paint Side Settings
-    for (int i = 0; i < 4; ++i) {
-        String keyZ = "paintZ_" + String(i);
-        String keyP = "paintP_" + String(i);
-        String keyR = "paintR_" + String(i); // Use R for Pattern
-        String keyS = "paintS_" + String(i);
-        paintZHeight_inch[i] = preferences.getFloat(keyZ.c_str(), 1.0f);
-        paintPitchAngle[i] = preferences.getInt(keyP.c_str(), SERVO_INIT_POS_PITCH); // Load mapped servo value (Replaced PITCH_SERVO_MAX w/ init pos)
-        paintPatternType[i] = preferences.getInt(keyR.c_str(), (i % 2 == 0) ? 0 : 90); // Load pattern, default based on side
-        paintSpeed[i] = preferences.getFloat(keyS.c_str(), 10000.0f);
-    }
-
+    // NEW: Load Painting Start Positions (using defaults)
+    float defaultStartX[4] = { 11.5f, 29.5f, 11.5f, 8.0f };
+    float defaultStartY[4] = { 20.5f, 20.0f, 0.5f,  6.5f };
+    preferences.getBytes("paintStartX", paintStartX, sizeof(paintStartX));
+    preferences.getBytes("paintStartY", paintStartY, sizeof(paintStartY));
+    
     preferences.end();
+
+    // Recalculate gaps after loading grid/tray settings
+    calculateAndSetGridSpacing(placeGridCols, placeGridRows);
     Serial.println("[INFO] Settings loaded from NVS.");
     // Log a sample value
     Serial.printf("[DEBUG] loadSettings: Loaded pnpOffsetX = %.2f\n", pnpOffsetX_inch);
@@ -1715,6 +1789,70 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                      } else { Serial.println("    SET_PAINT_SIDE_SETTINGS Denied: Invalid format."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid paint side settings format.\"}"); }
                  }
              } 
+             // --- JSON Command Handling ---
+             else if (payload[0] == '{') {
+                 // This is a JSON-formatted command
+                 JsonDocument doc;
+                 DeserializationError error = deserializeJson(doc, payload, length);
+                 
+                 if (error) {
+                     Serial.printf("[%u] Failed to parse JSON command: %s\n", num, error.c_str());
+                     webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid JSON format\"}");
+                 } else {
+                     // Successfully parsed JSON - handle commands
+                     const char* cmd = doc["command"];
+                     if (cmd && strcmp(cmd, "SET_PAINT_STARTS") == 0) {
+                         commandHandled = true;
+                         Serial.printf("[%u] Handling SET_PAINT_STARTS (JSON)\n", num);
+                         Serial.printf("    State Check (SET_PAINT_STARTS): isMoving=%d, isHoming=%d\n", isMoving, isHoming);
+                         
+                         if (isMoving || isHoming) {
+                             Serial.println("    SET_PAINT_STARTS Denied: Busy.");
+                             webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set paint start positions while busy.\"}");
+                         } else {
+                             // Extract values from the JSON data
+                             JsonObject data = doc["data"];
+                             if (data) {
+                                 bool allValid = true;
+                                 
+                                 // Process each side's start position
+                                 for (int i = 0; i < 4; i++) {
+                                     char xKey[3], yKey[3];
+                                     sprintf(xKey, "X%d", i);
+                                     sprintf(yKey, "Y%d", i);
+                                     
+                                     if (data.containsKey(xKey) && data.containsKey(yKey)) {
+                                         paintStartX[i] = data[xKey];
+                                         paintStartY[i] = data[yKey];
+                                         Serial.printf("    SET_PAINT_STARTS: Side %d set to X=%.2f, Y=%.2f\n", 
+                                                    i, paintStartX[i], paintStartY[i]);
+                                     } else {
+                                         allValid = false;
+                                         Serial.printf("    SET_PAINT_STARTS: Missing data for side %d\n", i);
+                                     }
+                                 }
+                                 
+                                 if (allValid) {
+                                     saveSettings();
+                                     Serial.println("    SET_PAINT_STARTS Accepted: All paint start positions updated.");
+                                     sendCurrentSettings(num);
+                                 } else {
+                                     Serial.println("    SET_PAINT_STARTS Partially Processed: Some positions may be missing.");
+                                     webSocket.sendTXT(num, "{\"status\":\"Warning\", \"message\":\"Some paint start positions were missing in the data\"}");
+                                     saveSettings(); // Save what we could process
+                                     sendCurrentSettings(num);
+                                 }
+                             } else {
+                                 Serial.println("    SET_PAINT_STARTS Denied: Missing data object.");
+                                 webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid SET_PAINT_STARTS format: missing data\"}");
+                             }
+                         }
+                     } else {
+                         Serial.printf("[%u] Unknown JSON command: %s\n", num, cmd ? cmd : "null");
+                         webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Unknown JSON command\"}");
+                     }
+                 }
+             }
 
             // --- Final Check for Unhandled Commands ---
             if (!commandHandled) {
@@ -1775,5 +1913,85 @@ void stopAllMovement() {
     // Send status message
     webSocket.broadcastTXT("{\"status\":\"Stopped\", \"message\":\"All movement stopped. Paint gun deactivated.\"}");
     // Serial.println("All movement stopped.");
+}
+
+// Helper function to send ALL current settings
+// Includes machine state, PnP/Grid settings, and all Painting settings.
+void sendCurrentSettings(uint8_t specificClientNum) {
+    JsonDocument doc; // Use ArduinoJson library V7+ syntax
+
+    // Machine State
+    JsonObject statusObj = doc.createNestedObject("status");
+    statusObj["isMoving"] = isMoving;
+    statusObj["isHoming"] = isHoming;
+    statusObj["allHomed"] = allHomed;
+    statusObj["inCalibrationMode"] = inCalibrationMode;
+    statusObj["inPickPlaceMode"] = inPickPlaceMode;
+    // Add other states as needed, e.g., isPainting
+
+    // Current Position (Tool Center Point - TCP)
+    JsonObject positionObj = doc.createNestedObject("position");
+    if (allHomed) {
+        positionObj["x"] = stepper_x ? (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY : 0.0f;
+        positionObj["y"] = stepper_y_left ? (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY : 0.0f; // Use left Y
+        positionObj["z"] = stepper_z ? (float)stepper_z->getCurrentPosition() / STEPS_PER_INCH_Z : 0.0f;
+        positionObj["rot"] = stepper_rot ? (float)stepper_rot->getCurrentPosition() / STEPS_PER_DEGREE : 0.0f;
+    } else {
+        positionObj["x"] = 0.0f;
+        positionObj["y"] = 0.0f;
+        positionObj["z"] = 0.0f;
+        positionObj["rot"] = 0.0f;
+    }
+
+
+    // All Configurable Settings
+    JsonObject settingsObj = doc.createNestedObject("settings");
+
+    // Grid/Tray Settings
+    settingsObj["gridCols"] = placeGridCols;
+    settingsObj["gridRows"] = placeGridRows;
+    settingsObj["gapX"] = placeGapX_inch;
+    settingsObj["gapY"] = placeGapY_inch;
+    settingsObj["trayWidth"] = trayWidth_inch;
+    settingsObj["trayHeight"] = trayHeight_inch;
+
+    // Painting General Settings
+    settingsObj["paintGunOffsetX"] = paintGunOffsetX_inch;
+    settingsObj["paintGunOffsetY"] = paintGunOffsetY_inch;
+    // Add general paint speed/accel if they become configurable via UI
+
+    // Painting Side-Specific Settings
+    for (int i = 0; i < 4; ++i) {
+        settingsObj["paintZ_" + String(i)] = paintZHeight_inch[i];
+        settingsObj["paintP_" + String(i)] = paintPitchAngle[i]; // Send raw angle (0-180)
+        settingsObj["paintR_" + String(i)] = paintPatternType[i]; // Use 'R' key for pattern to match HTML select ID
+        settingsObj["paintS_" + String(i)] = paintSpeed[i];
+        // --- ADDED: Paint Start Positions ---
+        settingsObj["paintStartX_" + String(i)] = paintStartX[i];
+        settingsObj["paintStartY_" + String(i)] = paintStartY[i];
+        // ------------------------------------
+    }
+
+    // PnP Specific Settings
+    settingsObj["pnpPickX"] = pnpPickLocationX_inch;
+    settingsObj["pnpPickY"] = pnpPickLocationY_inch;
+    settingsObj["pnpPickZ"] = pnpPickLocationZ_inch;
+    settingsObj["pnpPlaceZ"] = pnpPlaceHeight_inch;
+    settingsObj["firstPlaceX"] = placeFirstXAbsolute_inch;
+    settingsObj["firstPlaceY"] = placeFirstYAbsolute_inch;
+    // Add PnP speeds/accels if they become configurable
+
+    // Serialize JSON to string
+    String output;
+    serializeJson(doc, output);
+
+    // Send to specific client or broadcast
+    if (specificClientNum < 255) { // 255 used as indicator to broadcast
+        // Serial.printf("[DEBUG] Sending settings update to client %d: %s\\n", specificClientNum, output.c_str());
+        webSocket.sendTXT(specificClientNum, output);
+    } else {
+        // Serial.printf("[DEBUG] Broadcasting settings update: %s\\n", output.c_str());
+        webSocket.broadcastTXT(output);
+    }
 }
 

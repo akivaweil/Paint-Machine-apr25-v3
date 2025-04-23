@@ -18,10 +18,11 @@ float placeFirstYAbsolute_inch = 20.0; // Default ABSOLUTE Y for center of item 
 extern float placeGapX_inch; // ADDED - Gap X
 extern float placeGapY_inch; // ADDED - Gap Y
 
-// Fixed item dimensions (needed for calculation)
-const float pnpItemWidth_inch = 3.0f;  // Item width (3 inches)
-const float pnpItemHeight_inch = 3.0f; // Item height (3 inches)
-const float pnpBorderWidth_inch = 0.25f; // Border around grid
+// Fixed item dimensions are now imported from SharedGlobals.h
+// No need to redefine these variables here
+// const float pnpItemWidth_inch = 3.0f;  // Item width (3 inches)
+// const float pnpItemHeight_inch = 3.0f; // Item height (3 inches)
+// const float pnpBorderWidth_inch = 0.25f; // Border around grid
 
 // Pattern Speed/Accel Variables (Defined in main.cpp, used by PnP moves)
 // Declared extern in GeneralSettings_PinDef.h

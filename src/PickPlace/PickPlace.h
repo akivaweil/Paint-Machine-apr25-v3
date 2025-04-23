@@ -6,6 +6,7 @@
 #include <WebSocketsServer.h> // For broadcasting status
 #include <Bounce2.h> // For button debouncer access (if needed directly)
 #include "../Main/GeneralSettings_PinDef.h" // Access pin definitions
+#include "../Main/SharedGlobals.h" // Include for access to PnP variables
 
 // Forward declare stepper objects defined in main.cpp
 extern FastAccelStepper *stepper_x;

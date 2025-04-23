@@ -358,6 +358,56 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     <div id="debug-log" style="padding: 10px; white-space: pre; font-family: monospace; height: 200px; overflow-y: scroll; font-size: 12px;"></div>
   </div>
 
+  <!-- == Paint Start Positions Section (NEW) == -->
+  <div class="section-paint-starts">
+    <details>
+        <summary style="cursor: pointer; font-weight: bold;">Paint Start Positions &#9662;</summary>
+        <div style="padding-left: 20px;">
+          <p>Define the starting X, Y coordinates (inches) for each painting side. Used for both Up/Down and Sideways patterns.</p>
+          
+          <!-- Back Side Start (Side 0) -->
+          <div class="input-group-start">
+            <h4>Back (Side 0)</h4>
+            <label for="paintStartX_0">Start X:</label>
+            <input type="number" id="paintStartX_0" step="0.1" value="11.5"> <!-- Default example -->
+            <label for="paintStartY_0">Start Y:</label>
+            <input type="number" id="paintStartY_0" step="0.1" value="20.5"> <!-- Default example -->
+          </div>
+
+          <!-- Right Side Start (Side 1) -->
+          <div class="input-group-start">
+            <h4>Right (Side 1)</h4>
+            <label for="paintStartX_1">Start X:</label>
+            <input type="number" id="paintStartX_1" step="0.1" value="29.5"> <!-- Default from code -->
+            <label for="paintStartY_1">Start Y:</label>
+            <input type="number" id="paintStartY_1" step="0.1" value="20.0"> <!-- Default from code -->
+          </div>
+          
+          <!-- Front Side Start (Side 2) -->
+          <div class="input-group-start">
+            <h4>Front (Side 2)</h4>
+            <label for="paintStartX_2">Start X:</label>
+            <input type="number" id="paintStartX_2" step="0.1" value="11.5"> <!-- Default from code -->
+            <label for="paintStartY_2">Start Y:</label>
+            <input type="number" id="paintStartY_2" step="0.1" value="0.5"> <!-- Default from code -->
+          </div>
+
+          <!-- Left Side Start (Side 3) -->
+          <div class="input-group-start">
+            <h4>Left (Side 3)</h4>
+            <label for="paintStartX_3">Start X:</label>
+            <input type="number" id="paintStartX_3" step="0.1" value="8.0"> <!-- Default from code -->
+            <label for="paintStartY_3">Start Y:</label>
+            <input type="number" id="paintStartY_3" step="0.1" value="6.5"> <!-- Default from code -->
+          </div>
+
+          <button class="button setting-button" onclick="setPaintStartPositions()" style="margin-top: 15px;">Save Start Positions</button>
+        </div>
+    </details>
+  </div>
+  <hr style="clear:both;">
+  <!-- ========================= -->
+
   <script>
     // Hard-code IP address to ensure connection works
     var gateway = "ws://192.168.1.249:81/"; // Use IP instead of hostname for reliability
@@ -778,6 +828,16 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
             let inPnPMode = statusDiv.innerHTML.includes('PickPlaceReady') || pnpButton.innerHTML.includes('Exit');
             console.log(`JS Debug: Before final enableButtons: isMoving=${isMoving}, isHoming=${isHoming}, inPnPMode=${inPnPMode}`); // JS Debug
             enableButtons(); // ADDED single call here
+
+            // NEW: Update Paint Start Position fields
+            if (data.settings.paintStartX_0 !== undefined) document.getElementById('paintStartX_0').value = data.settings.paintStartX_0;
+            if (data.settings.paintStartY_0 !== undefined) document.getElementById('paintStartY_0').value = data.settings.paintStartY_0;
+            if (data.settings.paintStartX_1 !== undefined) document.getElementById('paintStartX_1').value = data.settings.paintStartX_1;
+            if (data.settings.paintStartY_1 !== undefined) document.getElementById('paintStartY_1').value = data.settings.paintStartY_1;
+            if (data.settings.paintStartX_2 !== undefined) document.getElementById('paintStartX_2').value = data.settings.paintStartX_2;
+            if (data.settings.paintStartY_2 !== undefined) document.getElementById('paintStartY_2').value = data.settings.paintStartY_2;
+            if (data.settings.paintStartX_3 !== undefined) document.getElementById('paintStartX_3').value = data.settings.paintStartX_3;
+            if (data.settings.paintStartY_3 !== undefined) document.getElementById('paintStartY_3').value = data.settings.paintStartY_3;
 
         } catch (e) {
             console.error("Error processing WebSocket message:", e); // Added error logging
@@ -1410,6 +1470,32 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       
       // Try to reconnect automatically after 5 seconds if not a normal closure
       connectionTimeout = setTimeout(initWebSocket, 5000);
+  }
+
+  // --- NEW JavaScript Function ---
+  function setPaintStartPositions() {
+      const starts = {};
+      starts.X0 = document.getElementById('paintStartX_0').value;
+      starts.Y0 = document.getElementById('paintStartY_0').value;
+      starts.X1 = document.getElementById('paintStartX_1').value;
+      starts.Y1 = document.getElementById('paintStartY_1').value;
+      starts.X2 = document.getElementById('paintStartX_2').value;
+      starts.Y2 = document.getElementById('paintStartY_2').value;
+      starts.X3 = document.getElementById('paintStartX_3').value;
+      starts.Y3 = document.getElementById('paintStartY_3').value;
+
+      // Basic validation (ensure numbers are entered, though type=number helps)
+      for (const key in starts) {
+          if (isNaN(parseFloat(starts[key]))) {
+              setStatus('Invalid input for ' + key + '. Please enter numbers.', 'Error');
+              return;
+          }
+      }
+
+      const command = JSON.stringify({ command: "SET_PAINT_STARTS", data: starts });
+      console.log("Sending command:", command);
+      websocket.send(command);
+      setStatus('Saving paint start positions...', 'Busy');
   }
   </script>
 </body>
