@@ -203,15 +203,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
   <div class="section-paint">
     <h2>Paint Control</h2>
     <div id="paintControls">
-      <!-- Settings for Paint Gun Offset -->
-      <div class="input-group">
-          <h3>Paint Gun Offset</h3>
-          <label for="paintGunOffsetX">Gun X:</label>
-          <input type="number" id="paintGunOffsetX" step="0.1" value="0.0" onchange="setPaintOffsets()">
-          <label for="paintGunOffsetY">Gun Y:</label>
-          <input type="number" id="paintGunOffsetY" step="0.1" value="1.5" onchange="setPaintOffsets()">
-      </div>
-
+      <!-- Settings for Paint Gun Offset - REMOVED -->
+      
       <!-- Side Settings Panels -->
       <div style="clear:both;"></div>
       
@@ -1212,18 +1205,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       
       const command = `MOVE_TO_COORDS ${xVal} ${yVal}`;
       sendCommand(command);
-  }
-
-  function setPaintOffsets() {
-      const gunX = paintGunOffsetXInput.value;
-      const gunY = paintGunOffsetYInput.value;
-      // Basic validation
-      if (isNaN(parseFloat(gunX)) || isNaN(parseFloat(gunY))) {
-          alert("Invalid paint gun offset values. Please enter numbers.");
-          return;
-      }
-      // Send command to set gun offset
-      sendCommand(`SET_PAINT_GUN_OFFSET ${gunX} ${gunY}`);
   }
 
   function setPaintSideSettings(sideIndex) {

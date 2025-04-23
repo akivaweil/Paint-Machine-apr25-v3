@@ -74,8 +74,7 @@ void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
         "\"gridCols\":%d,\"gridRows\":%d,"
         "\"gapX\":%.3f,\"gapY\":%.3f,"
         "\"trayWidth\":%.2f,\"trayHeight\":%.2f,"
-        "\"patXSpeed\":%.0f,\"patYSpeed\":%.0f,"
-        "\"paintGunOffsetX\":%.2f,\"paintGunOffsetY\":%.2f}",
+        "\"patXSpeed\":%.0f,\"patYSpeed\":%.0f}",
         message.c_str(),
         allHomed ? "true" : "false",
         pnpOffsetX_inch, pnpOffsetY_inch,
@@ -83,8 +82,7 @@ void sendAllSettingsUpdate(uint8_t specificClientNum, String message) {
         placeGridCols, placeGridRows,
         placeGapX_inch, placeGapY_inch,
         trayWidth_inch, trayHeight_inch,
-        patternXSpeed, patternYSpeed,
-        paintGunOffsetX_inch, paintGunOffsetY_inch);
+        patternXSpeed, patternYSpeed);
     
     // Send to specific client or broadcast
     if (specificClientNum < 255) {
