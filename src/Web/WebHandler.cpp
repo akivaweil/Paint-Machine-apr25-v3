@@ -520,7 +520,102 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                 } else if (command == "PAINT_SIDE_3") { // <<< ADDED HANDLER
                     Serial.println("WebSocket: Received PAINT_SIDE_3 command.");
                     paintSide(3); // Call the painting function for Side 3 (Left)
-                } else {
+                } else if (command.startsWith("SET_GRID_SPACING ")) { // Command from HTML (old name)
+                    // Renamed command is SET_GRID
+                     Serial.println("WebSocket: Received SET_GRID_SPACING command.");
+                     if (isMoving || isHoming) {
+                         Serial.println("[DEBUG] SET_GRID_SPACING denied: Machine busy.");
+                         webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set grid while machine is busy.\"}");
+                     } else {
+                         int cols, rows;
+                         // Parse only cols and rows
+                         int parsed = sscanf(command.c_str() + strlen("SET_GRID_SPACING "), "%d %d", &cols, &rows);
+                         if (parsed == 2 && cols > 0 && rows > 0) {
+                             // Update global variables (let calculate handle validation & gap calc)
+                             // Call calculateAndSetGridSpacing which updates globals and calculates gaps
+                             calculateAndSetGridSpacing(cols, rows);
+                             saveSettings(); // <-- ADDED saveSettings
+                             // calculateAndSetGridSpacing now calls sendAllSettingsUpdate
+                             Serial.printf("[DEBUG] Set Grid to %d x %d. Calculated gap: X=%.3f, Y=%.3f\n", placeGridCols, placeGridRows, placeGapX_inch, placeGapY_inch);
+                         } else {
+                             Serial.println("[ERROR] Failed to parse SET_GRID_SPACING values.");
+                             webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format for SET_GRID_SPACING. Use: SET_GRID_SPACING cols rows\"}");
+                         }
+                     }
+                 } else if (command.startsWith("SET_TRAY_SIZE ")) { // NEW COMMAND
+                      Serial.println("WebSocket: Received SET_TRAY_SIZE command.");
+                     if (isMoving || isHoming) {
+                          Serial.println("[DEBUG] SET_TRAY_SIZE denied: Machine busy.");
+                          webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set tray size while machine is busy.\"}");
+                      } else {
+                          float width, height;
+                          int parsed = sscanf(command.c_str() + strlen("SET_TRAY_SIZE "), "%f %f", &width, &height);
+                          if (parsed == 2 && width > 0 && height > 0) {
+                             trayWidth_inch = width;
+                             trayHeight_inch = height;
+                             saveSettings(); // <-- ADDED saveSettings
+                             // Recalculate grid spacing based on new tray size
+                              calculateAndSetGridSpacing(placeGridCols, placeGridRows);
+                              Serial.printf("[DEBUG] Set Tray Size to W: %.2f, H: %.2f. Recalculated gap: X=%.3f, Y=%.3f\n", trayWidth_inch, trayHeight_inch, placeGapX_inch, placeGapY_inch);
+                             // calculateAndSetGridSpacing sends the update
+                          } else {
+                              Serial.println("[ERROR] Failed to parse SET_TRAY_SIZE values.");
+                              webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format for SET_TRAY_SIZE. Use: SET_TRAY_SIZE width height\"}");
+                          }
+                      }
+                  }
+                  // --- Painting Commands ---
+                 else if (command.startsWith("SET_PAINT_GUN_OFFSET ")) {
+                    Serial.println("WebSocket: Received SET_PAINT_GUN_OFFSET command.");
+                    float gunX, gunY;
+                    int parsed = sscanf(command.c_str() + strlen("SET_PAINT_GUN_OFFSET "), "%f %f", &gunX, &gunY);
+                    if (parsed == 2) {
+                        paintGunOffsetX_inch = gunX;
+                        paintGunOffsetY_inch = gunY;
+                        saveSettings(); // <-- ADDED saveSettings
+                        Serial.printf("[DEBUG] Set Paint Gun Offset to X:%.2f, Y:%.2f\n", paintGunOffsetX_inch, paintGunOffsetY_inch);
+                        sendAllSettingsUpdate(num, "Paint gun offset updated."); // Send update
+                    } else {
+                        Serial.println("[ERROR] Failed to parse SET_PAINT_GUN_OFFSET.");
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid paint gun offset format.\"}");
+                    }
+                 } else if (command.startsWith("SET_PAINT_SIDE_SETTINGS ")) {
+                    Serial.println("WebSocket: Received SET_PAINT_SIDE_SETTINGS command.");
+                    int sideIdx;
+                    float zVal, speedVal; // Speed received directly now
+                    int pitchVal, patternVal; 
+
+                    int parsed = sscanf(command.c_str() + strlen("SET_PAINT_SIDE_SETTINGS "), "%d %f %d %d %f", 
+                                       &sideIdx, &zVal, &pitchVal, &patternVal, &speedVal);
+                    
+                    Serial.printf("[DEBUG PaintParse] Parsed: %d vals. Idx=%d, Z=%.2f, P=%d, Pat=%d, S=%.0f\n", 
+                                  parsed, sideIdx, zVal, pitchVal, patternVal, speedVal);
+
+                    if (parsed == 5 && sideIdx >= 0 && sideIdx < 4) {
+                        // Validate Pitch (0-180) and Pattern (0 or 90)
+                        if (pitchVal < 0 || pitchVal > 180) {
+                             webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid Pitch (must be 0-180).\"}");
+                        } else if (patternVal != 0 && patternVal != 90) {
+                            webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid Pattern (must be 0 or 90).\"}");
+                        } else {
+                            // Update the global arrays
+                            paintZHeight_inch[sideIdx] = zVal;
+                            paintPitchAngle[sideIdx] = pitchVal; // Store direct angle
+                            paintPatternType[sideIdx] = patternVal; // Store 0 or 90
+                            paintSpeed[sideIdx] = speedVal;
+                            saveSettings(); // <-- ADDED saveSettings
+                            Serial.printf("[DEBUG] Updated Side %d settings: Z=%.2f, P=%d, Pat=%d, S=%.0f\n", 
+                                          sideIdx, paintZHeight_inch[sideIdx], paintPitchAngle[sideIdx], paintPatternType[sideIdx], paintSpeed[sideIdx]);
+                            // Send confirmation with all settings
+                            sendAllSettingsUpdate(num, "Paint side settings updated.");
+                        }
+                    } else {
+                        Serial.printf("[ERROR] Failed to parse SET_PAINT_SIDE_SETTINGS. Parsed %d values.\n", parsed);
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid paint side settings format.\"}");
+                    }
+                 }
+                 // --- End Painting Commands ---
+                 else {
                     // Handle unknown commands
                     Serial.printf("[DEBUG] WebSocket [%u] Unknown command received: %s\n", num, command.c_str());
                     // Fixed quotes and backslashes

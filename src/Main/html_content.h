@@ -117,13 +117,14 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     </div>
 
     <div class="setting-box">
-        <h4>Speed/Accel (k steps/s)</h4>
+        <h4>PnP Speed (k steps/s)</h4>
         <label for="patternXSpeed">X Spd:</label>
         <input type="number" id="patternXSpeed" value="20"> <!-- Default k steps/s -->
         <br>
         <label for="patternYSpeed">Y Spd:</label>
         <input type="number" id="patternYSpeed" value="20"> <!-- Default k steps/s -->
-        <button onclick="sendSpeedSettings()">Set Speeds</button> <!-- Renamed -->
+        <br>
+        <button onclick="sendSpeedSettings()" class="button setting-button" style="margin-top: 10px;">Set Speeds</button>
     </div>
 
     <button id="pnpButton" class="button" onclick="sendCommand('ENTER_PICKPLACE')">Pick and Place Mode</button>
@@ -628,7 +629,9 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
               }
 
               // --- Final step: Update all button states based on the latest JS state variables ---
-              console.log(`JS Debug: Before final enableButtons: isMoving=${isMoving}, isHoming=${isHoming}`); // JS Debug
+              // Determine if PnP mode is active based on statusDiv content or pnpButton text
+              let inPnPMode = statusDiv.innerHTML.includes('PickPlaceReady') || pnpButton.innerHTML.includes('Exit');
+              console.log(`JS Debug: Before final enableButtons: isMoving=${isMoving}, isHoming=${isHoming}, inPnPMode=${inPnPMode}`); // JS Debug
               enableButtons(); // ADDED single call here
 
           } catch (e) {
@@ -660,45 +663,46 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
       function enableButtons() {
         let connected = websocket && websocket.readyState === WebSocket.OPEN;
-        console.log("enableButtons() - Debug State: Connected="+connected+", AllHomed="+allHomed+", IsMoving="+isMoving+", IsHoming="+isHoming);
+        console.log("enableButtons() - Debug State: Connected=" + connected + ", AllHomed=" + allHomed + ", IsMoving=" + isMoving + ", IsHoming=" + isHoming + ", StatusDiv='" + statusDiv.innerHTML + "'"); // Updated Debug
         
         let inCalibMode = calibrationControlsDiv.style.display === 'block';
-        let inPickAndPlaceMode = pnpButton.innerHTML.includes('Exit'); // Check if in PnP mode by button text
-        let canStop = connected && (isMoving || isHoming || inCalibMode); // Can stop if doing anything interruptible
+        let inPickAndPlaceMode = statusDiv.innerHTML.includes('PickPlaceReady') || pnpButton.innerHTML.includes('Exit'); // More robust check
+        let canStop = connected && (isMoving || isHoming || inCalibMode);
 
-        homeButton.disabled = !connected; // Home All button is always enabled if connected
+        homeButton.disabled = !connected || isMoving || isHoming; // MODIFIED: Disable if moving/homing
         stopButton.disabled = !canStop;
 
         // PnP Button Logic - UPDATED
-        // Disable if not connected, not homed, moving, homing, in calibration, or sequence complete
-        pnpButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || pnpButton.innerHTML.includes('Complete');
+        pnpButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || statusDiv.innerHTML.includes('PickPlaceComplete');
         
         // Add detailed debugging for PnP button
         if (pnpButton.disabled) {
-            console.log(`PnP button disabled because: connected=${connected}, homed=${allHomed}, moving=${isMoving}, homing=${isHoming}, inCalibMode=${inCalibMode}, complete=${pnpButton.innerHTML.includes('Complete')}`);
+            console.log(`PnP button disabled because: connected=${connected}, homed=${allHomed}, moving=${isMoving}, homing=${isHoming}, inCalibMode=${inCalibMode}, complete=${statusDiv.innerHTML.includes('PickPlaceComplete')}`);
         }
 
-        // PnP Step Button Logic (Only enabled in PnPReady state)
-        pnpStepButton.disabled = !(connected && isMoving && !isHoming);
+        // PnP Step/Skip/Back Button Logic (Only enabled when in PnP mode and NOT moving/homing)
+        pnpStepButton.disabled = !(connected && inPickAndPlaceMode && !isMoving && !isHoming);
         pnpSkipButton.disabled = pnpStepButton.disabled; // Skip/Back follow Step button logic
         pnpBackButton.disabled = pnpStepButton.disabled; // Skip/Back follow Step button logic
 
         // Calibration Button Logic
-        enterCalibrationButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode;
+        enterCalibrationButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || inPickAndPlaceMode;
 
         // Simple, safe debugging for Manual Mode button state
         if (enterCalibrationButton.disabled) {
-            console.log(`Manual Mode button disabled: connected=${connected}, homed=${allHomed}, moving=${isMoving}, homing=${isHoming}, inCalib=${inCalibMode}`);
+            console.log(`Manual Mode button disabled: connected=${connected}, homed=${allHomed}, moving=${isMoving}, homing=${isHoming}, inCalib=${inCalibMode}, inPnP=${inPickAndPlaceMode}`);
         }
 
         // --- Painting Buttons ---
         // Disable painting if not connected, not homed, moving, homing, in PnP, or calibrating
-        // startPaintingButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode; // Requires homing
-        paintBackButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode; // Requires homing
+        paintBackButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || inPickAndPlaceMode;
+        // Add other paint side buttons
+        document.getElementById('paintRightButton').disabled = paintBackButton.disabled;
+        document.getElementById('paintFrontButton').disabled = paintBackButton.disabled;
+        document.getElementById('paintLeftButton').disabled = paintBackButton.disabled;
 
         // Rotation Buttons
         // MODIFIED: Only disable if not connected or actively moving/homing
-        // Now matching the Grid and Tray Size buttons behavior
         rotateMinus90Button.disabled = !connected || isMoving || isHoming;
         rotatePlus90Button.disabled = rotateMinus90Button.disabled;
         rotateMinus5Button.disabled = rotateMinus90Button.disabled;
