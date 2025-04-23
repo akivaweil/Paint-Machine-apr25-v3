@@ -1,6 +1,7 @@
 #include "PatternActions.h"
 #include "../../Main/SharedGlobals.h" // <<< ADDED INCLUDE for externs and prototypes
 #include "../../Main/GeneralSettings_PinDef.h" // For steps/inch if needed, though might not be needed if currentX/Y updated correctly
+#include "../PaintGunControl.h" // Include paint gun control
 
 // Helper function: Prints a message to Serial and WebSocket
 // Duplicated here for simplicity, could be moved to a shared utility
@@ -62,13 +63,27 @@ bool actionMoveToZ(float targetZ, float speed, float accel) {
     return false; // Assume completion
 }
 
-// ACTION: Vertical Sweep
-bool actionSweepVertical(bool sweepDown, float distance, float currentX, float &currentY, float speed, float accel) {
+/**
+ * @brief ACTION: Perform a vertical sweep (move along Y axis).
+ * Sends status updates via WebSocket.
+ * @param sweepDown True to sweep down (negative Y direction), false to sweep up (positive Y direction).
+ * @param distance The distance to sweep in inches.
+ * @param currentX The current X position (tool stays at this X).
+ * @param currentY Reference to the current Y position (updated by this function).
+ * @param speed Movement speed (Hz).
+ * @param accel Movement acceleration.
+ * @param sideIndex The current painting side index (0-3)
+ * @return true if stopped, false otherwise.
+ */
+bool actionSweepVertical(bool sweepDown, float distance, float currentX, float &currentY, float speed, float accel, int sideIndex) {
     float targetY = currentY + (sweepDown ? -distance : distance);
     char details[80];
     sprintf(details, "Sweeping %s by %.3f inches to Y=%.3f (at X=%.3f)", 
             sweepDown ? "Down" : "Up", distance, targetY, currentX);
     printAndBroadcastAction("SweepVertical", details);
+
+    // Update paint gun for Y-axis movement (vertical sweep)
+    updatePaintGunForMovement(false, paintPatternType[sideIndex]); // Use the specified side's pattern
 
     moveToXYPositionInches_Paint(currentX, targetY, speed, accel);
     // moveToXYPositionInches_Paint waits for completion.
@@ -78,12 +93,15 @@ bool actionSweepVertical(bool sweepDown, float distance, float currentX, float &
 }
 
 // ACTION: Horizontal Sweep
-bool actionSweepHorizontal(bool sweepRight, float distance, float currentY, float &currentX, float speed, float accel) {
+bool actionSweepHorizontal(bool sweepRight, float distance, float currentY, float &currentX, float speed, float accel, int sideIndex) {
     float targetX = currentX + (sweepRight ? distance : -distance);
     char details[80];
     sprintf(details, "Sweeping %s by %.3f inches to X=%.3f (at Y=%.3f)",
             sweepRight ? "Right" : "Left", distance, targetX, currentY);
     printAndBroadcastAction("SweepHorizontal", details);
+
+    // Update paint gun for X-axis movement (horizontal sweep)
+    updatePaintGunForMovement(true, paintPatternType[sideIndex]); // Use the specified side's pattern
 
     moveToXYPositionInches_Paint(targetX, currentY, speed, accel);
     // moveToXYPositionInches_Paint waits for completion.

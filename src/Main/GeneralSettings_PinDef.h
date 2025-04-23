@@ -105,6 +105,8 @@ extern float patternRotAccel;    // Accel for Rotation moves within patterns (st
 // Actuators (Relays)
 #define PICK_CYLINDER_PIN 10      // Relay for pick cylinder (Changed back from 12)
 #define SUCTION_PIN 11            // Relay for suction vacuum (Changed back from 13)
+#define PAINT_GUN_PIN 12         // Paint gun control (active HIGH)
+#define PRESSURE_POT_PIN 13      // Pressure pot control (active HIGH)
 
 // Inputs
 #define PNP_CYCLE_BUTTON_PIN 17

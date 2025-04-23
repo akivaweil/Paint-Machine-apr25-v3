@@ -7,6 +7,7 @@
 #include "GeneralSettings_PinDef.h" // Updated include
 #include "../PickPlace/PickPlace.h" // Include the new PnP header
 #include "../Painting/Painting.h" // Include the new Painting header
+#include "../Painting/PaintGunControl.h" // Include the Paint Gun Control header
 #include "Web/WebHandler.h" // Include the new Web Handler header
 #include <ArduinoJson.h>
 #include "../Painting/Patterns/PredefinedPatterns.h" // <<< ADDED NEW INCLUDE
@@ -776,6 +777,9 @@ void paintSide(int sideIndex) {
     // 9. Painting Complete - Actions after pattern (e.g., return Z)
     Serial.println("Painting sequence complete. Performing post-pattern actions.");
     
+    // Ensure paint gun is deactivated after pattern completion
+    deactivatePaintGun();
+    
     // 10. Move Z Axis Up to safe height (0)
     Serial.println("Moving Z axis up to safe height (0)...");
     moveZToPositionInches(0.0, patternZSpeed, patternZAccel); 
@@ -886,6 +890,10 @@ void setup() {
 
     // Serial.println("Servos Initialized.");
     // --- End Servo Setup ---
+
+    // --- Paint Gun Control Initialization ---
+    initializePaintGunControl();
+    // --- End Paint Gun Control Initialization ---
 
     // --- WiFi Connection ---
     // Serial.print("Connecting to ");
@@ -1568,9 +1576,9 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                      // Sequence...
                      rotateToAbsoluteDegree(0); if (stopRequested) { Serial.println("Clean Gun stopped during Rotation"); isMoving = false; return; } 
                      moveToXYPositionInches_Paint(3.0, 10.0, patternXSpeed / 2, patternXAccel / 2); if (stopRequested) { Serial.println("Clean Gun stopped during XY Move"); isMoving = false; return; } 
-                     digitalWrite(PICK_CYLINDER_PIN, HIGH); unsigned long sprayStartTime = millis();
+                     activatePaintGun(); unsigned long sprayStartTime = millis();
                      while (millis() - sprayStartTime < 3000) { webSocket.loop(); if (stopRequested) { Serial.println("Clean Gun stopped during Spray"); break; } yield(); }
-                     digitalWrite(PICK_CYLINDER_PIN, LOW); if (stopRequested) { isMoving = false; return; } 
+                     deactivatePaintGun(); if (stopRequested) { isMoving = false; return; } 
                      if (!stopRequested) { moveToXYPositionInches(0.0, 0.0); while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning())) { webSocket.loop(); if (stopRequested) { Serial.println("Clean Gun stopped during Return Home"); break; } yield(); } }
                      isMoving = false; 
                      if (stopRequested) { Serial.println("Clean Gun stopped by user."); } 

@@ -55,9 +55,10 @@ bool actionMoveToZ(float targetZ, float speed, float accel);
  * @param currentY Reference to the current Y position (updated by this function).
  * @param speed Movement speed (Hz).
  * @param accel Movement acceleration.
+ * @param sideIndex The current painting side index (0-3)
  * @return true if stopped, false otherwise.
  */
-bool actionSweepVertical(bool sweepDown, float distance, float currentX, float &currentY, float speed, float accel);
+bool actionSweepVertical(bool sweepDown, float distance, float currentX, float &currentY, float speed, float accel, int sideIndex = 0);
 
 /**
  * @brief ACTION: Perform a horizontal sweep (move along X axis).
@@ -68,9 +69,10 @@ bool actionSweepVertical(bool sweepDown, float distance, float currentX, float &
  * @param currentX Reference to the current X position (updated by this function).
  * @param speed Movement speed (Hz).
  * @param accel Movement acceleration.
+ * @param sideIndex The current painting side index (0-3)
  * @return true if stopped, false otherwise.
  */
-bool actionSweepHorizontal(bool sweepRight, float distance, float currentY, float &currentX, float speed, float accel);
+bool actionSweepHorizontal(bool sweepRight, float distance, float currentY, float &currentX, float speed, float accel, int sideIndex = 0);
 
 /**
  * @brief ACTION: Shift the XY position by a relative amount.

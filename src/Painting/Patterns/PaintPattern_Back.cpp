@@ -69,7 +69,7 @@ bool executePaintPatternBack(float speed, float accel) {
             }
             if (verticalSweepDistance > 0.001) { 
                 Serial.printf("    Sweeping vertically (Down=%s) by %.3f\n", currentSweepDown ? "true" : "false", verticalSweepDistance);
-                stopped = actionSweepVertical(currentSweepDown, verticalSweepDistance, currentX, currentY, speed, accel);
+                stopped = actionSweepVertical(currentSweepDown, verticalSweepDistance, currentX, currentY, speed, accel, sideIndex);
                 if (stopped) { Serial.printf("Pattern stopped during Vertical Sweep in Column %d.\n", c); return true; }
             } else {
                 Serial.println("    Skipping vertical sweep (distance is zero).");
@@ -114,7 +114,7 @@ bool executePaintPatternBack(float speed, float accel) {
             }
             if (horizontalSweepDistance > 0.001) { 
                 Serial.printf("    Sweeping horizontally (Right=%s) by %.3f\n", currentSweepRight ? "true" : "false", horizontalSweepDistance);
-                stopped = actionSweepHorizontal(currentSweepRight, horizontalSweepDistance, currentY, currentX, speed, accel);
+                stopped = actionSweepHorizontal(currentSweepRight, horizontalSweepDistance, currentY, currentX, speed, accel, sideIndex);
                 if (stopped) { Serial.printf("Pattern stopped during Horizontal Sweep in Row %d.\n", r); return true; }
             } else {
                 Serial.println("    Skipping horizontal sweep (distance is zero).");
