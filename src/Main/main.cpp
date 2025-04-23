@@ -612,6 +612,62 @@ void moveToXYPositionInches_Paint(float targetX_inch, float targetY_inch, float 
     // Serial.println("Paint XY move complete.");
 }
 
+// --- NEW: Rotation Function ---
+// Moves the rotation axis to a specific absolute degree position and waits
+void rotateToAbsoluteDegree(int targetDegree) {
+    if (!stepper_rot) {
+        Serial.println("[WARN] rotateToAbsoluteDegree: Rotation stepper not available.");
+        webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Rotation control unavailable (pin conflict?)\"}");
+        return;
+    }
+    if (isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
+        Serial.printf("[WARN] rotateToAbsoluteDegree: Cannot rotate while busy (state: Mv=%d, Hm=%d, PnP=%d, Cal=%d).\n",
+                      isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+        webSocket.broadcastTXT("{\"status\":\"Error\", \"message\":\"Cannot rotate: Machine is busy.\"}");
+        return;
+    }
+
+    long targetSteps = (long)round(targetDegree * STEPS_PER_DEGREE);
+    long currentSteps = stepper_rot->getCurrentPosition();
+    float currentAngle = (float)currentSteps / STEPS_PER_DEGREE;
+
+    if (abs(targetSteps - currentSteps) < 2) { // Check if already at target (within tolerance)
+        Serial.printf("Rotation already at target %.1f degrees.\n", (float)targetSteps / STEPS_PER_DEGREE);
+        return; // Already there
+    }
+
+    Serial.printf("Rotating from %.1f deg to %d deg (Steps: %ld to %ld)\n", currentAngle, targetDegree, currentSteps, targetSteps);
+    isMoving = true; // Set machine busy
+    char rotMsg[100];
+    sprintf(rotMsg, "{\"status\":\"Moving\", \"message\":\"Rotating tray to %d degrees...\"}", targetDegree);
+    webSocket.broadcastTXT(rotMsg);
+
+    // Set speed and acceleration (use defaults from GeneralSettings_PinDef.h)
+    stepper_rot->setSpeedInHz(patternRotSpeed); 
+    stepper_rot->setAcceleration(patternRotAccel);
+    stepper_rot->moveTo(targetSteps); // Move to absolute step position
+
+    // Wait for rotation completion (blocking)
+    while (stepper_rot->isRunning() && !stopRequested) { 
+        webSocket.loop(); // Keep WebSocket responsive
+        yield();
+    }
+
+    if (stopRequested) {
+        Serial.println("STOP requested during rotation.");
+        // isMoving will be reset by the main STOP handler
+        // webSocket status will be updated by the main STOP handler
+    } else {
+        Serial.printf("Rotation to %d degrees complete. Final steps: %ld\n", targetDegree, stepper_rot->getCurrentPosition());
+        isMoving = false; // Clear busy flag ONLY if not stopped
+        // Send 'Ready' status after rotation is complete (unless stopped)
+        char readyMsg[100];
+        sprintf(readyMsg, "{\"status\":\"Ready\", \"message\":\"Rotation to %d degrees complete.\"}", targetDegree);
+        webSocket.broadcastTXT(readyMsg); 
+        sendCurrentPositionUpdate(); // Update position display
+    }
+}
+// --- End NEW Rotation Function ---
 
 // --- Painting Logic ---
 
@@ -695,6 +751,10 @@ void paintSide(int sideIndex) {
     int pattern = paintPatternType[sideIndex];
     
     if (pattern == 0) { // --- Up-Down Pattern (Value = 0) ---
+        // Calculate colSpacing based on item width and gap for Up-Down pattern
+        float colSpacing = pnpItemWidth_inch + placeGapX_inch; 
+        Serial.printf("[DEBUG paintSide] Using item-based colSpacing for Up-Down: %.3f\n", colSpacing); // Added Debug
+
         Serial.printf("Executing Up-Down Pattern for Side %d\n", sideIndex);
         bool movingDown = true; // Start by moving down (negative Y)
         for (int c = 0; c < placeGridCols; ++c) {
@@ -715,6 +775,10 @@ void paintSide(int sideIndex) {
             movingDown = !movingDown; // Reverse direction for next column
         }
     } else { // --- Left-Right Pattern (Value = 90 or anything else) ---
+        // Calculate colSpacing based on tray width for Left-Right pattern (original logic)
+        float colSpacing = (placeGridCols > 1) ? (trayWidth_inch / (placeGridCols - 1)) : 0; 
+        Serial.printf("[DEBUG paintSide] Using tray-based colSpacing for Left-Right: %.3f\n", colSpacing); // Added Debug
+
         Serial.printf("Executing Left-Right Pattern for Side %d\n", sideIndex);
         bool movingLeft = true; // Start by moving left (negative X)
         for (int r = 0; r < placeGridRows; ++r) {
