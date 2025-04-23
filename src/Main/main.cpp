@@ -790,7 +790,9 @@ void paintSide(int sideIndex) {
         // Execute Up-Down Path - Directly move, no pre-calculation
         Serial.printf("Executing Up-Down Pattern for Side %d\n", sideIndex);
         for (int c = 0; c < placeGridCols; ++c) {
-            Serial.printf("[DEBUG paintSide] Entering Up-Down loop for column %d\n", c);
+            Serial.printf("[DEBUG paintSide] Processing column %d\n", c);
+            
+            // Calculate target X position for this column
             float targetTcpX;
             if (sideIndex == 2) { // FRONT - Move Right
                 targetTcpX = startRefX + (c * colSpacing);
@@ -798,34 +800,42 @@ void paintSide(int sideIndex) {
                 targetTcpX = startRefX - (c * colSpacing);
             }
 
-            // Move horizontally if needed (avoid moving for the very first column)
-            if (c > 0 && abs(currentTcpX - targetTcpX) > 0.001) {
+            // Move horizontally to the column position (skip for first column if already there)
+            if (c > 0 || abs(currentTcpX - targetTcpX) > 0.001) {
                 Serial.printf("  Col %d: Moving Horizontally to X=%.3f\n", c, targetTcpX);
                 moveToXYPositionInches_Paint(targetTcpX, currentTcpY, speed, accel);
-                if (stopRequested) { /* Abort */ isMoving = false; webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); return; }
+                if (stopRequested) { isMoving = false; webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); return; }
                 currentTcpX = targetTcpX;
             }
             
-            // Calculate vertical target positions for serpentine pattern
+            // Calculate the top and bottom positions for this column
             float topY = startTcpY;
             float bottomY = startTcpY - (placeGridRows - 1) * rowSpacing;
             
-            // Determine the direction of the vertical sweep based on the column index and side
-            float targetTcpY;
-            if (sideIndex == 2) { // FRONT - Opposite serpentine
-                targetTcpY = movingDown ? bottomY : topY;
-            } else { // BACK
-                targetTcpY = movingDown ? bottomY : topY;
+            // Determine direction to move along column based on serpentine pattern
+            // Odd columns move opposite direction of even columns
+            bool moveDown = (movingDown && sideIndex == 0) || (!movingDown && sideIndex == 2);
+            if (c % 2 == 1) moveDown = !moveDown; // Flip direction for odd-numbered columns
+            
+            // Move vertically all the way through this column
+            Serial.printf("  Col %d: Vertical Sweep (%s) from Y=%.3f to Y=%.3f\n", 
+                        c, moveDown ? "Down" : "Up", 
+                        moveDown ? topY : bottomY, 
+                        moveDown ? bottomY : topY);
+            
+            // Move to the start position of the vertical sweep
+            float startSweepY = moveDown ? topY : bottomY;
+            if (abs(currentTcpY - startSweepY) > 0.001) {
+                moveToXYPositionInches_Paint(currentTcpX, startSweepY, speed, accel);
+                if (stopRequested) { isMoving = false; webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); return; }
+                currentTcpY = startSweepY;
             }
             
-            // Move vertically 
-            Serial.printf("  Col %d (%s): Sweeping Vertically to Y=%.3f\n", c, movingDown ? "Down" : "Up", targetTcpY);
-            moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
-            if (stopRequested) { /* Abort */ isMoving = false; webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); return; }
-            currentTcpY = targetTcpY;
-            
-            // Flip vertical direction for the next pass
-            movingDown = !movingDown; 
+            // Move to the end position of the vertical sweep
+            float endSweepY = moveDown ? bottomY : topY;
+            moveToXYPositionInches_Paint(currentTcpX, endSweepY, speed, accel);
+            if (stopRequested) { isMoving = false; webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); return; }
+            currentTcpY = endSweepY;
         }
     } else { // --- Left-Right Pattern (Left/Right sides) ---
         Serial.printf("[DEBUG paintSide] Setting up for Left-Right Pattern (Side %d)\n", sideIndex);
