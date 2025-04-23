@@ -24,7 +24,8 @@ void calculateAndSetGridSpacing(int cols, int rows);
 
 void handleRoot() {
   // Serial.println("Serving root page.");
-  webServer.send(200, "text/html", HTML_PROGMEM); // Use HTML_PROGMEM from html_content.h
+  // webServer.send(200, "text/html", HTML_PROGMEM); // Original line - sends entire C string
+  webServer.send_P(200, "text/html", HTML_PROGMEM); // Correct way to send PROGMEM content
 }
 
 /* // <<< START COMMENTING OUT
@@ -411,13 +412,16 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                     // startPaintingSequence(); // Call the (placeholder) function // COMMENTED OUT FOR NOW
                  } else if (command.startsWith("ROTATE ")) {
                     Serial.println("WebSocket: Received ROTATE command.");
-                    if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
-                        Serial.println("DEBUG: Cannot rotate - Machine busy or not in correct mode");
-                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot rotate: Machine busy or not in correct mode.\"}");
+                    if (isMoving || isHoming) {
+                        Serial.println("[DEBUG] Cannot rotate - Machine is currently moving or homing");
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot rotate: Machine is busy.\"}");
+                    } else if (inPickPlaceMode || inCalibrationMode) {
+                        Serial.println("[DEBUG] Cannot rotate - Machine is in Pick/Place or Calibration mode");
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot rotate: Machine is in special mode.\"}");
                     } else if (!stepper_rot) {
-                        // ADDED: Check if stepper_rot is NULL and report error
-                        Serial.println("DEBUG: Rotation command received, but stepper_rot is NULL (likely due to pin conflict)");
-                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Rotation control unavailable (pin conflict?)\"}");
+                        // More explicit error when rotation stepper is not available
+                        Serial.println("[DEBUG] Rotation command received, but stepper_rot is NULL (rotation motor not configured)");
+                        webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Rotation motor not configured. Check hardware connections.\"}");
                     } else {
                         float degrees;
                         int parsed = sscanf(command.c_str() + strlen("ROTATE "), "%f", &degrees);
@@ -427,30 +431,39 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             // Calculate target angle
                             float targetAngle = currentAngle + degrees;
                             
-                            // Round to nearest step to avoid floating point errors
-                            long relative_steps = round(degrees * STEPS_PER_DEGREE);
+                            // Round properly to nearest step to avoid floating point errors
+                            long relative_steps = (long)round(degrees * STEPS_PER_DEGREE);
                             
-                            Serial.printf("DEBUG: Rotating by %.1f degrees (%.4f steps per degree, %ld total steps)\n", 
+                            Serial.printf("[DEBUG] Rotating by %.1f degrees (%.4f steps per degree, %ld total steps)\n", 
                                         degrees, STEPS_PER_DEGREE, relative_steps);
-                            Serial.printf("DEBUG: Current angle: %.2f degrees, Target angle: %.2f degrees\n", 
+                            Serial.printf("[DEBUG] Current angle: %.2f degrees, Target angle: %.2f degrees\n", 
                                         currentAngle, targetAngle);
-                            Serial.printf("DEBUG: Current position before rotation: %ld steps\n", stepper_rot->getCurrentPosition());
+                            Serial.printf("[DEBUG] Current position before rotation: %ld steps\n", stepper_rot->getCurrentPosition());
                             
+                            // Set flag BEFORE attempting to move
                             isMoving = true;
                             webSocket.broadcastTXT("{\"status\":\"Moving\", \"message\":\"Rotating tray...\"}");
                             
-                            // Use different speeds for large vs. small movements
+                            // Always set proper acceleration first
+                            stepper_rot->setAcceleration(patternRotAccel);
+                            
+                            // Then set speed based on movement size
                             if (abs(degrees) > 10.0) {
                                 stepper_rot->setSpeedInHz(patternRotSpeed); // Use full speed for larger moves
                             } else {
                                 stepper_rot->setSpeedInHz(patternRotSpeed / 2); // Use reduced speed for precision
                             }
-                            stepper_rot->setAcceleration(patternRotAccel);
-                            stepper_rot->move(relative_steps); // Use move() for relative rotation
                             
-                            Serial.printf("DEBUG: move() called with %ld steps\n", relative_steps);
+                            // Try to move and check success
+                            if (stepper_rot->move(relative_steps)) {
+                                Serial.printf("[DEBUG] Rotation move() called successfully with %ld steps\n", relative_steps);
+                            } else {
+                                Serial.println("[ERROR] Rotation move() failed - stepper may be disabled or busy");
+                                webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Rotation failed. Motor might be disabled.\"}");
+                                isMoving = false; // Reset moving flag on failure
+                            }
                         } else {
-                            Serial.println("DEBUG: Invalid ROTATE format");
+                            Serial.println("[DEBUG] Invalid ROTATE format");
                             webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid ROTATE format. Use: ROTATE degrees\"}");
                         }
                     }
@@ -472,8 +485,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             // Calculate target angle
                             float targetAngle = currentAngle + degrees;
                             
-                            // Round to nearest step to avoid floating point errors
-                            long relative_steps = round(degrees * STEPS_PER_DEGREE);
+                            // Round properly to nearest step to avoid floating point errors
+                            long relative_steps = (long)round(degrees * STEPS_PER_DEGREE);
                             
                             Serial.printf("DEBUG: Jogging rotation by %.1f degrees (%.4f steps per degree, %ld total steps)\n", 
                                         degrees, STEPS_PER_DEGREE, relative_steps);
@@ -484,12 +497,20 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                             isMoving = true; // Set isMoving flag, let loop() handle completion
                             webSocket.broadcastTXT("{\"status\":\"Moving\", \"message\":\"Jogging rotation...\"}");
                             
+                            // Always set acceleration first
+                            stepper_rot->setAcceleration(patternRotAccel);
+                            
                             // Use reduced speed for precision jogging (consistent with ROTATE small moves)
                             stepper_rot->setSpeedInHz(patternRotSpeed / 2); // Half speed for precision
-                            stepper_rot->setAcceleration(patternRotAccel); // Use full accel like ROTATE small moves
-                            stepper_rot->move(relative_steps);
                             
-                            Serial.printf("DEBUG: move() called with %ld steps\n", relative_steps);
+                            // Try to move and check success
+                            if (stepper_rot->move(relative_steps)) {
+                                Serial.printf("DEBUG: move() called successfully with %ld steps\n", relative_steps);
+                            } else {
+                                Serial.println("[ERROR] Rotation jog failed - stepper may be disabled or busy");
+                                webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Rotation jog failed. Motor might be disabled.\"}");
+                                isMoving = false; // Reset moving flag on failure
+                            }
                         } else {
                             Serial.println("DEBUG: Invalid JOG ROT format");
                             webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid JOG ROT format. Use: JOG ROT degrees\"}");

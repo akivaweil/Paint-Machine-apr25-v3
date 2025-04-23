@@ -26,7 +26,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     .input-group input { padding: 8px; width: 45px; text-align: right; margin-bottom: 5px; background-color: #555; color: #eee; border: 1px solid #777; border-radius: 5px; } /* Reduced width to 45px (half of 90px) */
     .input-group select { padding: 8px; width: 110px; background-color: #555; color: #eee; border: 1px solid #777; border-radius: 5px; margin-bottom: 5px; } /* Styling for select elements to match inputs */
     .input-group span { display: block; font-size: 0.8em; color: #bbb; margin-top: 0px; margin-bottom: 10px; } /* Lighter span text */
-    .setting-button { padding: 10px 15px !important; margin-left: 10px !important; display: block; margin: 5px auto !important;}
+    .setting-button { padding: 10px 15px !important; display: block; margin: 5px auto !important; } /* Fixed conflicting margin declarations */
     #status { margin-top: 20px; font-weight: bold; clear: both; }
     /* Custom styles */
     #homeButton { background-color: #17a2b8; } /* Blue for Home button */
@@ -838,68 +838,52 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
       function enableButtons() {
         let connected = websocket && websocket.readyState === WebSocket.OPEN;
-        console.log("enableButtons() - Debug State: Connected=" + connected + ", AllHomed=" + allHomed + ", IsMoving=" + isMoving + ", IsHoming=" + isHoming + ", StatusDiv='" + statusDiv.innerHTML + "'"); // Updated Debug
-        
-        let inCalibMode = calibrationControlsDiv.style.display === 'block'; // Check if calibration controls are shown
-        let inPickAndPlaceMode = pnpStepButton.style.display === 'inline-block'; // Check if PnP Step button is shown
+        // Add more detailed logging here
+        let inCalibMode = calibrationControlsDiv.style.display === 'block';
+        let inPickAndPlaceMode = pnpStepButton.style.display === 'inline-block';
+        console.log(`[enableButtons] States: connected=${connected}, allHomed=${allHomed}, isMoving=${isMoving}, isHoming=${isHoming}, inCalib=${inCalibMode}, inPnP=${inPickAndPlaceMode}`);
+
         let canStop = connected && (isMoving || isHoming || inCalibMode);
 
-        homeButton.disabled = !connected || isMoving || isHoming; // MODIFIED: Disable if moving/homing
+        homeButton.disabled = !connected || isMoving || isHoming;
+        console.log(`  -> homeButton.disabled = ${homeButton.disabled} (!${connected} || ${isMoving} || ${isHoming})`);
+        
         stopButton.disabled = !canStop;
+        console.log(`  -> stopButton.disabled = ${stopButton.disabled} (!${canStop})`);
 
         // PnP Button Logic - UPDATED
         pnpButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || statusDiv.innerHTML.includes('PickPlaceComplete');
-        
-        // Add detailed debugging for PnP button
-        if (pnpButton.disabled) {
-            console.log(`PnP button disabled because: connected=${connected}, homed=${allHomed}, moving=${isMoving}, homing=${isHoming}, inCalibMode=${inCalibMode}, complete=${statusDiv.innerHTML.includes('PickPlaceComplete')}`);
-        }
+        console.log(`  -> pnpButton.disabled = ${pnpButton.disabled} (!${connected} || !${allHomed} || ${isMoving} || ${isHoming} || ${inCalibMode} || ${statusDiv.innerHTML.includes('PickPlaceComplete')})`);
 
         // PnP Step/Skip/Back Button Logic (Only enabled when in PnP mode and NOT moving/homing)
         pnpStepButton.disabled = !(connected && inPickAndPlaceMode && !isMoving && !isHoming);
-        pnpSkipButton.disabled = pnpStepButton.disabled; // Skip/Back follow Step button logic
-        pnpBackButton.disabled = pnpStepButton.disabled; // Skip/Back follow Step button logic
+        console.log(`  -> pnpStepButton.disabled = ${pnpStepButton.disabled} (!( ${connected} && ${inPickAndPlaceMode} && !${isMoving} && !${isHoming} ))`);
+        pnpSkipButton.disabled = pnpStepButton.disabled; 
+        pnpBackButton.disabled = pnpStepButton.disabled; 
 
         // Calibration Button Logic
         enterCalibrationButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || inPickAndPlaceMode;
-
-        // Simple, safe debugging for Manual Mode button state
-        if (enterCalibrationButton.disabled) {
-            console.log(`Manual Mode button disabled: connected=${connected}, homed=${allHomed}, moving=${isMoving}, homing=${isHoming}, inCalib=${inCalibMode}, inPnP=${inPickAndPlaceMode}`);
-        }
+        console.log(`  -> enterCalibrationButton.disabled = ${enterCalibrationButton.disabled} (!${connected} || !${allHomed} || ${isMoving} || ${isHoming} || ${inCalibMode} || ${inPickAndPlaceMode})`);
 
         // --- Painting Buttons ---
-        // Disable painting if not connected, not homed, moving, homing, in PnP, or calibrating
-        paintBackButton.disabled = !connected || !allHomed || isMoving || isHoming || inCalibMode || inPickAndPlaceMode;
-        // Add other paint side buttons
-        document.getElementById('paintRightButton').disabled = paintBackButton.disabled;
-        document.getElementById('paintFrontButton').disabled = paintBackButton.disabled;
-        document.getElementById('paintLeftButton').disabled = paintBackButton.disabled;
+        let paintDisableCondition = !connected || !allHomed || isMoving || isHoming || inCalibMode || inPickAndPlaceMode;
+        paintBackButton.disabled = paintDisableCondition;
+        document.getElementById('paintRightButton').disabled = paintDisableCondition;
+        document.getElementById('paintFrontButton').disabled = paintDisableCondition;
+        document.getElementById('paintLeftButton').disabled = paintDisableCondition;
+        console.log(`  -> Paint Buttons Disabled = ${paintDisableCondition}`);
 
         // Rotation Buttons
-        // MODIFIED: Only disable if not connected or actively moving/homing
-        rotateMinus90Button.disabled = !connected || isMoving || isHoming;
-        rotatePlus90Button.disabled = rotateMinus90Button.disabled;
-        rotateMinus5Button.disabled = rotateMinus90Button.disabled;
-        rotatePlus5Button.disabled = rotateMinus90Button.disabled;
-        setRotationZeroButton.disabled = rotateMinus90Button.disabled;
+        let rotateDisableCondition = !connected || isMoving || isHoming;
+        rotateMinus90Button.disabled = rotateDisableCondition;
+        rotatePlus90Button.disabled = rotateDisableCondition;
+        rotateMinus5Button.disabled = rotateDisableCondition;
+        rotatePlus5Button.disabled = rotateDisableCondition;
+        setRotationZeroButton.disabled = rotateDisableCondition;
+        console.log(`  -> Rotation Buttons Disabled = ${rotateDisableCondition}`);
 
         // --- Settings Buttons/Inputs ---
-        // Generally disable settings inputs/buttons if disconnected, moving, homing, in PnP, or calibrating
-        // Special exceptions for Grid/Tray buttons
         let generalDisableCondition = !connected || isMoving || isHoming || inCalibMode;
-
-        // *** Keep Grid and Tray Size buttons enabled if connected ***
-        // setGridSpacingButton.disabled = !connected; // REMOVED
-        // setTraySizeButton.disabled = !connected; // REMOVED
-        // *** End Special Exception ***
-
-        // setOffsetButton.disabled = generalDisableCondition || !allHomed; // REMOVED
-        // setFirstPlaceAbsButton.disabled = generalDisableCondition || !allHomed; // REMOVED
-        // setSpeedButton.disabled = generalDisableCondition || !allHomed; // REMOVED
-        // setPaintOffsetsButton.disabled = generalDisableCondition || !allHomed; // REMOVED
-
-        // Determine input field disable state based on conditions, not removed buttons
         let settingsInputsDisableCondition = generalDisableCondition || !allHomed; // Most settings need homing
 
         offsetXInput.disabled = settingsInputsDisableCondition;
@@ -910,12 +894,14 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         ySpeedInput.disabled = settingsInputsDisableCondition;
         paintGunOffsetXInput.disabled = settingsInputsDisableCondition;
         paintGunOffsetYInput.disabled = settingsInputsDisableCondition;
+        console.log(`  -> General Settings Inputs Disabled = ${settingsInputsDisableCondition}`);
 
         // Grid/Tray inputs are linked to their buttons (only disabled if disconnected)
         gridColsInput.disabled = !connected;
         gridRowsInput.disabled = !connected;
         trayWidthInput.disabled = !connected;
         trayHeightInput.disabled = !connected;
+        console.log(`  -> Grid/Tray Inputs Disabled = ${!connected}`);
 
         // Calibration Controls (only enabled when in calibration mode and not moving/homing)
         let calibControlsDisable = !connected || !inCalibMode || isMoving || isHoming;
@@ -923,14 +909,17 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         calibInputs.forEach(el => {
             el.disabled = calibControlsDisable;
         });
+        console.log(`  -> Calibration Controls Disabled = ${calibControlsDisable}`);
 
         // Download/Upload Buttons (only need connection)
         document.getElementById('downloadSettingsButton').disabled = !connected;
         document.getElementById('uploadSettingsButton').disabled = !connected;
+        console.log(`  -> Download/Upload Buttons Disabled = ${!connected}`);
 
-        // Specific overrides based on state machine logic elsewhere (e.g., PnPComplete disabling pnpButton)
+        // Specific overrides 
         if (pnpButton.innerHTML.includes('Complete')) {
              pnpButton.disabled = true;
+             console.log("  -> OVERRIDE: pnpButton disabled because sequence complete.");
         }
     }
 

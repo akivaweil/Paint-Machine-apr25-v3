@@ -1321,161 +1321,396 @@ void movePitchServoSmoothly(int targetAngle) {
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
     switch (type) {
         case WStype_TEXT: {
-            Serial.printf("[%u] WebSocket Received: %s\n", num, payload);
+            // --- Log Raw Payload ---
+            Serial.printf("[%u] WebSocket RAW Received (%d bytes): %.*s\n", num, length, length, payload); // Log raw payload
 
-            // --- Parse Command ---
-            // Re-added command parsing using strtok
-            char* cmd = strtok((char*)payload, " "); // Get the first word as the command
-            if (cmd == NULL) return; // Ignore empty messages
-            Serial.printf("[DEBUG] WebSocket [%u] Received Command: %s\n", num, cmd);
+            // Create a mutable copy for strtok
+            char payload_copy[length + 1];
+            memcpy(payload_copy, payload, length);
+            payload_copy[length] = '\0';
 
-            // --- Handle Command ---
-            if (strcmp(cmd, "GET_STATUS") == 0) {
-                // Respond with current status and position
-                // ... existing code ...
-            } else if (strcmp(cmd, "SET_SERVO_PITCH") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "ROTATE") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "SET_ROT_ZERO") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "HOME") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "GOTO_5_5_0") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "GOTO_20_20_0") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "SET_PNP_OFFSET") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "SET_FIRST_PLACE_ABS") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "SET_GRID_SPACING") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "SET_TRAY_SIZE") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "SET_PNP_SPEEDS") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "ENTER_PICKPLACE") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "EXIT_PICKPLACE") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "PNP_NEXT_STEP") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "PNP_SKIP_LOCATION") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "PNP_BACK_LOCATION") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "ENTER_CALIBRATION") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "EXIT_CALIBRATION") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "JOG") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "MOVE_TO_COORDS") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "SET_OFFSET_FROM_CURRENT") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "SET_FIRST_PLACE_ABS_FROM_CURRENT") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "SET_PAINT_GUN_OFFSET") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "SET_PAINT_SIDE_SETTINGS") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "PAINT_SIDE_0") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "PAINT_SIDE_1") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "PAINT_SIDE_2") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "PAINT_SIDE_3") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "STOP") == 0) {
-                // ... existing code ...
-            } else if (strcmp(cmd, "PAINT_ALL") == 0) {
-                Serial.println("PAINT_ALL command received.");
-                if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
-                    webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot start Paint All, machine is busy or not ready.\"}");
-                } else {
-                    webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Starting Paint All sequence...\"}");
-                    paintSide(0); // Paint Back
-                    if (!stopRequested) paintSide(2); // Paint Front
-                    if (!stopRequested) paintSide(3); // Paint Left
-                    if (!stopRequested) paintSide(1); // Paint Right
-                    
-                    if (stopRequested) {
-                        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Paint All sequence stopped by user.\"}");
-                    } else {
-                         webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Paint All sequence completed.\"}");
-                    }
-                }
-            } else if (strcmp(cmd, "CLEAN_GUN") == 0) {
-                Serial.println("CLEAN_GUN command received.");
-                if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) {
-                    webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot start Clean Gun, machine is busy or not ready.\"}");
-                } else {
-                    webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Starting Clean Gun sequence...\"}");
-                    isMoving = true; // Set busy flag
-                    stopRequested = false; // Clear stop flag
+            // --- Parse Command (Only the first token) ---
+            char* cmd = strtok(payload_copy, " "); // Get the first word/command
+            if (cmd == NULL) {
+                Serial.printf("[%u] WebSocket: Ignoring empty message.\n", num);
+                return; 
+            }
+            // Store the command safely before strtok potentially modifies the buffer further if args are parsed
+            char commandStr[32]; // Adjust size if longer commands are expected
+            strncpy(commandStr, cmd, sizeof(commandStr) - 1);
+            commandStr[sizeof(commandStr) - 1] = '\0'; // Ensure null termination
+            
+            Serial.printf("[%u] WebSocket Parsed Command: '%s'\n", num, commandStr);
 
-                    // 1. Rotate tray to 0 degrees
-                    Serial.println("  Cleaning: Rotating to 0 degrees...");
-                    rotateToAbsoluteDegree(0);
-                    if (stopRequested) { isMoving = false; return; } // Check stop after rotation
+            // --- Log Current State BEFORE Handling Command ---
+            Serial.printf("    State Before Check: allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", 
+                          allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
 
-                    // 2. Move gun to clean position (X=3, Y=10)
-                    Serial.println("  Cleaning: Moving to clean position (3, 10)...");
-                    // Use a moderate speed for this move
-                    moveToXYPositionInches_Paint(3.0, 10.0, patternXSpeed / 2, patternXAccel / 2); 
-                    if (stopRequested) { isMoving = false; return; } // Check stop after XY move
+            // --- Handle Command (Revised Structure) ---
+            bool commandHandled = false; 
 
-                    // 3. Activate spray mechanism (PICK_CYLINDER_PIN) for 3 seconds
-                    Serial.println("  Cleaning: Activating spray (Pin 10 HIGH)...");
-                    digitalWrite(PICK_CYLINDER_PIN, HIGH);
-                    unsigned long sprayStartTime = millis();
-                    while (millis() - sprayStartTime < 3000) {
-                        webSocket.loop(); // Keep websocket alive during delay
-                        if (stopRequested) break; // Allow stop during spray
-                        yield();
-                    }
+            // --- Simple Commands (No Args or State Checks needed beyond basic parse) ---
+            if (strcmp(commandStr, "GET_STATUS") == 0) {
+                commandHandled = true;
+                Serial.printf("[%u] Handling GET_STATUS\n", num);
+                sendAllSettingsUpdate(num, "Current status requested");
+                if (allHomed) { sendCurrentPositionUpdate(); }
+            } 
+            else if (strcmp(commandStr, "EXIT_PICKPLACE") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling EXIT_PICKPLACE\n", num);
+                 Serial.println("    EXIT_PICKPLACE Accepted: Exiting PnP mode.");
+                 exitPickPlaceMode(true); 
+             }
+             else if (strcmp(commandStr, "EXIT_CALIBRATION") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling EXIT_CALIBRATION\n", num);
+                 Serial.println("    EXIT_CALIBRATION Accepted: Exiting calibration mode.");
+                 inCalibrationMode = false;
+                 webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Exited calibration mode.\"}");
+             }
+             else if (strcmp(commandStr, "STOP") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling STOP\n", num);
+                 Serial.println("    STOP Accepted: Initiating stop sequence.");
+                 stopRequested = true; 
+                 if(stepper_x) stepper_x->forceStop();
+                 if(stepper_y_left) stepper_y_left->forceStop();
+                 if(stepper_y_right) stepper_y_right->forceStop();
+                 if(stepper_z) stepper_z->forceStop();
+                 if(stepper_rot) stepper_rot->forceStop(); 
+                 Serial.println("    STOP: Motors force stopped.");
+                 isMoving = false; isHoming = false; inPickPlaceMode = false; inCalibrationMode = false; 
+                 webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"STOP initiated. Homing axes...\"}"); 
+                 homeAllAxes(); 
+             }
+             // --- PnP Step Commands (Require PnP Mode) ---
+             else if (strcmp(commandStr, "PNP_NEXT_STEP") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling PNP_NEXT_STEP\n", num);
+                 Serial.printf("    State Check (PNP_NEXT_STEP): inPnP=%d, isMoving=%d, isHoming=%d\n", inPickPlaceMode, isMoving, isHoming);
+                 if (!inPickPlaceMode) { Serial.println("    PNP_NEXT_STEP Denied: Not in PnP mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Not in Pick/Place mode.\"}"); } 
+                 else if (isMoving || isHoming) { Serial.println("    PNP_NEXT_STEP Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Machine is busy, cannot perform next step.\"}"); } 
+                 else { Serial.println("    PNP_NEXT_STEP Accepted: Executing next step."); executeNextPickPlaceStep(); }
+             } 
+             else if (strcmp(commandStr, "PNP_SKIP_LOCATION") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling PNP_SKIP_LOCATION\n", num);
+                 Serial.printf("    State Check (PNP_SKIP_LOCATION): inPnP=%d, isMoving=%d, isHoming=%d\n", inPickPlaceMode, isMoving, isHoming);
+                 if (!inPickPlaceMode) { Serial.println("    PNP_SKIP_LOCATION Denied: Not in PnP mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Not in Pick/Place mode.\"}"); } 
+                 else if (isMoving || isHoming) { Serial.println("    PNP_SKIP_LOCATION Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Machine is busy, cannot skip location.\"}"); } 
+                 else { Serial.println("    PNP_SKIP_LOCATION Accepted: Skipping location."); skipPickPlaceLocation(); }
+             } 
+             else if (strcmp(commandStr, "PNP_BACK_LOCATION") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling PNP_BACK_LOCATION\n", num);
+                 Serial.printf("    State Check (PNP_BACK_LOCATION): inPnP=%d, isMoving=%d, isHoming=%d\n", inPickPlaceMode, isMoving, isHoming);
+                 if (!inPickPlaceMode) { Serial.println("    PNP_BACK_LOCATION Denied: Not in PnP mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Not in Pick/Place mode.\"}"); } 
+                 else if (isMoving || isHoming) { Serial.println("    PNP_BACK_LOCATION Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Machine is busy, cannot go back.\"}"); } 
+                 else { Serial.println("    PNP_BACK_LOCATION Accepted: Going back one location."); goBackPickPlaceLocation(); }
+             }
+             // --- Calibration Mode Commands (Require Calibration Mode) ---
+              else if (strcmp(commandStr, "JOG") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling JOG\n", num);
+                 Serial.printf("    State Check (JOG): inCalib=%d, isMoving=%d, isHoming=%d\n", inCalibrationMode, isMoving, isHoming);
+                 if (!inCalibrationMode) { Serial.println("    JOG Denied: Not in calibration mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Must be in calibration mode to jog.\"}"); } 
+                 else if (isMoving || isHoming) { Serial.println("    JOG Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Cannot jog while machine is moving.\"}"); } 
+                 else {
+                     char* axis_str = strtok(NULL, " "); char* dist_str = strtok(NULL, " ");
+                     if (axis_str && dist_str && strlen(axis_str) == 1) {
+                         char axis = axis_str[0]; float distance_inch = atof(dist_str);
+                         Serial.printf("    JOG Accepted: Axis %c, Dist %.3f\n", axis, distance_inch);
+                         // Find stepper based on axis...
+                         FastAccelStepper* stepper_to_move = NULL; long current_steps = 0; long jog_steps = 0; float speed = 0, accel = 0;
+                         if (axis == 'X' && stepper_x) { stepper_to_move = stepper_x; current_steps = stepper_x->getCurrentPosition(); jog_steps = (long)(distance_inch * STEPS_PER_INCH_XY); speed = patternXSpeed; accel = patternXAccel; } 
+                         else if (axis == 'Y' && stepper_y_left && stepper_y_right) { stepper_to_move = stepper_y_left; current_steps = stepper_y_left->getCurrentPosition(); jog_steps = (long)(distance_inch * STEPS_PER_INCH_XY); speed = patternYSpeed; accel = patternYAccel; } 
+                         else if (axis == 'Z' && stepper_z) { stepper_to_move = stepper_z; current_steps = stepper_z->getCurrentPosition(); jog_steps = (long)(distance_inch * STEPS_PER_INCH_Z); speed = patternZSpeed; accel = patternZAccel; } 
+                         else { Serial.printf("    JOG Denied: Invalid axis '%c' or stepper not available.\n", axis); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid axis for jog.\"}"); stepper_to_move = NULL; }
 
-                    // 4. Deactivate spray mechanism
-                    Serial.println("  Cleaning: Deactivating spray (Pin 10 LOW)...");
-                    digitalWrite(PICK_CYLINDER_PIN, LOW);
+                         if (stepper_to_move) {
+                             isMoving = true; webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Jogging...\"}");
+                             long target_steps = current_steps + jog_steps;
+                             stepper_to_move->setSpeedInHz(speed); stepper_to_move->setAcceleration(accel);
+                             if (axis == 'Z') { float target_pos_inch = constrain((float)target_steps / STEPS_PER_INCH_Z, Z_MAX_TRAVEL_NEG_INCH, Z_MAX_TRAVEL_POS_INCH); target_steps = (long)(target_pos_inch * STEPS_PER_INCH_Z); Serial.printf("    Jogging Z (constrained) to %.3f inches (%ld steps)\n", target_pos_inch, target_steps); } 
+                             else { Serial.printf("    Jogging %c to %ld steps\n", axis, target_steps); }
+                             stepper_to_move->moveTo(target_steps);
+                             if (axis == 'Y' && stepper_y_right) { stepper_y_right->setSpeedInHz(speed); stepper_y_right->setAcceleration(accel); stepper_y_right->moveTo(target_steps); }
+                         }
+                     } else { Serial.println("    JOG Denied: Invalid format."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid JOG format. Use: JOG X/Y/Z distance\"}"); }
+                 }
+             } 
+             else if (strcmp(commandStr, "MOVE_TO_COORDS") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling MOVE_TO_COORDS\n", num);
+                 Serial.printf("    State Check (MOVE_TO_COORDS): inCalib=%d, isMoving=%d, isHoming=%d\n", inCalibrationMode, isMoving, isHoming);
+                 if (!inCalibrationMode) { Serial.println("    MOVE_TO_COORDS Denied: Not in calibration mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Must be in calibration mode to move to coords.\"}"); } 
+                 else if (isMoving || isHoming) { Serial.println("    MOVE_TO_COORDS Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Cannot move while machine is moving.\"}"); } 
+                 else {
+                     char* x_str = strtok(NULL, " "); char* y_str = strtok(NULL, " ");
+                     if (x_str && y_str) {
+                         float xVal = atof(x_str); float yVal = atof(y_str);
+                         if (xVal >= 0 && yVal >= 0) { Serial.printf("    MOVE_TO_COORDS Accepted: X=%.2f, Y=%.2f\n", xVal, yVal); isMoving = true; webSocket.broadcastTXT("{\"status\":\"Busy\", \"message\":\"Moving to position...\"}"); moveToXYPositionInches(xVal, yVal); } 
+                         else { Serial.println("    MOVE_TO_COORDS Denied: Coordinates must be non-negative."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Coordinates must be non-negative.\"}"); }
+                     } else { Serial.println("    MOVE_TO_COORDS Denied: Invalid format."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid MOVE_TO_COORDS format. Use: MOVE_TO_COORDS X Y\"}"); }
+                 }
+             } 
+             else if (strcmp(commandStr, "SET_OFFSET_FROM_CURRENT") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling SET_OFFSET_FROM_CURRENT\n", num);
+                 Serial.printf("    State Check (SET_OFFSET_FROM_CURRENT): inCalib=%d, isMoving=%d, isHoming=%d\n", inCalibrationMode, isMoving, isHoming);
+                 if (!inCalibrationMode) { Serial.println("    SET_OFFSET_FROM_CURRENT Denied: Not in calibration mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Must be in calibration mode.\"}"); } 
+                 else if (isMoving || isHoming) { Serial.println("    SET_OFFSET_FROM_CURRENT Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Cannot set while moving.\"}"); } 
+                 else {
+                     if (stepper_x && stepper_y_left) { pnpOffsetX_inch = (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY; pnpOffsetY_inch = (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY; saveSettings(); Serial.printf("    SET_OFFSET_FROM_CURRENT Accepted: Set to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch); sendAllSettingsUpdate(num, "PnP Offset set from current position."); } 
+                     else { Serial.println("    SET_OFFSET_FROM_CURRENT Denied: Steppers not available."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Steppers not available.\"}"); }
+                 }
+             } 
+             else if (strcmp(commandStr, "SET_FIRST_PLACE_ABS_FROM_CURRENT") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling SET_FIRST_PLACE_ABS_FROM_CURRENT\n", num);
+                 Serial.printf("    State Check (SET_FIRST_PLACE_ABS_FROM_CURRENT): inCalib=%d, isMoving=%d, isHoming=%d\n", inCalibrationMode, isMoving, isHoming);
+                 if (!inCalibrationMode) { Serial.println("    SET_FIRST_PLACE_ABS_FROM_CURRENT Denied: Not in calibration mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Must be in Calibration Mode to set First Place position from current.\"}"); } 
+                 else if (isMoving || isHoming) { Serial.println("    SET_FIRST_PLACE_ABS_FROM_CURRENT Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Cannot set while moving.\"}"); } 
+                 else {
+                     if (stepper_x && stepper_y_left) { placeFirstXAbsolute_inch = (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY; placeFirstYAbsolute_inch = (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY; saveSettings(); Serial.printf("    SET_FIRST_PLACE_ABS_FROM_CURRENT Accepted: Set to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch); sendAllSettingsUpdate(num, "First Place Absolute Pos set from current position."); } 
+                     else { Serial.println("    SET_FIRST_PLACE_ABS_FROM_CURRENT Denied: Steppers not available."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Internal stepper error.\"}"); }
+                 }
+             }
+             // --- General Idle Commands (Require Homing, but not specific mode) ---
+             else if (strcmp(commandStr, "HOME") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling HOME\n", num);
+                 Serial.printf("    State Check (HOME): isMoving=%d, isHoming=%d\n", isMoving, isHoming);
+                 if (isMoving || isHoming) { Serial.println("    HOME Denied: Busy"); webSocket.sendTXT(num, "{\"status\":\"Busy\",\"message\":\"Cannot home, machine is busy.\"}"); } 
+                 else { Serial.println("    HOME Accepted: Starting homing sequence."); homeAllAxes(); }
+             } 
+             else if (strcmp(commandStr, "GOTO_5_5_0") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling GOTO_5_5_0\n", num);
+                 Serial.printf("    State Check (GOTO): allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+                 if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) { Serial.println("    GOTO_5_5_0 Denied: Invalid state."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot GOTO: Machine busy or not ready.\"}"); } 
+                 else { Serial.println("    GOTO_5_5_0 Accepted: Moving."); moveToPositionInches(5.0, 5.0, 0.0); }
+             } 
+             else if (strcmp(commandStr, "GOTO_20_20_0") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling GOTO_20_20_0\n", num);
+                 Serial.printf("    State Check (GOTO): allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+                 if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) { Serial.println("    GOTO_20_20_0 Denied: Invalid state."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot GOTO: Machine busy or not ready.\"}"); } 
+                 else { Serial.println("    GOTO_20_20_0 Accepted: Moving."); moveToPositionInches(20.0, 20.0, 0.0); }
+             } 
+             else if (strcmp(commandStr, "ENTER_PICKPLACE") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling ENTER_PICKPLACE\n", num);
+                 Serial.printf("    State Check (ENTER_PICKPLACE): allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+                 if (!allHomed) { Serial.println("    ENTER_PICKPLACE Denied: Not homed."); webSocket.sendTXT(num, "{\"status\":\"Error\",\"message\":\"Machine not homed.\"}"); } 
+                 else if (isMoving || isHoming) { Serial.println("    ENTER_PICKPLACE Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Busy\",\"message\":\"Machine is busy.\"}"); } 
+                 else if (inPickPlaceMode) { Serial.println("    ENTER_PICKPLACE Denied: Already in PnP mode."); webSocket.sendTXT(num, "{\"status\":\"PickPlaceReady\", \"message\":\"Already in Pick/Place mode. Use Exit button.\"}"); } 
+                 else if (inCalibrationMode) { Serial.println("    ENTER_PICKPLACE Denied: In Calibration mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Exit calibration before entering PnP mode.\"}"); } 
+                 else { Serial.println("    ENTER_PICKPLACE Accepted: Entering PnP mode."); enterPickPlaceMode(); }
+             } 
+              else if (strcmp(commandStr, "ENTER_CALIBRATION") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling ENTER_CALIBRATION\n", num);
+                 Serial.printf("    State Check (ENTER_CALIBRATION): allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+                 if (!allHomed) { Serial.println("    ENTER_CALIBRATION Denied: Not homed."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Machine must be homed before entering calibration.\"}"); } 
+                 else if (isMoving || isHoming || inPickPlaceMode) { Serial.println("    ENTER_CALIBRATION Denied: Machine busy or in PnP mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Machine busy or in PnP mode. Cannot enter calibration.\"}"); } 
+                 else { Serial.println("    ENTER_CALIBRATION Accepted: Entering calibration mode."); inCalibrationMode = true; webSocket.broadcastTXT("{\"status\":\"CalibrationActive\", \"message\":\"Calibration mode entered.\"}"); sendCurrentPositionUpdate(); }
+             }
+             else if (strcmp(commandStr, "ROTATE") == 0) { // Also allow general rotation when idle
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling ROTATE (General Idle)\n", num);
+                 Serial.printf("    State Check (ROTATE): allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+                 if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) { Serial.println("    ROTATE Denied: Invalid state."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot rotate: Machine busy or not ready.\"}"); }
+                 else if (!stepper_rot) { Serial.println("    ROTATE Denied: Rotation Stepper Not Available"); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Rotation control unavailable (pin conflict?)\"}"); } 
+                 else {
+                     char* degrees_str = strtok(NULL, " "); 
+                     if (degrees_str) { float degrees = atof(degrees_str); Serial.printf("    ROTATE Accepted: Rotating by %.2f degrees\n", degrees); float currentAngle = (float)stepper_rot->getCurrentPosition() / STEPS_PER_DEGREE; int targetAngle = (int)round(currentAngle + degrees); rotateToAbsoluteDegree(targetAngle); } 
+                     else { Serial.println("    ROTATE Denied: Missing degrees value"); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Missing degrees for ROTATE\"}"); }
+                 }
+             } 
+             else if (strcmp(commandStr, "SET_ROT_ZERO") == 0) { // Allow general set zero when idle
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling SET_ROT_ZERO (General Idle)\n", num);
+                 Serial.printf("    State Check (SET_ROT_ZERO): allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+                 if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) { Serial.println("    SET_ROT_ZERO Denied: Invalid state."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set zero while machine is busy or in special mode.\"}"); } 
+                 else if (!stepper_rot) { Serial.println("    SET_ROT_ZERO Denied: Rotation stepper not enabled."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Rotation stepper not enabled.\"}"); } 
+                 else { Serial.println("    SET_ROT_ZERO Accepted: Setting current position to zero."); stepper_rot->setCurrentPosition(0); webSocket.sendTXT(num, "{\"status\":\"Ready\", \"message\":\"Current rotation set to zero.\"}"); sendCurrentPositionUpdate(); }
+             }
+             else if (strcmp(commandStr, "PAINT_SIDE_0") == 0 || strcmp(commandStr, "PAINT_SIDE_1") == 0 || strcmp(commandStr, "PAINT_SIDE_2") == 0 || strcmp(commandStr, "PAINT_SIDE_3") == 0) {
+                 commandHandled = true;
+                 int sideIndex = commandStr[strlen(commandStr)-1] - '0'; // Extract side index from command name
+                 Serial.printf("[%u] Handling PAINT_SIDE_%d\n", num, sideIndex);
+                 Serial.printf("    State Check (PAINT_SIDE): allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+                 if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) { Serial.printf("    PAINT_SIDE_%d Denied: Invalid state.\n", sideIndex); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot start painting, invalid machine state.\"}"); } 
+                 else { Serial.printf("    PAINT_SIDE_%d Accepted: Starting paint sequence.\n", sideIndex); paintSide(sideIndex); }
+             } 
+             else if (strcmp(commandStr, "PAINT_ALL") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling PAINT_ALL\n", num);
+                 Serial.printf("    State Check (PAINT_ALL): allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+                 if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) { Serial.println("    PAINT_ALL Denied: Invalid state."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot start Paint All, machine is busy or not ready.\"}"); } 
+                 else {
+                     Serial.println("    PAINT_ALL Accepted: Starting sequence."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Starting Paint All sequence...\"}");
+                     paintSide(0); if (!stopRequested) paintSide(2); if (!stopRequested) paintSide(3); if (!stopRequested) paintSide(1); 
+                     if (stopRequested) { Serial.println("    PAINT_ALL Sequence Stopped by User."); } 
+                     else { Serial.println("    PAINT_ALL Sequence Completed."); webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Paint All sequence completed.\"}"); }
+                 }
+             } 
+             else if (strcmp(commandStr, "CLEAN_GUN") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling CLEAN_GUN\n", num);
+                 Serial.printf("    State Check (CLEAN_GUN): allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+                 if (!allHomed || isMoving || isHoming || inPickPlaceMode || inCalibrationMode) { Serial.println("    CLEAN_GUN Denied: Invalid state."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot start Clean Gun, machine is busy or not ready.\"}"); } 
+                 else {
+                     Serial.println("    CLEAN_GUN Accepted: Starting sequence."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Starting Clean Gun sequence...\"}");
+                     isMoving = true; stopRequested = false; 
+                     // Sequence...
+                     rotateToAbsoluteDegree(0); if (stopRequested) { Serial.println("Clean Gun stopped during Rotation"); isMoving = false; return; } 
+                     moveToXYPositionInches_Paint(3.0, 10.0, patternXSpeed / 2, patternXAccel / 2); if (stopRequested) { Serial.println("Clean Gun stopped during XY Move"); isMoving = false; return; } 
+                     digitalWrite(PICK_CYLINDER_PIN, HIGH); unsigned long sprayStartTime = millis();
+                     while (millis() - sprayStartTime < 3000) { webSocket.loop(); if (stopRequested) { Serial.println("Clean Gun stopped during Spray"); break; } yield(); }
+                     digitalWrite(PICK_CYLINDER_PIN, LOW); if (stopRequested) { isMoving = false; return; } 
+                     if (!stopRequested) { moveToXYPositionInches(0.0, 0.0); while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning())) { webSocket.loop(); if (stopRequested) { Serial.println("Clean Gun stopped during Return Home"); break; } yield(); } }
+                     isMoving = false; 
+                     if (stopRequested) { Serial.println("Clean Gun stopped by user."); } 
+                     else { Serial.println("Clean Gun sequence completed."); webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Clean Gun sequence completed.\"}"); }
+                     sendCurrentPositionUpdate();
+                 }
+             }
+             // --- Settings Commands (Can usually run when idle, some need args) ---
+             else if (strcmp(commandStr, "SET_SERVO_PITCH") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling SET_SERVO_PITCH\n", num);
+                 char* angle_str = strtok(NULL, " "); 
+                 if (angle_str) {
+                     int angle = atoi(angle_str);
+                     if (angle >= 0 && angle <= 180) { setPitchServoAngle(angle); char msgBuffer[100]; sprintf(msgBuffer, "{\"status\":\"Info\", \"message\":\"Pitch servo angle set to %d\"}", angle); webSocket.sendTXT(num, msgBuffer); } 
+                     else { webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid angle (0-180)\"}"); }
+                 } else { webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Missing angle for SET_SERVO_PITCH\"}"); }
+             } 
+             else if (strcmp(commandStr, "SET_PNP_OFFSET") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling SET_PNP_OFFSET\n", num);
+                 Serial.printf("    State Check (SET_PNP_OFFSET): isMoving=%d, isHoming=%d, inPnP=%d\n", isMoving, isHoming, inPickPlaceMode);
+                 if (isMoving || isHoming || inPickPlaceMode) { Serial.println("    SET_PNP_OFFSET Denied: Machine busy or in PnP mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set offset while machine is busy or in PnP mode.\"}"); } 
+                 else {
+                     char* x_str = strtok(NULL, " "); char* y_str = strtok(NULL, " ");
+                     if (x_str && y_str) { pnpOffsetX_inch = atof(x_str); pnpOffsetY_inch = atof(y_str); saveSettings(); Serial.printf("    SET_PNP_OFFSET Accepted: Set to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch); sendAllSettingsUpdate(num, "PnP offset updated."); } 
+                     else { Serial.println("    SET_PNP_OFFSET Denied: Missing values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format for SET_PNP_OFFSET. Use: SET_PNP_OFFSET X Y\"}"); }
+                 }
+             } 
+             else if (strcmp(commandStr, "SET_FIRST_PLACE_ABS") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling SET_FIRST_PLACE_ABS\n", num);
+                 Serial.printf("    State Check (SET_FIRST_PLACE_ABS): isMoving=%d, isHoming=%d, inPnP=%d\n", isMoving, isHoming, inPickPlaceMode);
+                 if (isMoving || isHoming || inPickPlaceMode) { Serial.println("    SET_FIRST_PLACE_ABS Denied: Machine busy or in PnP mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set first place while machine is busy or in PnP mode.\"}"); } 
+                 else {
+                     char* x_str = strtok(NULL, " "); char* y_str = strtok(NULL, " ");
+                     if (x_str && y_str) { placeFirstXAbsolute_inch = atof(x_str); placeFirstYAbsolute_inch = atof(y_str); saveSettings(); Serial.printf("    SET_FIRST_PLACE_ABS Accepted: Set to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch); sendAllSettingsUpdate(num, "First Place Absolute Pos updated."); } 
+                     else { Serial.println("    SET_FIRST_PLACE_ABS Denied: Missing values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid SET_FIRST_PLACE_ABS format.\"}"); }
+                 }
+             } 
+             else if (strcmp(commandStr, "SET_GRID_SPACING") == 0) { 
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling SET_GRID_SPACING\n", num);
+                 Serial.printf("    State Check (SET_GRID_SPACING): isMoving=%d, isHoming=%d\n", isMoving, isHoming);
+                 if (isMoving || isHoming) { Serial.println("    SET_GRID_SPACING Denied: Machine busy."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set grid while machine is busy.\"}"); } 
+                 else {
+                     char* cols_str = strtok(NULL, " "); char* rows_str = strtok(NULL, " ");
+                     if (cols_str && rows_str) {
+                         int cols = atoi(cols_str); int rows = atoi(rows_str);
+                         if (cols > 0 && rows > 0) { Serial.printf("    SET_GRID_SPACING Accepted: %d x %d\n", cols, rows); calculateAndSetGridSpacing(cols, rows); } 
+                         else { Serial.println("    SET_GRID_SPACING Denied: Invalid cols/rows value."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid grid columns/rows. Must be positive integers.\"}"); }
+                     } else { Serial.println("    SET_GRID_SPACING Denied: Missing values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format for SET_GRID_SPACING. Use: SET_GRID_SPACING cols rows\"}"); }
+                 }
+             } 
+             else if (strcmp(commandStr, "SET_TRAY_SIZE") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling SET_TRAY_SIZE\n", num);
+                 Serial.printf("    State Check (SET_TRAY_SIZE): isMoving=%d, isHoming=%d\n", isMoving, isHoming);
+                 if (isMoving || isHoming) { Serial.println("    SET_TRAY_SIZE Denied: Machine busy."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set tray size while machine is busy.\"}"); } 
+                 else {
+                     char* width_str = strtok(NULL, " "); char* height_str = strtok(NULL, " ");
+                     if (width_str && height_str) {
+                         float width = atof(width_str); float height = atof(height_str);
+                         if (width > 0 && height > 0) { Serial.printf("    SET_TRAY_SIZE Accepted: W=%.2f, H=%.2f\n", width, height); trayWidth_inch = width; trayHeight_inch = height; saveSettings(); calculateAndSetGridSpacing(placeGridCols, placeGridRows); } 
+                         else { Serial.println("    SET_TRAY_SIZE Denied: Invalid width/height value."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid tray dimensions. Width and Height must be positive numbers.\"}"); }
+                     } else { Serial.println("    SET_TRAY_SIZE Denied: Missing values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format for SET_TRAY_SIZE. Use: SET_TRAY_SIZE width height\"}"); }
+                 }
+             } 
+             else if (strcmp(commandStr, "SET_PNP_SPEEDS") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling SET_PNP_SPEEDS\n", num);
+                 Serial.printf("    State Check (SET_PNP_SPEEDS): isMoving=%d, isHoming=%d\n", isMoving, isHoming);
+                 if (isMoving || isHoming) { Serial.println("    SET_PNP_SPEEDS Denied: Machine busy."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set speeds while machine is busy.\"}"); } 
+                 else {
+                     char* xs_str = strtok(NULL, " "); char* ys_str = strtok(NULL, " ");
+                     if (xs_str && ys_str) {
+                         float receivedXS = atof(xs_str); float receivedYS = atof(ys_str);
+                         if (receivedXS > 0 && receivedYS > 0) { Serial.printf("    SET_PNP_SPEEDS Accepted: XS=%.0f, YS=%.0f\n", receivedXS, receivedYS); patternXSpeed = receivedXS; patternYSpeed = receivedYS; saveSettings(); sendAllSettingsUpdate(num, "Speeds updated."); } 
+                         else { Serial.println("    SET_PNP_SPEEDS Denied: Invalid speed values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid speed values. Must be positive numbers.\"}"); }
+                     } else { Serial.println("    SET_PNP_SPEEDS Denied: Missing values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format for SET_PNP_SPEEDS. Use: SET_PNP_SPEEDS XS YS\"}"); }
+                 }
+             } 
+             else if (strcmp(commandStr, "SET_PAINT_GUN_OFFSET") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling SET_PAINT_GUN_OFFSET\n", num);
+                 Serial.printf("    State Check (SET_PAINT_GUN_OFFSET): isMoving=%d, isHoming=%d\n", isMoving, isHoming); 
+                 if (isMoving || isHoming) { Serial.println("    SET_PAINT_GUN_OFFSET Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set paint offset while busy.\"}"); } 
+                 else {
+                     char* gunX_str = strtok(NULL, " "); char* gunY_str = strtok(NULL, " ");
+                     if (gunX_str && gunY_str) { paintGunOffsetX_inch = atof(gunX_str); paintGunOffsetY_inch = atof(gunY_str); saveSettings(); Serial.printf("    SET_PAINT_GUN_OFFSET Accepted: Set to X:%.2f, Y:%.2f\n", paintGunOffsetX_inch, paintGunOffsetY_inch); sendAllSettingsUpdate(num, "Paint gun offset updated."); } 
+                     else { Serial.println("    SET_PAINT_GUN_OFFSET Denied: Invalid format."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid paint gun offset format.\"}"); }
+                 }
+             } 
+             else if (strcmp(commandStr, "SET_PAINT_SIDE_SETTINGS") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling SET_PAINT_SIDE_SETTINGS\n", num);
+                 Serial.printf("    State Check (SET_PAINT_SIDE_SETTINGS): isMoving=%d, isHoming=%d\n", isMoving, isHoming); 
+                 if (isMoving || isHoming) { Serial.println("    SET_PAINT_SIDE_SETTINGS Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set paint side settings while busy.\"}"); } 
+                 else {
+                     char* sideIdx_str = strtok(NULL, " "); char* zVal_str = strtok(NULL, " "); char* pitchVal_str = strtok(NULL, " "); char* patternVal_str = strtok(NULL, " "); char* speedVal_str = strtok(NULL, " ");
+                     if (sideIdx_str && zVal_str && pitchVal_str && patternVal_str && speedVal_str) {
+                         int sideIdx = atoi(sideIdx_str); float zVal = atof(zVal_str); int pitchVal = atoi(pitchVal_str); int patternVal = atoi(patternVal_str); float speedVal = atof(speedVal_str);
+                         if (sideIdx >= 0 && sideIdx < 4 && pitchVal >= 0 && pitchVal <= 180 && (patternVal == 0 || patternVal == 90)) { Serial.printf("    SET_PAINT_SIDE_SETTINGS Accepted: Side %d, Z=%.2f, P=%d, Pat=%d, S=%.0f\n", sideIdx, zVal, pitchVal, patternVal, speedVal); paintZHeight_inch[sideIdx] = zVal; paintPitchAngle[sideIdx] = pitchVal; paintPatternType[sideIdx] = patternVal; paintSpeed[sideIdx] = speedVal; saveSettings(); sendAllSettingsUpdate(num, "Paint side settings updated."); } 
+                         else { Serial.println("    SET_PAINT_SIDE_SETTINGS Denied: Invalid parameter values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid parameter values (Side 0-3, Pitch 0-180, Pattern 0/90).\"}"); }
+                     } else { Serial.println("    SET_PAINT_SIDE_SETTINGS Denied: Invalid format."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid paint side settings format.\"}"); }
+                 }
+             } 
 
-                    // 5. Return to home (optional, but good practice)
-                    if (!stopRequested) {
-                        Serial.println("  Cleaning: Returning XY to home...");
-                        moveToXYPositionInches(0.0, 0.0);
-                        while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning())) {
-                            webSocket.loop(); 
-                            if (stopRequested) break;
-                            yield();
-                        }
-                    }
-                    
-                    isMoving = false; // Clear busy flag
-                    if (stopRequested) {
-                         webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Clean Gun sequence stopped.\"}");
-                    } else {
-                        webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Clean Gun sequence completed.\"}");
-                    }
-                    sendCurrentPositionUpdate();
-                }
-            } else {
-                // Unknown command
-                Serial.print("Unknown command received: ");
-                Serial.println(cmd);
+            // --- Final Check for Unhandled Commands ---
+            if (!commandHandled) {
+                // Use commandStr here as cmd might be NULL or pointing elsewhere if args were parsed
+                Serial.printf("[%u] Unknown command received (Fell through all checks): '%s'\n", num, commandStr); 
+                webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Unknown command\"}");
             }
         }
         break;
-        
+        // ... other WStype cases ...
         case WStype_BIN:
-            // ... existing code ...
+             Serial.printf("[%u] WebSocket Received Binary Data (%d bytes)\n", num, length);
             break;
-            
+        case WStype_DISCONNECTED:
+             Serial.printf("[%u] WebSocket Client Disconnected!\n", num);
+             break;
+        case WStype_CONNECTED: {
+            IPAddress ip = webSocket.remoteIP(num);
+            Serial.printf("[%u] WebSocket Client Connected from %s url: %s\n", num, ip.toString().c_str(), payload);
+             String welcomeMsg = "Welcome! Connected to Paint + PnP Machine.";
+             sendAllSettingsUpdate(num, welcomeMsg);
+             if (allHomed) {
+                  sendCurrentPositionUpdate();
+             }
+            }
+             break;
+        case WStype_ERROR:
+             Serial.printf("[%u] WebSocket Error!\n", num);
+             break;
         default:
-            // ... existing code ...
-            break;
+             Serial.printf("[%u] WebSocket Unhandled Event Type: %d\n", num, type);
+             break;
+
     }
 }
 
