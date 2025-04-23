@@ -59,8 +59,6 @@ extern float paintZHeight_inch[4];
 extern int   paintPitchAngle[4];
 extern int   paintPatternType[4];
 extern float paintSpeed[4];
-extern float paintGunOffsetX_inch;
-extern float paintGunOffsetY_inch;
 extern float patternZSpeed; // General Z speed
 extern float patternZAccel; // General Z accel
 
@@ -79,6 +77,10 @@ extern const int ROT_POS_BACK_DEG;
 extern const int ROT_POS_RIGHT_DEG;
 extern const int ROT_POS_FRONT_DEG;
 extern const int ROT_POS_LEFT_DEG;
+
+// Pattern Types (replacing numeric values with descriptive constants)
+static const int PATTERN_UP_DOWN = 0;   // Used to be '0' - Vertical painting pattern
+static const int PATTERN_SIDEWAYS = 90; // Used to be '90' - Horizontal painting pattern
 
 // Servo Object
 extern Servo servo_pitch;

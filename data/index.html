@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 Paint Machine Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        /* ... existing styles ... */
+        .button-group {
+            margin-bottom: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px; /* Spacing between buttons */
+        }
+        .control-section button,
+        .setting-section button {
+            padding: 8px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        .control-section button:hover,
+        .setting-section button:hover {
+            background-color: #e0e0e0;
+        }
+        .control-section button:active,
+        .setting-section button:active {
+            background-color: #d0d0d0;
+        }
+        #stop-btn {
+            background-color: #f44336; /* Red */
+            color: white;
+            border-color: #d32f2f;
+        }
+        #stop-btn:hover {
+            background-color: #e53935;
+        }
+        .status-bar {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-align: center;
+        }
+        /* Style for the active toggle button */
+        .active-toggle {
+            background-color: #4CAF50; /* Green background */
+            color: white;
+            border: 1px solid #367c39;
+        }
+        .active-toggle:hover {
+            background-color: #45a049;
+        }
+        /* ... rest of styles ... */
+    </style>
+</head>
+<body>
+    <h1>ESP32 Paint Machine Control</h1>
+
+    <div id="status-bar" class="status-bar" style="background-color: grey;">Status: Connecting...</div>
+
+    <div class="main-container">
+        <div class="controls-column">
+
+            <div class="control-section">
+                <h3>Main Controls</h3>
+                <div class="button-group">
+                    <button id="home-btn" onclick="sendCommand('HOME')">Home All</button>
+                    <button id="stop-btn" onclick="sendCommand('STOP')">STOP</button>
+                    <button id="pressurize-btn" onclick="sendCommand('TOGGLE_PRESSURE')">Pressurize</button>
+                </div>
+                <div class="button-group">
+                    <button id="goto-5-5-0-btn" onclick="sendCommand('GOTO_5_5_0')">GoTo (5,5,0)</button>
+                    <button id="goto-20-20-0-btn" onclick="sendCommand('GOTO_20_20_0')">GoTo (20,20,0)</button>
+                    <button id="clean-gun-btn" onclick="sendCommand('CLEAN_GUN')">Clean Gun</button>
+                </div>
+            </div>
+
+            <!-- ... other control sections (Painting, Rotation, Calibration, PnP) ... -->
+
+        </div>
+
+        <div class="settings-column">
+            <!-- ... settings sections (Grid/Tray, Paint Side, PnP Positions) ... -->
+        </div>
+    </div>
+
+    <div id="log-output">
+        <h3>Log Output</h3>
+        <pre id="log-content"></pre>
+    </div>
+
+<script>
+    let websocket;
+    const logContent = document.getElementById('log-content');
+    let isPressurized = false; // Track pressure state globally
+
+    function logMessage(message) {
+        const now = new Date();
+        const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+        logContent.textContent += `[${timestamp}] ${message}\n`;
+        logContent.scrollTop = logContent.scrollHeight; // Auto-scroll
+        // Optional: Limit log size
+        const maxLogLines = 200;
+        const lines = logContent.textContent.split('\n');
+        if (lines.length > maxLogLines) {
+            logContent.textContent = lines.slice(lines.length - maxLogLines).join('\n');
+        }
+    }
+
+    function initWebSocket() {
+        const gateway = `ws://${window.location.hostname}/ws`;
+        logMessage(`Attempting to connect to WebSocket: ${gateway}`);
+        websocket = new WebSocket(gateway);
+
+        websocket.onopen = function(event) {
+            logMessage('WebSocket connection opened');
+            document.getElementById('status-bar').textContent = 'Status: Connected';
+            document.getElementById('status-bar').style.backgroundColor = 'lightyellow';
+            // Request initial status upon connection
+            sendCommand('GET_STATUS');
+        };
+
+        websocket.onclose = function(event) {
+            logMessage(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason || 'No reason given'}`);
+            document.getElementById('status-bar').textContent = 'Status: Disconnected';
+            document.getElementById('status-bar').style.backgroundColor = 'lightcoral';
+            // Attempt to reconnect after a delay
+            setTimeout(initWebSocket, 5000);
+        };
+
+        websocket.onerror = function(error) {
+            logMessage(`WebSocket error: ${error.message || 'Unknown error'}`);
+            // Don't change status bar on error, onclose will handle it
+        };
+
+        websocket.onmessage = function(event) {
+            logMessage(`Received: ${event.data}`); // Log raw message
+            try {
+                const data = JSON.parse(event.data);
+
+                // Update Status Display (includes pressure button update)
+                if (data.status) {
+                    updateStatusDisplay(data.status);
+                }
+
+                // Update Position Display
+                if (data.position) {
+                    updatePositionDisplay(data.position);
+                }
+
+                // Update Settings Display
+                if (data.settings) {
+                    updateSettingsDisplay(data.settings);
+                }
+
+            } catch (e) {
+                logMessage(`Error parsing message: ${e}`);
+                // Maybe it's a simple status string?
+                if (typeof event.data === 'string') {
+                     // Handle plain text messages if needed
+                }
+            }
+        };
+    }
+
+    // Function to update the main status display area
+    function updateStatusDisplay(statusData) {
+        const statusElement = document.getElementById('status-bar');
+        if (!statusElement) return;
+
+        let statusText = 'Unknown';
+        let statusColor = 'grey';
+
+        // Determine status text and color based on flags
+        if (statusData.isHoming) {
+            statusText = 'Homing';
+            statusColor = 'orange';
+        } else if (statusData.isMoving) {
+            statusText = 'Moving';
+            statusColor = 'orange';
+        } else if (statusData.inCalibrationMode) {
+            statusText = 'Calibration Active';
+            statusColor = '#ADD8E6'; // Light blue
+        } else if (statusData.inPickPlaceMode) {
+            statusText = 'Pick & Place Active';
+            statusColor = 'lightblue';
+        } else if (statusData.isPainting) {
+            statusText = 'Painting Active';
+            statusColor = '#FED8B1'; // Light orange/peach
+        } else if (statusData.allHomed) {
+            statusText = 'Ready';
+            statusColor = 'lightgreen';
+        } else {
+            statusText = 'Not Homed';
+            statusColor = 'lightcoral';
+        }
+
+        statusElement.textContent = `Status: ${statusText}`;
+        statusElement.style.backgroundColor = statusColor;
+
+        // Update pressure state variable from the status update
+        isPressurized = statusData.isPressurized || false;
+        updatePressureButton(); // Update the button based on the new state
+    }
+
+    // Function to update the Pressure button appearance
+    function updatePressureButton() {
+        const pressureBtn = document.getElementById('pressurize-btn');
+        if (pressureBtn) {
+            if (isPressurized) {
+                pressureBtn.textContent = 'Depressurize';
+                pressureBtn.classList.add('active-toggle'); // Add styling for ON state
+            } else {
+                pressureBtn.textContent = 'Pressurize';
+                pressureBtn.classList.remove('active-toggle'); // Remove styling for OFF state
+            }
+        }
+    }
+
+    // Function to update position display fields
+    function updatePositionDisplay(positionData) {
+        document.getElementById('current-x').textContent = positionData.x?.toFixed(3) || 'N/A';
+        document.getElementById('current-y').textContent = positionData.y?.toFixed(3) || 'N/A';
+        document.getElementById('current-z').textContent = positionData.z?.toFixed(3) || 'N/A';
+        document.getElementById('current-rot').textContent = positionData.rot?.toFixed(1) || 'N/A';
+    }
+
+    // Function to update all setting input fields
+    function updateSettingsDisplay(settingsData) {
+        // ... (update grid/tray, paint side, pnp positions)
+        // Example for grid:
+        document.getElementById('grid-cols').value = settingsData.gridCols || 0;
+        document.getElementById('grid-rows').value = settingsData.gridRows || 0;
+        document.getElementById('gap-x').textContent = settingsData.gapX?.toFixed(3) || 'N/A';
+        document.getElementById('gap-y').textContent = settingsData.gapY?.toFixed(3) || 'N/A';
+        document.getElementById('tray-width').value = settingsData.trayWidth || 0;
+        document.getElementById('tray-height').value = settingsData.trayHeight || 0;
+
+        // Update Paint Side Settings
+        for (let i = 0; i < 4; i++) {
+            document.getElementById(`paint-z-${i}`).value = settingsData[`paintZ_${i}`] || 0;
+            document.getElementById(`paint-pitch-${i}`).value = settingsData[`paintP_${i}`] || 0;
+            document.getElementById(`paint-pattern-${i}`).value = settingsData[`paintR_${i}`] || 0;
+            document.getElementById(`paint-speed-${i}`).value = settingsData[`paintS_${i}`] || 0;
+            document.getElementById(`paint-start-x-${i}`).value = settingsData[`paintStartX_${i}`] || 0;
+            document.getElementById(`paint-start-y-${i}`).value = settingsData[`paintStartY_${i}`] || 0;
+        }
+
+        // Update PnP Settings
+        document.getElementById('pnp-pick-x').value = settingsData.pnpPickX || 0;
+        document.getElementById('pnp-pick-y').value = settingsData.pnpPickY || 0;
+        document.getElementById('pnp-pick-z').value = settingsData.pnpPickZ || 0;
+        document.getElementById('pnp-place-z').value = settingsData.pnpPlaceZ || 0;
+        document.getElementById('first-place-x').value = settingsData.firstPlaceX || 0;
+        document.getElementById('first-place-y').value = settingsData.firstPlaceY || 0;
+
+        logMessage('Settings fields updated from ESP32.');
+    }
+
+    // Function to send a command to the ESP32 via WebSocket
+    function sendCommand(command) {
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            logMessage(`Sending: ${command}`);
+            websocket.send(command);
+        } else {
+            logMessage('WebSocket is not connected. Command not sent.');
+            alert('WebSocket connection lost. Please refresh the page.');
+        }
+    }
+
+    // Function to send JSON command
+    function sendJsonCommand(commandObj) {
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            const jsonString = JSON.stringify(commandObj);
+            logMessage(`Sending JSON: ${jsonString}`);
+            websocket.send(jsonString);
+        } else {
+            logMessage('WebSocket is not connected. JSON command not sent.');
+            alert('WebSocket connection lost. Please refresh the page.');
+        }
+    }
+
+    // Functions to handle saving settings from the UI
+    function saveGridTraySettings() {
+        const cols = document.getElementById('grid-cols').value;
+        const rows = document.getElementById('grid-rows').value;
+        const width = document.getElementById('tray-width').value;
+        const height = document.getElementById('tray-height').value;
+        sendCommand(`SET_GRID_SPACING ${cols} ${rows}`);
+        // Delay slightly before sending tray size to ensure grid is processed first
+        setTimeout(() => sendCommand(`SET_TRAY_SIZE ${width} ${height}`), 200);
+    }
+
+    function savePaintSideSettings(sideIndex) {
+        const z = document.getElementById(`paint-z-${sideIndex}`).value;
+        const pitch = document.getElementById(`paint-pitch-${sideIndex}`).value;
+        const pattern = document.getElementById(`paint-pattern-${sideIndex}`).value;
+        const speed = document.getElementById(`paint-speed-${sideIndex}`).value;
+        sendCommand(`SET_PAINT_SIDE_SETTINGS ${sideIndex} ${z} ${pitch} ${pattern} ${speed}`);
+    }
+
+    function savePaintStartPositions() {
+        const data = {};
+        for (let i = 0; i < 4; i++) {
+            data[`X${i}`] = parseFloat(document.getElementById(`paint-start-x-${i}`).value) || 0;
+            data[`Y${i}`] = parseFloat(document.getElementById(`paint-start-y-${i}`).value) || 0;
+        }
+        sendJsonCommand({ command: "SET_PAINT_STARTS", data: data });
+    }
+
+    function savePnpPositions() {
+        const pickX = document.getElementById('pnp-pick-x').value;
+        const pickY = document.getElementById('pnp-pick-y').value;
+        const pickZ = document.getElementById('pnp-pick-z').value;
+        const placeZ = document.getElementById('pnp-place-z').value;
+        const firstX = document.getElementById('first-place-x').value;
+        const firstY = document.getElementById('first-place-y').value;
+        // Need corresponding SET commands in ESP32 code
+        logMessage('Saving PnP positions (requires ESP32 command handlers)...');
+        // Example (needs ESP32 implementation):
+        // sendCommand(`SET_PNP_PICK ${pickX} ${pickY} ${pickZ}`);
+        // sendCommand(`SET_PNP_PLACE_Z ${placeZ}`);
+        // sendCommand(`SET_FIRST_PLACE_ABS ${firstX} ${firstY}`);
+    }
+
+
+    window.onload = initWebSocket;
+
+</script>
+
+</body>
+</html> 

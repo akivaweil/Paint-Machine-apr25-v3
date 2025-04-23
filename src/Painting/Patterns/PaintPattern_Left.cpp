@@ -12,7 +12,7 @@ bool executePaintPatternLeft(float speed, float accel) {
     int patternType = paintPatternType[sideIndex]; // Read pattern type for this side
 
     Serial.printf("[Pattern Sequence] Executing LEFT Side Pattern (Side %d) - Type: %s\n", 
-                  sideIndex, (patternType == 0) ? "Up/Down" : (patternType == 90 ? "Sideways" : "Unknown"));
+                  sideIndex, (patternType == PATTERN_UP_DOWN) ? "Up_Down" : (patternType == PATTERN_SIDEWAYS ? "Sideways" : "Unknown"));
 
     float currentX = 0.0, currentY = 0.0; // Track current TCP position
     bool stopped = false;
@@ -27,108 +27,121 @@ bool executePaintPatternLeft(float speed, float accel) {
     // 2. Calculate Spacing (Same for both patterns)
     float colSpacing = 0.0, rowSpacing = 0.0;
     calculatePaintingSpacing(colSpacing, rowSpacing); // Uses helper from PredefinedPatterns
-    float verticalSweepDistance = (placeGridRows > 1) ? ((placeGridRows - 1) * rowSpacing) : 0.0f;
-    float horizontalSweepDistance = (placeGridCols > 1) ? ((placeGridCols - 1) * colSpacing) : 0.0f;
-    Serial.printf("    Spacing: Col=%.3f, Row=%.3f, VertSweep=%.3f, HorizSweep=%.3f\n", 
-                  colSpacing, rowSpacing, verticalSweepDistance, horizontalSweepDistance);
+    Serial.printf("    Spacing: Col=%.3f, Row=%.3f\n", colSpacing, rowSpacing);
 
-    // --- Pattern Specific Setup & Execution --- 
+    // --- Common setup for both pattern types ---
+    // UPDATED: Rotation must complete first, then Z and XY positioning
+    float startX = 25.0f;  // Hard-coded start X per requirements
+    float startY = 30.0f;  // Hard-coded start Y per requirements
+    float startZ = paintZHeight_inch[sideIndex];
+    
+    // Position the machine - ROTARY MOVEMENT FIRST
+    Serial.println("  Positioning machine before sweeping...");
+    
+    // 1. First rotate to the target angle and wait for completion
+    Serial.printf("    Rotating to %d degrees and waiting for completion\n", targetAngle);
+    stopped = actionRotateTo(targetAngle);
+    if (stopped) { Serial.println("Pattern stopped during Rotation."); return true; }
+    
+    Serial.println("    Rotation complete!");
+    
+    // 2. Move Z to the painting height
+    Serial.printf("    Moving Z to paint height: %.3f\n", startZ);
+    stopped = actionMoveToZ(startZ, patternZSpeed, patternZAccel);
+    if (stopped) { Serial.println("Pattern stopped during Z Move."); return true; }
+    
+    // 3. Move XY to the starting position - only after rotation is complete
+    currentX = (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY;
+    currentY = (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY; // Assume synced
+    Serial.printf("    Moving to Start XY: (%.3f, %.3f)\n", startX, startY);
+    stopped = actionMoveToXY(startX, startY, speed, accel, currentX, currentY);
+    if (stopped) { Serial.println("Pattern stopped during initial XY Move."); return true; }
+    
+    Serial.println("  All positioning complete. Beginning painting pattern...");
 
-    if (patternType == 0) { // --- Up/Down Pattern --- 
-        Serial.println("  Executing Up/Down Pattern Logic for Left (User Defined)...");
+    // --- Pattern Specific Execution --- 
+    if (patternType == PATTERN_UP_DOWN) { // --- Up/Down Pattern --- 
+        Serial.println("  Executing Up_Down Pattern Logic for Left...");
 
-        float startX = paintStartX[sideIndex]; // NEW: Use global setting
-        float startY = paintStartY[sideIndex]; // NEW: Use global setting
-        bool sweepUpFirst = true; // Left Up/Down sweeps UP first
-        float verticalSweepDistUser = trayWidth_inch; // Sweep vertically by TRAY WIDTH
-        float horizontalShiftDistUser = 3.0f + placeGapY_inch; // Fixed shift + Y gap
-        Serial.printf("    Start Corner: Global Setting (%.3f, %.3f), First Sweep: UP ^^\n", startX, startY);
-        Serial.printf("    Sweep Vertical (TrayWidth): %.3f, Shift Horizontal (3 + GapY): %.3f (GapY=%.3f)\n", 
-                      verticalSweepDistUser, horizontalShiftDistUser, placeGapY_inch);
+        bool sweepDownFirst = true; // Left side sweeps DOWN first
+        
+        // Calculate sweep distance from tray height
+        float verticalSweepDistance = trayHeight_inch;
+        // Calculate shift distance for the pattern
+        float horizontalShiftDistance = 3.0f + placeGapX_inch;
+        
+        Serial.printf("    Vertical Sweep: %.3f (trayHeight), Horizontal Shift: %.3f (3 + %.3f)\n", 
+                      verticalSweepDistance, horizontalShiftDistance, placeGapX_inch);
 
-        // 4. Execute Action Sequence 
-        stopped = actionRotateTo(targetAngle);
-        if (stopped) { Serial.println("Pattern stopped during Rotation."); return true; }
-        float startZ = paintZHeight_inch[sideIndex];
-        Serial.printf("    Moving Z to paint height: %.3f\n", startZ);
-        stopped = actionMoveToZ(startZ, patternZSpeed, patternZAccel);
-        if (stopped) { Serial.println("Pattern stopped during Z Move."); return true; }
-        currentX = (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY;
-        currentY = (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY; // Assume synced
-        Serial.printf("    Moving to Start XY: (%.3f, %.3f)\n", startX, startY);
-        stopped = actionMoveToXY(startX, startY, speed, accel, currentX, currentY);
-        if (stopped) { Serial.println("Pattern stopped during initial XY Move."); return true; }
-
-        // 5. Column Loop (Up-Down Pattern - User Defined)
+        // 5. Column Loop (Up-Down Pattern) 
         Serial.println("  Starting column sweeps...");
-        bool currentSweepUp = sweepUpFirst; // Start with UP sweep
-        for (int c = 0; c < placeGridRows; ++c) { // FLIPPED: Loop ROWS times based on user feedback
-            Serial.printf("\n  -- Column/Sweep %d --\n", c); // Renamed label for clarity
+        bool currentSweepDown = sweepDownFirst;
+        
+        // UPDATED: Execute placeGridCols number of vertical sweeps
+        for (int c = 0; c < placeGridCols; ++c) {
+            Serial.printf("\n  -- Column %d --\n", c);
+            
             // Horizontal shift happens *before* the sweep for columns c > 0
             if (c > 0) {
-                Serial.printf("    Shifting horizontally by %.3f (3.0 + %.3f)\n", horizontalShiftDistUser, placeGapY_inch);
-                stopped = actionShiftXY(horizontalShiftDistUser, 0.0f, currentX, currentY, speed, accel); // Use user-defined horizontal shift
+                Serial.printf("    Shifting horizontally by %.3f (positive direction)\n", horizontalShiftDistance);
+                stopped = actionShiftXY(horizontalShiftDistance, 0.0f, currentX, currentY, speed, accel);
                 if (stopped) { Serial.printf("Pattern stopped during Shift to Column %d.\n", c); return true; }
             }
             
-            // Vertical sweep using user-defined distance (trayWidth_inch)
-            if (verticalSweepDistUser > 0.001) { 
-                // Note: actionSweepVertical takes sweepDown flag. sweepUp=true means sweepDown=false
-                bool sweepDown = !currentSweepUp;
-                Serial.printf("    Sweeping vertically (Up=%s) by %.3f\n", currentSweepUp ? "true" : "false", verticalSweepDistUser);
-                stopped = actionSweepVertical(sweepDown, verticalSweepDistUser, currentX, currentY, speed, accel);
+            // Vertical sweep
+            if (verticalSweepDistance > 0.001) { 
+                Serial.printf("    Sweeping vertically (Down=%s) by %.3f\n", currentSweepDown ? "true" : "false", verticalSweepDistance);
+                stopped = actionSweepVertical(currentSweepDown, verticalSweepDistance, currentX, currentY, speed, accel, sideIndex);
                 if (stopped) { Serial.printf("Pattern stopped during Vertical Sweep in Column %d.\n", c); return true; }
             } else {
                 Serial.println("    Skipping vertical sweep (distance is zero).");
             }
-            currentSweepUp = !currentSweepUp; // Alternate direction for next sweep
+            
+            // Alternate sweep direction for next column
+            currentSweepDown = !currentSweepDown;
         } // End column loop
 
-    } else if (patternType == 90) { // --- Sideways Pattern --- 
-        Serial.println("  Executing Sideways Pattern Logic for Left (User Defined)...");
+    } else if (patternType == PATTERN_SIDEWAYS) { // --- Sideways Pattern --- 
+        Serial.println("  Executing Sideways Pattern Logic for Left...");
         
-        float startX = paintStartX[sideIndex]; // NEW: Use global setting
-        float startY = paintStartY[sideIndex]; // NEW: Use global setting
-        bool sweepRightFirstUser = true; // Left Sideways sweeps RIGHT first
-        float horizontalSweepDistUser = trayHeight_inch; // Sweep horizontally by TRAY HEIGHT
-        float verticalShiftDistUser = 3.0f + placeGapX_inch; // Fixed shift + X gap
-        Serial.printf("    Start Corner: Global Setting (%.3f, %.3f), First Sweep: RIGHT >>>\n", startX, startY);
-        Serial.printf("    Sweep Horizontal (TrayHeight): %.3f, Shift Vertical (3 + GapX): %.3f (GapX=%.3f)\n", 
-                      horizontalSweepDistUser, verticalShiftDistUser, placeGapX_inch);
+        bool sweepLeftFirst = true; // Sweep LEFT first for Left side Sideways pattern
+        
+        // Calculate sweep distance from tray width
+        float horizontalSweepDistance = trayWidth_inch;
+        // Calculate shift distance for the pattern
+        float verticalShiftDistance = 3.0f + placeGapY_inch;
+        
+        Serial.printf("    First Sweep: LEFT <<<\n");
+        Serial.printf("    Horizontal Sweep: %.3f (trayWidth), Vertical Shift: %.3f (3 + %.3f)\n", 
+                      horizontalSweepDistance, verticalShiftDistance, placeGapY_inch);
 
-        // 4. Execute Action Sequence
-        stopped = actionRotateTo(targetAngle);
-        if (stopped) { Serial.println("Pattern stopped during Rotation."); return true; }
-        float startZ = paintZHeight_inch[sideIndex];
-        Serial.printf("    Moving Z to paint height: %.3f\n", startZ);
-        stopped = actionMoveToZ(startZ, patternZSpeed, patternZAccel);
-        if (stopped) { Serial.println("Pattern stopped during Z Move."); return true; }
-        currentX = (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY;
-        currentY = (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY; // Assume synced
-        Serial.printf("    Moving to Start XY: (%.3f, %.3f)\n", startX, startY);
-        stopped = actionMoveToXY(startX, startY, speed, accel, currentX, currentY);
-        if (stopped) { Serial.println("Pattern stopped during initial XY Move."); return true; }
-
-        // 5. Row Loop (Sideways Pattern - User Defined)
+        // 5. Row Loop (Sideways Pattern)
         Serial.println("  Starting row sweeps...");
-        bool currentSweepRight = sweepRightFirstUser;
-        for (int r = 0; r < placeGridCols; ++r) { // FLIPPED: Loop COLS times based on user feedback
-            Serial.printf("\n  -- Row/Sweep %d --\n", r); // Renamed label for clarity
+        bool currentSweepLeft = sweepLeftFirst; // Start with LEFT sweep (sweepLeft = true)
+        
+        // UPDATED: Execute placeGridRows number of horizontal sweeps
+        for (int r = 0; r < placeGridRows; ++r) {
+            Serial.printf("\n  -- Row %d --\n", r);
+            
             // Vertical shift happens *before* the sweep for rows r > 0
             if (r > 0) {
-                 Serial.printf("    Shifting vertically by %.3f (3.0 + %.3f)\n", verticalShiftDistUser, placeGapX_inch);
-                stopped = actionShiftXY(0.0f, verticalShiftDistUser, currentX, currentY, speed, accel); // Use user-defined vertical shift
+                Serial.printf("    Shifting vertically by %.3f (positive direction)\n", verticalShiftDistance);
+                stopped = actionShiftXY(0.0f, verticalShiftDistance, currentX, currentY, speed, accel);
                 if (stopped) { Serial.printf("Pattern stopped during Shift to Row %d.\n", r); return true; }
             }
-            // Horizontal sweep using user-defined distance (trayHeight_inch)
-            if (horizontalSweepDistUser > 0.001) { 
-                Serial.printf("    Sweeping horizontally (Right=%s) by %.3f\n", currentSweepRight ? "true" : "false", horizontalSweepDistUser);
-                stopped = actionSweepHorizontal(currentSweepRight, horizontalSweepDistUser, currentY, currentX, speed, accel);
+            
+            // Horizontal sweep
+            if (horizontalSweepDistance > 0.001) { 
+                Serial.printf("    Sweeping horizontally (Left=%s) by %.3f\n", currentSweepLeft ? "true" : "false", horizontalSweepDistance);
+                // Note: For Left sweep, we pass !currentSweepLeft to actionSweepHorizontal since it expects sweepRight
+                stopped = actionSweepHorizontal(!currentSweepLeft, horizontalSweepDistance, currentY, currentX, speed, accel, sideIndex);
                 if (stopped) { Serial.printf("Pattern stopped during Horizontal Sweep in Row %d.\n", r); return true; }
             } else {
                 Serial.println("    Skipping horizontal sweep (distance is zero).");
             }
-            currentSweepRight = !currentSweepRight;
+            
+            // Alternate sweep direction for next row
+            currentSweepLeft = !currentSweepLeft;
         } // End row loop
 
     } else { // --- Unknown Pattern Type --- 
@@ -138,6 +151,7 @@ bool executePaintPatternLeft(float speed, float accel) {
     }
 
     // --- Pattern Completion --- 
-    Serial.printf("[Pattern Sequence] LEFT Side Pattern (Type %d) COMPLETED.\n", patternType);
+    Serial.printf("[Pattern Sequence] LEFT Side Pattern (Type %s) COMPLETED.\n", 
+                  (patternType == PATTERN_UP_DOWN) ? "Up_Down" : (patternType == PATTERN_SIDEWAYS ? "Sideways" : "Unknown"));
     return false; // Completed successfully
 } 

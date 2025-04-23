@@ -30,7 +30,7 @@ const float pnpBorderWidth_inch = 0.25f; // Border around grid
 float paintZHeight_inch[4] = {1.0, 1.0, 1.0, 1.0};
 int paintPitchAngle[4] = {SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH, SERVO_INIT_POS_PITCH}; // Use defined constant from header (Replaced PITCH_SERVO_MAX)
 int paintPatternType[4] = {0, 90, 0, 90}; // Default: Back/Front=Up-Down(0), Left/Right=Sideways(90)
-float paintSpeed[4] = {10000.0, 10000.0, 10000.0, 10000.0};
+float paintSpeed[4] = {10.0f, 10.0f, 10.0f, 10.0f};   // Default paint speeds
 
 // NEW: Painting Start Positions (X, Y) for each side [Back, Right, Front, Left]
 float paintStartX[4] = { 11.5f, 29.5f, 11.5f, 8.0f }; // Defaults based on current logic
@@ -86,6 +86,7 @@ volatile bool inPickPlaceMode = false; // Tracks if PnP sequence is active
 volatile bool pendingHomingAfterPnP = false; // Flag to home after exiting PnP
 volatile bool inCalibrationMode = false; // Tracks if calibration mode is active
 volatile bool stopRequested = false; // <<< ADDED: Flag to signal stop request
+volatile bool isPressurized = false; // NEW: Flag for pressure pot state
 
 // NEW: Tray Dimension Variables
 float trayWidth_inch = 18.0; // Default tray width - UPDATED
@@ -138,12 +139,13 @@ void exitPickPlaceMode();
 void calculateAndSetGridSpacing(int cols, int rows); // Defined later in this file
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 void sendCurrentPositionUpdate(); // Forward declaration for position updates
-void sendAllSettingsUpdate(uint8_t specificClientNum, String message); // Helper to send all settings
+void sendCurrentSettings(uint8_t specificClientNum); // Replaced sendAllSettingsUpdate
 void saveSettings(); // Defined above
 void loadSettings(); // Defined above
 void setDefaultSettings(); // New helper function to set defaults
 void setPitchServoAngle(int angle);
 void movePitchServoSmoothly(int targetAngle);
+void initializeActuators(); // <<< ADDED FORWARD DECLARATION
 
 // Function to home a single axis (modified slightly for reuse)
 // Returns true if homing was successful, false otherwise (timeout or error)
@@ -1085,6 +1087,9 @@ void setup() {
     initializePaintGunControl();
     // --- End Paint Gun Control Initialization ---
 
+    // --- Actuator Pins Initialization ---
+    initializeActuators();
+
     // --- WiFi Connection ---
     // Serial.print("Connecting to ");
     // Serial.println(ssid);
@@ -1218,12 +1223,12 @@ void setup() {
     debouncer_pnp_cycle_button.interval(DEBOUNCE_INTERVAL); // Use same debounce as limit switches
     // Serial.println("Physical buttons initialized.");
 
-    // --- Setup Actuator Pins ---
-    pinMode(PICK_CYLINDER_PIN, OUTPUT);
-    pinMode(SUCTION_PIN, OUTPUT);
-    digitalWrite(PICK_CYLINDER_PIN, LOW); // Start retracted
-    digitalWrite(SUCTION_PIN, LOW);       // Start suction off
-    Serial.println("Actuator pins initialized.");
+    // --- Actuator Pins Initialization (REMOVED FROM HERE) ---
+    // pinMode(PICK_CYLINDER_PIN, OUTPUT); // REMOVED
+    // pinMode(SUCTION_PIN, OUTPUT);       // REMOVED
+    // digitalWrite(PICK_CYLINDER_PIN, LOW); // REMOVED
+    // digitalWrite(SUCTION_PIN, LOW);       // REMOVED
+    // Serial.println("Actuator pins initialized."); // REMOVED
 }
 
 // --- Arduino Loop ---
@@ -1701,7 +1706,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
             if (strcmp(commandStr, "GET_STATUS") == 0) {
                 commandHandled = true;
                 Serial.printf("[%u] Handling GET_STATUS\n", num);
-                sendAllSettingsUpdate(num, "Current status requested");
+                sendCurrentSettings(num);
                 if (allHomed) { sendCurrentPositionUpdate(); }
             } 
             else if (strcmp(commandStr, "EXIT_PICKPLACE") == 0) {
@@ -1810,7 +1815,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                  if (!inCalibrationMode) { Serial.println("    SET_OFFSET_FROM_CURRENT Denied: Not in calibration mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Must be in calibration mode.\"}"); } 
                  else if (isMoving || isHoming) { Serial.println("    SET_OFFSET_FROM_CURRENT Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Cannot set while moving.\"}"); } 
                  else {
-                     if (stepper_x && stepper_y_left) { pnpOffsetX_inch = (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY; pnpOffsetY_inch = (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY; saveSettings(); Serial.printf("    SET_OFFSET_FROM_CURRENT Accepted: Set to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch); sendAllSettingsUpdate(num, "PnP Offset set from current position."); } 
+                     if (stepper_x && stepper_y_left) { pnpOffsetX_inch = (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY; pnpOffsetY_inch = (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY; saveSettings(); Serial.printf("    SET_OFFSET_FROM_CURRENT Accepted: Set to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch); sendCurrentSettings(num); } 
                      else { Serial.println("    SET_OFFSET_FROM_CURRENT Denied: Steppers not available."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Steppers not available.\"}"); }
                  }
              } 
@@ -1821,7 +1826,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                  if (!inCalibrationMode) { Serial.println("    SET_FIRST_PLACE_ABS_FROM_CURRENT Denied: Not in calibration mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Must be in Calibration Mode to set First Place position from current.\"}"); } 
                  else if (isMoving || isHoming) { Serial.println("    SET_FIRST_PLACE_ABS_FROM_CURRENT Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Cannot set while moving.\"}"); } 
                  else {
-                     if (stepper_x && stepper_y_left) { placeFirstXAbsolute_inch = (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY; placeFirstYAbsolute_inch = (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY; saveSettings(); Serial.printf("    SET_FIRST_PLACE_ABS_FROM_CURRENT Accepted: Set to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch); sendAllSettingsUpdate(num, "First Place Absolute Pos set from current position."); } 
+                     if (stepper_x && stepper_y_left) { placeFirstXAbsolute_inch = (float)stepper_x->getCurrentPosition() / STEPS_PER_INCH_XY; placeFirstYAbsolute_inch = (float)stepper_y_left->getCurrentPosition() / STEPS_PER_INCH_XY; saveSettings(); Serial.printf("    SET_FIRST_PLACE_ABS_FROM_CURRENT Accepted: Set to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch); sendCurrentSettings(num); } 
                      else { Serial.println("    SET_FIRST_PLACE_ABS_FROM_CURRENT Denied: Steppers not available."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Internal stepper error.\"}"); }
                  }
              }
@@ -1962,7 +1967,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                  if (isMoving || isHoming || inPickPlaceMode) { Serial.println("    SET_PNP_OFFSET Denied: Machine busy or in PnP mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set offset while machine is busy or in PnP mode.\"}"); } 
                  else {
                      char* x_str = strtok(NULL, " "); char* y_str = strtok(NULL, " ");
-                     if (x_str && y_str) { pnpOffsetX_inch = atof(x_str); pnpOffsetY_inch = atof(y_str); saveSettings(); Serial.printf("    SET_PNP_OFFSET Accepted: Set to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch); sendAllSettingsUpdate(num, "PnP offset updated."); } 
+                     if (x_str && y_str) { pnpOffsetX_inch = atof(x_str); pnpOffsetY_inch = atof(y_str); saveSettings(); Serial.printf("    SET_PNP_OFFSET Accepted: Set to X: %.2f, Y: %.2f\n", pnpOffsetX_inch, pnpOffsetY_inch); sendCurrentSettings(num); } 
                      else { Serial.println("    SET_PNP_OFFSET Denied: Missing values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format for SET_PNP_OFFSET. Use: SET_PNP_OFFSET X Y\"}"); }
                  }
              } 
@@ -1973,7 +1978,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                  if (isMoving || isHoming || inPickPlaceMode) { Serial.println("    SET_FIRST_PLACE_ABS Denied: Machine busy or in PnP mode."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set first place while machine is busy or in PnP mode.\"}"); } 
                  else {
                      char* x_str = strtok(NULL, " "); char* y_str = strtok(NULL, " ");
-                     if (x_str && y_str) { placeFirstXAbsolute_inch = atof(x_str); placeFirstYAbsolute_inch = atof(y_str); saveSettings(); Serial.printf("    SET_FIRST_PLACE_ABS Accepted: Set to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch); sendAllSettingsUpdate(num, "First Place Absolute Pos updated."); } 
+                     if (x_str && y_str) { placeFirstXAbsolute_inch = atof(x_str); placeFirstYAbsolute_inch = atof(y_str); saveSettings(); Serial.printf("    SET_FIRST_PLACE_ABS Accepted: Set to X: %.2f, Y: %.2f\n", placeFirstXAbsolute_inch, placeFirstYAbsolute_inch); sendCurrentSettings(num); } 
                      else { Serial.println("    SET_FIRST_PLACE_ABS Denied: Missing values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid SET_FIRST_PLACE_ABS format.\"}"); }
                  }
              } 
@@ -2014,7 +2019,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                      char* xs_str = strtok(NULL, " "); char* ys_str = strtok(NULL, " ");
                      if (xs_str && ys_str) {
                          float receivedXS = atof(xs_str); float receivedYS = atof(ys_str);
-                         if (receivedXS > 0 && receivedYS > 0) { Serial.printf("    SET_PNP_SPEEDS Accepted: XS=%.0f, YS=%.0f\n", receivedXS, receivedYS); patternXSpeed = receivedXS; patternYSpeed = receivedYS; saveSettings(); sendAllSettingsUpdate(num, "Speeds updated."); } 
+                         if (receivedXS > 0 && receivedYS > 0) { Serial.printf("    SET_PNP_SPEEDS Accepted: XS=%.0f, YS=%.0f\n", receivedXS, receivedYS); patternXSpeed = receivedXS; patternYSpeed = receivedYS; saveSettings(); sendCurrentSettings(num); } 
                          else { Serial.println("    SET_PNP_SPEEDS Denied: Invalid speed values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid speed values. Must be positive numbers.\"}"); }
                      } else { Serial.println("    SET_PNP_SPEEDS Denied: Missing values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid format for SET_PNP_SPEEDS. Use: SET_PNP_SPEEDS XS YS\"}"); }
                  }
@@ -2026,7 +2031,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                  if (isMoving || isHoming) { Serial.println("    SET_PAINT_GUN_OFFSET Denied: Busy."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Cannot set paint offset while busy.\"}"); } 
                  else {
                      char* gunX_str = strtok(NULL, " "); char* gunY_str = strtok(NULL, " ");
-                     if (gunX_str && gunY_str) { paintGunOffsetX_inch = atof(gunX_str); paintGunOffsetY_inch = atof(gunY_str); saveSettings(); Serial.printf("    SET_PAINT_GUN_OFFSET Accepted: Set to X:%.2f, Y:%.2f\n", paintGunOffsetX_inch, paintGunOffsetY_inch); sendAllSettingsUpdate(num, "Paint gun offset updated."); } 
+                     if (gunX_str && gunY_str) { paintGunOffsetX_inch = atof(gunX_str); paintGunOffsetY_inch = atof(gunY_str); saveSettings(); Serial.printf("    SET_PAINT_GUN_OFFSET Accepted: Set to X:%.2f, Y:%.2f\n", paintGunOffsetX_inch, paintGunOffsetY_inch); sendCurrentSettings(num); } 
                      else { Serial.println("    SET_PAINT_GUN_OFFSET Denied: Invalid format."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid paint gun offset format.\"}"); }
                  }
              } 
@@ -2039,7 +2044,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                      char* sideIdx_str = strtok(NULL, " "); char* zVal_str = strtok(NULL, " "); char* pitchVal_str = strtok(NULL, " "); char* patternVal_str = strtok(NULL, " "); char* speedVal_str = strtok(NULL, " ");
                      if (sideIdx_str && zVal_str && pitchVal_str && patternVal_str && speedVal_str) {
                          int sideIdx = atoi(sideIdx_str); float zVal = atof(zVal_str); int pitchVal = atoi(pitchVal_str); int patternVal = atoi(patternVal_str); float speedVal = atof(speedVal_str);
-                         if (sideIdx >= 0 && sideIdx < 4 && pitchVal >= 0 && pitchVal <= 180 && (patternVal == 0 || patternVal == 90)) { Serial.printf("    SET_PAINT_SIDE_SETTINGS Accepted: Side %d, Z=%.2f, P=%d, Pat=%d, S=%.0f\n", sideIdx, zVal, pitchVal, patternVal, speedVal); paintZHeight_inch[sideIdx] = zVal; paintPitchAngle[sideIdx] = pitchVal; paintPatternType[sideIdx] = patternVal; paintSpeed[sideIdx] = speedVal; saveSettings(); sendAllSettingsUpdate(num, "Paint side settings updated."); } 
+                         if (sideIdx >= 0 && sideIdx < 4 && pitchVal >= 0 && pitchVal <= 180 && (patternVal == 0 || patternVal == 90)) { Serial.printf("    SET_PAINT_SIDE_SETTINGS Accepted: Side %d, Z=%.2f, P=%d, Pat=%d, S=%.0f\n", sideIdx, zVal, pitchVal, patternVal, speedVal); paintZHeight_inch[sideIdx] = zVal; paintPitchAngle[sideIdx] = pitchVal; paintPatternType[sideIdx] = patternVal; paintSpeed[sideIdx] = speedVal; saveSettings(); sendCurrentSettings(num); } 
                          else { Serial.println("    SET_PAINT_SIDE_SETTINGS Denied: Invalid parameter values."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid parameter values (Side 0-3, Pitch 0-180, Pattern 0/90).\"}"); }
                      } else { Serial.println("    SET_PAINT_SIDE_SETTINGS Denied: Invalid format."); webSocket.sendTXT(num, "{\"status\":\"Error\", \"message\":\"Invalid paint side settings format.\"}"); }
                  }
@@ -2108,6 +2113,16 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                      }
                  }
              }
+             else if (strcmp(commandStr, "TOGGLE_PRESSURE") == 0) {
+                 commandHandled = true;
+                 Serial.printf("[%u] Handling TOGGLE_PRESSURE\n", num);
+                 // Toggle the state and the pin
+                 isPressurized = !isPressurized;
+                 digitalWrite(PRESSURE_POT_PIN, isPressurized ? HIGH : LOW);
+                 Serial.printf("    Pressure Pot state toggled to: %s\n", isPressurized ? "ON" : "OFF");
+                 // Send an update to all clients reflecting the new state
+                 sendCurrentSettings(255); // 255 = broadcast
+             }
 
             // --- Final Check for Unhandled Commands ---
             if (!commandHandled) {
@@ -2128,7 +2143,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
             IPAddress ip = webSocket.remoteIP(num);
             Serial.printf("[%u] WebSocket Client Connected from %s url: %s\n", num, ip.toString().c_str(), payload);
              String welcomeMsg = "Welcome! Connected to Paint + PnP Machine.";
-             sendAllSettingsUpdate(num, welcomeMsg);
+             sendCurrentSettings(num);
              if (allHomed) {
                   sendCurrentPositionUpdate();
              }
@@ -2154,7 +2169,8 @@ void stopAllMovement() {
     
     // Double-check directly with pins for safety
     digitalWrite(PAINT_GUN_PIN, LOW);
-    digitalWrite(PRESSURE_POT_PIN, LOW);
+    digitalWrite(PRESSURE_POT_PIN, LOW); // <<< Ensure pressure pot is off on stop
+    isPressurized = false;               // <<< Update state flag
     
     // Stop all motors
     stepper_x->forceStop();
@@ -2182,7 +2198,8 @@ void sendCurrentSettings(uint8_t specificClientNum) {
     statusObj["allHomed"] = allHomed;
     statusObj["inCalibrationMode"] = inCalibrationMode;
     statusObj["inPickPlaceMode"] = inPickPlaceMode;
-    // Add other states as needed, e.g., isPainting
+    statusObj["isPainting"] = isPainting; // <<< Added isPainting state
+    statusObj["isPressurized"] = isPressurized; // <<< ADDED Pressure State
 
     // Current Position (Tool Center Point - TCP)
     JsonObject positionObj = doc.createNestedObject("position");
@@ -2248,5 +2265,17 @@ void sendCurrentSettings(uint8_t specificClientNum) {
         // Serial.printf("[DEBUG] Broadcasting settings update: %s\\n", output.c_str());
         webSocket.broadcastTXT(output);
     }
+}
+
+// Actuator Pins Initialization
+void initializeActuators() {
+    pinMode(PICK_CYLINDER_PIN, OUTPUT);
+    pinMode(SUCTION_PIN, OUTPUT);
+    pinMode(PRESSURE_POT_PIN, OUTPUT);
+    digitalWrite(PICK_CYLINDER_PIN, LOW); // Start retracted
+    digitalWrite(SUCTION_PIN, LOW);       // Start suction off
+    digitalWrite(PRESSURE_POT_PIN, LOW);  // Start pressure pot off
+    isPressurized = false;                // Ensure state matches pin
+    Serial.println("Actuator pins initialized (Pick, Suction, Pressure Pot).");
 }
 
