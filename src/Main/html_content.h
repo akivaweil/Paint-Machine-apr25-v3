@@ -129,12 +129,12 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     </div>
 
     <div class="setting-box">
-        <h4>PnP Speed (k steps/s)</h4>
-        <label for="patternXSpeed">X Spd:</label>
-        <input type="number" id="patternXSpeed" value="20"> <!-- Default k steps/s -->
+        <h4>Movement Speed</h4>
+        <label for="patternXSpeed">X Speed:</label>
+        <input type="number" id="patternXSpeed" value="20">
         <br>
-        <label for="patternYSpeed">Y Spd:</label>
-        <input type="number" id="patternYSpeed" value="20"> <!-- Default k steps/s -->
+        <label for="patternYSpeed">Y Speed:</label>
+        <input type="number" id="patternYSpeed" value="20">
         <br>
         <button onclick="sendSpeedSettings()" class="button setting-button" style="margin-top: 10px;">Set Speeds</button>
     </div>
@@ -290,8 +290,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Pattern:</label>
         <select id="paintR_3" onchange="setPaintSideSettings(3)">
-          <option value="0" selected>Up-Down</option>
-          <option value="90">Left-Right</option>
+          <option value="0">Up-Down</option>
+          <option value="90" selected>Left-Right</option>
         </select>
         
         <label for="paintS_3">Speed:</label>
@@ -311,8 +311,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         
         <label>Pattern:</label>
         <select id="paintR_1" onchange="setPaintSideSettings(1)">
-          <option value="0" selected>Up-Down</option>
-          <option value="90">Left-Right</option>
+          <option value="0">Up-Down</option>
+          <option value="90" selected>Left-Right</option>
         </select>
         
         <label for="paintS_1">Speed:</label>
