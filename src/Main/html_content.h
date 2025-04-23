@@ -63,6 +63,18 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       -moz-appearance: textfield; /* Firefox */
     }
 
+    /* Apply consistent styling to number inputs in setting-box */
+    .setting-box input[type=number] {
+      padding: 8px;
+      width: 45px; /* Match input-group width */
+      text-align: right;
+      margin-bottom: 5px;
+      background-color: #555;
+      color: #eee;
+      border: 1px solid #777;
+      border-radius: 5px;
+    }
+
     .exit-button { background-color: #f44336; } /* Red for Exit button */
     .exit-button:active { background-color: #d32f2f; } /* Darker red on click */
 
