@@ -136,7 +136,6 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
         <label for="patternYSpeed">Y Speed:</label>
         <input type="number" id="patternYSpeed" value="20">
         <br>
-        <button onclick="sendSpeedSettings()" class="button setting-button" style="margin-top: 10px;">Set Speeds</button>
     </div>
 
     <button id="pnpButton" class="button" onclick="sendCommand('ENTER_PICKPLACE')">Pick and Place Mode</button>
