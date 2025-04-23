@@ -784,9 +784,13 @@ void paintSide(int sideIndex) {
         float currentTcpX = startTcpX;
         float currentTcpY = startTcpY;
 
+        // DEBUG: Print grid size before loop
+        Serial.printf("[DEBUG paintSide] placeGridCols = %d\n", placeGridCols);
+
         // Execute Up-Down Path - Directly move, no pre-calculation
         Serial.printf("Executing Up-Down Pattern for Side %d\n", sideIndex);
         for (int c = 0; c < placeGridCols; ++c) {
+            Serial.printf("[DEBUG paintSide] Entering Up-Down loop for column %d\n", c);
             float targetTcpX;
             if (sideIndex == 2) { // FRONT - Move Right
                 targetTcpX = startRefX + (c * colSpacing);
@@ -802,11 +806,19 @@ void paintSide(int sideIndex) {
                 currentTcpX = targetTcpX;
             }
             
-            // Determine vertical target Y (full sweep)
-            float targetTcpY = movingDown ? (startTcpY - (placeGridRows - 1) * rowSpacing) : startTcpY;
+            // Calculate vertical target positions for serpentine pattern
+            float topY = startTcpY;
+            float bottomY = startTcpY - (placeGridRows - 1) * rowSpacing;
             
-            // Move vertically only if not the first pass OR if the first pass needs to move (e.g., if starting at bottom)
-            // Simplified: Always move vertically after the horizontal positioning for the column.
+            // Determine the direction of the vertical sweep based on the column index and side
+            float targetTcpY;
+            if (sideIndex == 2) { // FRONT - Opposite serpentine
+                targetTcpY = movingDown ? bottomY : topY;
+            } else { // BACK
+                targetTcpY = movingDown ? bottomY : topY;
+            }
+            
+            // Move vertically 
             Serial.printf("  Col %d (%s): Sweeping Vertically to Y=%.3f\n", c, movingDown ? "Down" : "Up", targetTcpY);
             moveToXYPositionInches_Paint(currentTcpX, targetTcpY, speed, accel);
             if (stopRequested) { /* Abort */ isMoving = false; webSocket.broadcastTXT("{\"status\":\"Ready\", \"message\":\"Painting stopped by user.\"}"); return; }
