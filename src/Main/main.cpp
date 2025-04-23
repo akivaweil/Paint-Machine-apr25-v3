@@ -201,6 +201,10 @@ void homeAllAxes() {
     inPickPlaceMode = false;
 
     isHoming = true;
+    
+    // Ensure paint gun is deactivated before homing begins
+    deactivatePaintGun(true);
+    
     webSocket.broadcastTXT("{\"status\":\"Homing\", \"message\":\"Homing all axes simultaneously...\"}");
     // Serial.println("Starting Full Homing Sequence (all axes simultaneously)...");
 
@@ -778,7 +782,11 @@ void paintSide(int sideIndex) {
     Serial.println("Painting sequence complete. Performing post-pattern actions.");
     
     // Ensure paint gun is deactivated after pattern completion
-    deactivatePaintGun();
+    deactivatePaintGun(true);
+    
+    // Double-check directly with pins for safety
+    digitalWrite(PAINT_GUN_PIN, LOW);
+    digitalWrite(PRESSURE_POT_PIN, LOW);
     
     // 10. Move Z Axis Up to safe height (0)
     Serial.println("Moving Z axis up to safe height (0)...");
@@ -1574,11 +1582,13 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                      Serial.println("    CLEAN_GUN Accepted: Starting sequence."); webSocket.sendTXT(num, "{\"status\":\"Busy\", \"message\":\"Starting Clean Gun sequence...\"}");
                      isMoving = true; stopRequested = false; 
                      // Sequence...
-                     rotateToAbsoluteDegree(0); if (stopRequested) { Serial.println("Clean Gun stopped during Rotation"); isMoving = false; return; } 
-                     moveToXYPositionInches_Paint(3.0, 10.0, patternXSpeed / 2, patternXAccel / 2); if (stopRequested) { Serial.println("Clean Gun stopped during XY Move"); isMoving = false; return; } 
+                     rotateToAbsoluteDegree(0); if (stopRequested) { Serial.println("Clean Gun stopped during Rotation"); deactivatePaintGun(true); isMoving = false; return; } 
+                     moveToXYPositionInches_Paint(3.0, 10.0, patternXSpeed / 2, patternXAccel / 2); if (stopRequested) { Serial.println("Clean Gun stopped during XY Move"); deactivatePaintGun(true); isMoving = false; return; } 
                      activatePaintGun(); unsigned long sprayStartTime = millis();
                      while (millis() - sprayStartTime < 3000) { webSocket.loop(); if (stopRequested) { Serial.println("Clean Gun stopped during Spray"); break; } yield(); }
-                     deactivatePaintGun(); if (stopRequested) { isMoving = false; return; } 
+                     // Always deactivate the paint gun, regardless of stop status
+                     deactivatePaintGun(true); 
+                     if (stopRequested) { isMoving = false; return; } 
                      if (!stopRequested) { moveToXYPositionInches(0.0, 0.0); while ((stepper_x && stepper_x->isRunning()) || (stepper_y_left && stepper_y_left->isRunning()) || (stepper_y_right && stepper_y_right->isRunning())) { webSocket.loop(); if (stopRequested) { Serial.println("Clean Gun stopped during Return Home"); break; } yield(); } }
                      isMoving = false; 
                      if (stopRequested) { Serial.println("Clean Gun stopped by user."); } 
@@ -1720,5 +1730,31 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
              break;
 
     }
+}
+
+// Function to stop all movement
+void stopAllMovement() {
+    isMoving = false;
+    isHoming = false;
+    
+    // Ensure paint gun is deactivated when stopping
+    deactivatePaintGun(true);
+    
+    // Double-check directly with pins for safety
+    digitalWrite(PAINT_GUN_PIN, LOW);
+    digitalWrite(PRESSURE_POT_PIN, LOW);
+    
+    // Stop all motors
+    stepper_x->forceStop();
+    stepper_y_left->forceStop();
+    stepper_y_right->forceStop();
+    stepper_z->forceStop();
+    if (stepper_rot) {
+        stepper_rot->forceStop();
+    }
+    
+    // Send status message
+    webSocket.broadcastTXT("{\"status\":\"Stopped\", \"message\":\"All movement stopped. Paint gun deactivated.\"}");
+    // Serial.println("All movement stopped.");
 }
 

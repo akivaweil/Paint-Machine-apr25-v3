@@ -33,9 +33,10 @@ void deactivatePaintGun(bool deactivatePressurePot) {
     // Deactivate pressure pot if requested
     if (deactivatePressurePot) {
         digitalWrite(PRESSURE_POT_PIN, LOW);
+        Serial.println("Paint Gun and Pressure Pot deactivated");
+    } else {
+        Serial.println("Paint Gun deactivated (Pressure Pot remains active)");
     }
-    
-    // Serial.println("Paint Gun deactivated");
 }
 
 void updatePaintGunForMovement(bool isXMovement, int patternType) {
