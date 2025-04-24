@@ -107,7 +107,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       <button class="button" onclick="sendCommand('PAINT_ALL')" style="background-color: #ffc107;">Paint All Sides</button>
       <br>
       <button class="button" onclick="sendCommand('CLEAN_GUN')" style="background-color: #00bcd4;">Clean Gun</button>
-      <button id="pnpButton" class="button" onclick="sendCommand('ENTER_PICKPLACE')">Pick and Place Mode</button> 
+      <button id="pressurizeButton" class="button" onclick="sendCommand('TOGGLE_PRESSURE')" style="background-color: #607d8b;">Toggle Pressure</button> <!-- Added Pressure Button -->
+      <button id="pnpButton" class="button" onclick="sendCommand('ENTER_PICKPLACE')">Pick and Place Mode</button>
       <button id="enterCalibrationButton" class="button" onclick="sendCommand('ENTER_CALIBRATION')">Manual Mode</button> <!-- Moved from Manual section -->
     </div>
   </div>
