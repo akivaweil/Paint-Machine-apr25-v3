@@ -17,6 +17,10 @@
 #include "../Painting/Patterns/PaintPatterns_SideSpecific.h" // <<< INCLUDE NEW HEADER
 #include "../Web/WebHandler.h"
 
+// === Pin Definitions (Additions/Overrides if not in header) ===
+#define PRESSURE_PIN 13 // Added for pressure control
+#define PRESSURE_POT_PIN PRESSURE_PIN // Alias for clarity
+
 // === Global Variable Definitions ===
 
 // PnP Item Dimensions (NEW - Defined here, declared extern in SharedGlobals.h)
@@ -86,7 +90,7 @@ volatile bool inPickPlaceMode = false; // Tracks if PnP sequence is active
 volatile bool pendingHomingAfterPnP = false; // Flag to home after exiting PnP
 volatile bool inCalibrationMode = false; // Tracks if calibration mode is active
 volatile bool stopRequested = false; // <<< ADDED: Flag to signal stop request
-volatile bool isPressurized = false; // NEW: Flag for pressure pot state
+volatile bool isPressurePotOn = false; // Renamed: Flag for pressure pot state
 
 // NEW: Tray Dimension Variables
 float trayWidth_inch = 18.0; // Default tray width - UPDATED
@@ -1014,6 +1018,13 @@ void setup() {
     Serial.println("\n=== Booting Paint + PnP Machine ==="); // Clearer boot message
     Serial.println("Loading settings from NVS...");
 
+    // Initialize Pressure Pin
+    pinMode(PRESSURE_PIN, OUTPUT);
+    digitalWrite(PRESSURE_PIN, LOW); // Default to OFF
+
+    // Initialize Preferences
+    preferences.begin("paint-machine", false); // Use "paint-machine" namespace, read/write mode
+
     // Load settings from NVS
     loadSettings();
 
@@ -1038,7 +1049,7 @@ void setup() {
     }
     // ---
 
-    // Serial.println("Booting...");
+    Serial.println("Booting...");
 
     // --- Servo Setup ---
     // Serial.println("Initializing Servos...");
@@ -1229,6 +1240,10 @@ void setup() {
     // digitalWrite(PICK_CYLINDER_PIN, LOW); // REMOVED
     // digitalWrite(SUCTION_PIN, LOW);       // REMOVED
     // Serial.println("Actuator pins initialized."); // REMOVED
+
+    // Initialize WebSockets server
+    webSocket.begin();
+    webSocket.onEvent(webSocketEvent);
 }
 
 // --- Arduino Loop ---
@@ -1696,11 +1711,11 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
             Serial.printf("[%u] WebSocket Parsed Command: '%s'\n", num, commandStr);
 
             // --- Log Current State BEFORE Handling Command ---
-            Serial.printf("    State Before Check: allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d\n", 
-                          allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode);
+            Serial.printf("    State Before Check: allHomed=%d, isMoving=%d, isHoming=%d, inPnP=%d, inCalib=%d, isPressurePotOn=%d\n",
+                          allHomed, isMoving, isHoming, inPickPlaceMode, inCalibrationMode, isPressurePotOn); // Added pressure pot state
 
             // --- Handle Command (Revised Structure) ---
-            bool commandHandled = false; 
+            bool commandHandled = false;
 
             // --- Simple Commands (No Args or State Checks needed beyond basic parse) ---
             if (strcmp(commandStr, "GET_STATUS") == 0) {
@@ -2113,15 +2128,15 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                      }
                  }
              }
-             else if (strcmp(commandStr, "TOGGLE_PRESSURE") == 0) {
+             else if (strcmp(commandStr, "TOGGLE_PRESSURE_POT") == 0) { // Renamed command
                  commandHandled = true;
-                 Serial.printf("[%u] Handling TOGGLE_PRESSURE\n", num);
+                 Serial.printf("[%u] Handling TOGGLE_PRESSURE_POT\n", num);
                  // Toggle the state and the pin
-                 isPressurized = !isPressurized;
-                 digitalWrite(PRESSURE_POT_PIN, isPressurized ? HIGH : LOW);
-                 Serial.printf("    Pressure Pot state toggled to: %s\n", isPressurized ? "ON" : "OFF");
+                 isPressurePotOn = !isPressurePotOn; // Renamed state variable
+                 digitalWrite(PRESSURE_POT_PIN, isPressurePotOn ? HIGH : LOW); // Use alias
+                 Serial.printf("    Pressure Pot state toggled to: %s\n", isPressurePotOn ? "ON" : "OFF");
                  // Send an update to all clients reflecting the new state
-                 sendCurrentSettings(255); // 255 = broadcast
+                 sendCurrentSettings(255); // 255 = broadcast (will include updated state)
              }
 
             // --- Final Check for Unhandled Commands ---
@@ -2169,8 +2184,8 @@ void stopAllMovement() {
     
     // Double-check directly with pins for safety
     digitalWrite(PAINT_GUN_PIN, LOW);
-    digitalWrite(PRESSURE_POT_PIN, LOW); // <<< Ensure pressure pot is off on stop
-    isPressurized = false;               // <<< Update state flag
+    digitalWrite(PRESSURE_POT_PIN, LOW); // <<< Use correct pin alias
+    isPressurePotOn = false;               // <<< Update correct state flag
     
     // Stop all motors
     stepper_x->forceStop();
@@ -2199,7 +2214,7 @@ void sendCurrentSettings(uint8_t specificClientNum) {
     statusObj["inCalibrationMode"] = inCalibrationMode;
     statusObj["inPickPlaceMode"] = inPickPlaceMode;
     statusObj["isPainting"] = isPainting; // <<< Added isPainting state
-    statusObj["isPressurized"] = isPressurized; // <<< ADDED Pressure State
+    statusObj["isPressurized"] = isPressurePotOn; // <<< Renamed state variable
 
     // Current Position (Tool Center Point - TCP)
     JsonObject positionObj = doc.createNestedObject("position");
@@ -2275,7 +2290,7 @@ void initializeActuators() {
     digitalWrite(PICK_CYLINDER_PIN, LOW); // Start retracted
     digitalWrite(SUCTION_PIN, LOW);       // Start suction off
     digitalWrite(PRESSURE_POT_PIN, LOW);  // Start pressure pot off
-    isPressurized = false;                // Ensure state matches pin
+    isPressurePotOn = false;                // Ensure state matches pin
     Serial.println("Actuator pins initialized (Pick, Suction, Pressure Pot).");
 }
 

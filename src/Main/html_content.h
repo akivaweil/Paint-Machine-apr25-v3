@@ -107,8 +107,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       <button class="button" onclick="sendCommand('PAINT_ALL')" style="background-color: #ffc107;">Paint All Sides</button>
       <br>
       <button class="button" onclick="sendCommand('CLEAN_GUN')" style="background-color: #00bcd4;">Clean Gun</button>
-      <button id="pressurizeButton" class="button" onclick="togglePressure()" style="background-color: #ff9800;">Pressurize</button>
-      <button id="pnpButton" class="button" onclick="sendCommand('ENTER_PICKPLACE')">Pick and Place Mode</button> 
+      <button id="pressurizeButton" class="button" onclick="togglePressure()" style="background-color: #607d8b;">Pressure Pot OFF</button> <!-- Modified for state toggle -->
+      <button id="pnpButton" class="button" onclick="sendCommand('ENTER_PICKPLACE')">Pick and Place Mode</button>
       <button id="enterCalibrationButton" class="button" onclick="sendCommand('ENTER_CALIBRATION')">Manual Mode</button> <!-- Moved from Manual section -->
     </div>
   </div>
@@ -426,7 +426,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     var inPickPlaceMode = false;
     var inCalibrationMode = false;
     var stopRequested = false;
-    var isPressurized = false; // New state variable for pressure pot
+    var isPressurePotOn = false; // Renamed state variable for pressure pot
     
     // UI element references
     var homeButton = document.getElementById('homeButton');
@@ -441,7 +441,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
     var jogStepInput = document.getElementById('jogStep');
     var currentPosDisplaySpan = document.getElementById('currentPosDisplay');
     var stopButton = document.querySelector('.exit-button');
-    var pressurizeButton = document.getElementById('pressurizeButton');
+    var pressurizeButton = document.getElementById('pressurizeButton'); // Added reference
 
     // Paint control elements
     var paintBackButton = document.getElementById('paintBackButton');
@@ -645,13 +645,19 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
             // --- Add JS Debugging ---
             console.log(`JS Debug: Received status='${data.status}'`);
-            console.log(`JS Debug: Before state update: isMoving=${isMoving}, isHoming=${isHoming}`);
+            console.log(`JS Debug: Before state update: isMoving=${isMoving}, isHoming=${isHoming}, isPressurePotOn=${isPressurePotOn}`); // Added pressure state
             // --- End JS Debugging ---
 
             // Update JavaScript state variables FIRST
             isMoving = (data.status === "Busy" || data.status === "Moving" || data.status === "Homing");
             isHoming = (data.status === "Homing");
-            
+
+            // Update pressure pot state if received from ESP32
+            if (data.hasOwnProperty('pressurePotState')) { // Renamed key
+                isPressurePotOn = data.pressurePotState;
+                console.log(`JS Debug: Received explicit pressure pot state=${isPressurePotOn}`);
+            }
+
             // Check for explicit homed status if available
             if (data.hasOwnProperty('homed')) {
                 console.log(`JS Debug: Received explicit homed status=${data.homed}`);
@@ -836,7 +842,8 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
             // --- Final step: Update all button states based on the latest JS state variables ---
             // Determine if PnP mode is active based on statusDiv content or pnpButton text
             let inPnPMode = statusDiv.innerHTML.includes('PickPlaceReady') || pnpButton.innerHTML.includes('Exit');
-            console.log(`JS Debug: Before final enableButtons: isMoving=${isMoving}, isHoming=${isHoming}, inPnPMode=${inPnPMode}`); // JS Debug
+            console.log(`JS Debug: Before final enableButtons: isMoving=${isMoving}, isHoming=${isHoming}, inPnPMode=${inPnPMode}, isPressurePotOn=${isPressurePotOn}`); // Renamed pressure state var
+            updatePressurizeButtonUI(); // Update pressure button UI based on state
             enableButtons(); // ADDED single call here
 
             // NEW: Update Paint Start Position fields
@@ -985,6 +992,10 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
            pnpButton.disabled = true;
            console.log("  -> OVERRIDE: pnpButton disabled because sequence complete.");
       }
+
+      // Pressure Button Logic
+      pressurizeButton.disabled = !connected || isMoving || isHoming || inCalibMode || inPickAndPlaceMode;
+      console.log(`  -> pressurizeButton.disabled = ${pressurizeButton.disabled} (!${connected} || ${isMoving} || ${isHoming} || ${inCalibMode} || ${inPickAndPlaceMode})`);
   }
 
   // Replace the simple load event listener with a proper initialization function
@@ -1008,7 +1019,7 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
       jogStepInput = document.getElementById('jogStep');
       currentPosDisplaySpan = document.getElementById('currentPosDisplay');
       stopButton = document.querySelector('.exit-button');
-      pressurizeButton = document.getElementById('pressurizeButton'); // Add pressurize button reference
+      pressurizeButton = document.getElementById('pressurizeButton'); // Added reference
 
       // Paint control elements
       paintBackButton = document.getElementById('paintBackButton');
@@ -1502,21 +1513,26 @@ const char HTML_PROGMEM[] PROGMEM = R"rawliteral(
 
   // Add the togglePressure function to handle the pressure button
   function togglePressure() {
-      isPressurized = !isPressurized;
-      updatePressurizeButtonUI();
-      sendCommand('TOGGLE_PRESSURE');
+      if (!pressurizeButton.disabled) { // Only act if the button is enabled
+          isPressurePotOn = !isPressurePotOn; // Toggle local state immediately for responsiveness
+          updatePressurizeButtonUI(); // Update UI immediately
+          sendCommand('TOGGLE_PRESSURE_POT'); // Renamed command sent to ESP32
+          console.log(`Pressure Pot toggled. New state: ${isPressurePotOn}. Sent command.`);
+      }
   }
   
   // Function to update the pressurize button appearance
   function updatePressurizeButtonUI() {
       if (pressurizeButton) {
-          if (isPressurized) {
-              pressurizeButton.innerHTML = "Depressurize";
-              pressurizeButton.style.backgroundColor = "#e91e63"; // Pink/red when pressurized
+          if (isPressurePotOn) {
+              pressurizeButton.textContent = 'Pressure Pot ON'; // Updated text
+              pressurizeButton.style.backgroundColor = '#4CAF50'; // Green for ON
           } else {
-              pressurizeButton.innerHTML = "Pressurize";
-              pressurizeButton.style.backgroundColor = "#ff9800"; // Orange when not pressurized
+              pressurizeButton.textContent = 'Pressure Pot OFF'; // Updated text
+              pressurizeButton.style.backgroundColor = '#607d8b'; // Gray for OFF
           }
+      } else {
+        console.error("Pressurize button element not found in updatePressurizeButtonUI");
       }
   }
 
